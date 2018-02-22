@@ -29,6 +29,8 @@ class Pix2PixModel(BaseModel):
                 self.load_network(self.netD, 'D', opt.which_epoch)
 
         if self.isTrain:
+            # Image pool not doing anything in this model because size is set to zero, just
+            # returns input as Variable
             self.fake_AB_pool = ImagePool(opt.pool_size)
             # define loss functions
             self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
@@ -43,6 +45,7 @@ class Pix2PixModel(BaseModel):
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
+            # Just a linear decay over the last 100 iterations, by default
             for optimizer in self.optimizers:
                 self.schedulers.append(networks.get_scheduler(optimizer, opt))
 
@@ -53,6 +56,7 @@ class Pix2PixModel(BaseModel):
         print('-----------------------------------------------')
 
     def set_input(self, input):
+        # This model is B to A by default
         AtoB = self.opt.which_direction == 'AtoB'
         input_A = input['A' if AtoB else 'B']
         input_B = input['B' if AtoB else 'A']
@@ -86,6 +90,7 @@ class Pix2PixModel(BaseModel):
         self.loss_D_fake = self.criterionGAN(pred_fake, False)
 
         # Real
+        # In this case real_A, the input, is our conditional vector
         real_AB = torch.cat((self.real_A, self.real_B), 1)
         pred_real = self.netD(real_AB)
         self.loss_D_real = self.criterionGAN(pred_real, True)
@@ -97,8 +102,13 @@ class Pix2PixModel(BaseModel):
 
     def backward_G(self):
         # First, G(A) should fake the discriminator
+        # Note that we don't detach here because we DO want to backpropagate
+        # to the generator this time
         fake_AB = torch.cat((self.real_A, self.fake_B), 1)
         pred_fake = self.netD(fake_AB)
+
+        # We only optimise with respect to the fake prediction because
+        # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
         self.loss_G_GAN = self.criterionGAN(pred_fake, True)
 
         # Second, G(A) = B
@@ -109,8 +119,11 @@ class Pix2PixModel(BaseModel):
         self.loss_G.backward()
 
     def optimize_parameters(self):
+        # Doesn't do anything with discriminator, just populates input (conditional), 
+        # target and generated data in object
         self.forward()
 
+        # Nothing fancy, no cyclical business to worry about
         self.optimizer_D.zero_grad()
         self.backward_D()
         self.optimizer_D.step()

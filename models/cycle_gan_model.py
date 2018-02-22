@@ -6,7 +6,7 @@ import util.util as util
 from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
-
+import sys
 
 class CycleGANModel(BaseModel):
     def name(self):
@@ -18,6 +18,7 @@ class CycleGANModel(BaseModel):
         # The naming conversion is different from those used in the paper
         # Code (paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
 
+        # ngf - number of generator filters on first conv layer
         self.netG_A = networks.define_G(opt.input_nc, opt.output_nc,
                                         opt.ngf, opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
         self.netG_B = networks.define_G(opt.output_nc, opt.input_nc,
@@ -125,6 +126,8 @@ class CycleGANModel(BaseModel):
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
         # Identity loss
+        # Is this just saying if we feed an A type image to an A generator it shouldnt change anything?
+        # G_A generates a fake B and vice versa
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed.
             idt_A = self.netG_A(self.real_B)
@@ -154,6 +157,7 @@ class CycleGANModel(BaseModel):
         loss_G_B = self.criterionGAN(pred_fake, True)
 
         # Forward cycle loss
+        # Reconstruct A from B
         rec_A = self.netG_B(fake_B)
         loss_cycle_A = self.criterionCycle(rec_A, self.real_A) * lambda_A
 

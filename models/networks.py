@@ -86,6 +86,11 @@ def get_norm_layer(norm_type='instance'):
 def get_scheduler(optimizer, opt):
     if opt.lr_policy == 'lambda':
         def lambda_rule(epoch):
+            # epoch = current epoch number, opt.epoch_count = starting epoch, opt.niter = num iterations at original lr
+            # opt.niter_decay = num iterations to linearly decay over
+            # So once total number of epochs (including those we skipped if we didn't start from zero) is greater than
+            # opt.niter, start decaying
+            # I'm not sure that +1 should be there in the denominator
             lr_l = 1.0 - max(0, epoch + 1 + opt.epoch_count - opt.niter) / float(opt.niter_decay + 1)
             return lr_l
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
@@ -162,6 +167,7 @@ def print_network(net):
 # When LSGAN is used, it is basically same as MSELoss,
 # but it abstracts away the need to create the target label tensor
 # that has the same size as the input
+# So discriminators just give pixel by pixel test result?
 class GANLoss(nn.Module):
     def __init__(self, use_lsgan=True, target_real_label=1.0, target_fake_label=0.0,
                  tensor=torch.FloatTensor):

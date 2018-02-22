@@ -16,10 +16,12 @@ class ImagePool():
         return_images = []
         for image in images:
             image = torch.unsqueeze(image, 0)
+            # If pool is not full, append image
             if self.num_imgs < self.pool_size:
                 self.num_imgs = self.num_imgs + 1
                 self.images.append(image)
                 return_images.append(image)
+            # Otherwise 50% chance to return same image, or swap it out for image in pool
             else:
                 p = random.uniform(0, 1)
                 if p > 0.5:
