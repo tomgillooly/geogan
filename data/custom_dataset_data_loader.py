@@ -12,6 +12,9 @@ def CreateDataset(opt):
     elif opt.dataset_mode == 'unaligned':
         from data.unaligned_dataset import UnalignedDataset
         dataset = UnalignedDataset()
+    elif opt.dataset_mode == 'geo':
+        from data.geo_dataset import GeoDataset
+        dataset = GeoDataset()
     elif opt.dataset_mode == 'single':
         from data.single_dataset import SingleDataset
         dataset = SingleDataset()

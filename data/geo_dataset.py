@@ -9,10 +9,10 @@ from PIL import Image
 from collections import namedtuple, OrderedDict
 
 from skimage.transform import resize
-import skimage.io as io
+# import skimage.io as io
 import numpy as np
 
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 
 # def threshold(img, threshold=5000):
@@ -84,7 +84,7 @@ class GeoDataset(BaseDataset):
             A = np.array(data).reshape((cols, rows), order='F')
 
         # A = Image.fromarray(A.astype(np.uint8))
-        A = resize(A, (self.opt.loadSize * 2, self.opt.loadSize))
+        A = resize(A, (self.opt.loadSize * 2, self.opt.loadSize), mode='constant')
 
         w = A.shape[1]
         h = A.shape[0]
@@ -97,7 +97,7 @@ class GeoDataset(BaseDataset):
         
         def threshold(pixel):
             if pixel.shape:
-                return map(threshold, pixel)
+                return list(map(threshold, pixel))
 
             if pixel < -1000:
                 return 0
@@ -106,7 +106,8 @@ class GeoDataset(BaseDataset):
             else:
                 return 0.5
 
-        B = np.array(map(threshold, A))*255
+        B = list(map(threshold, A))
+        B = np.array(B)*255
         
         A = np.interp(A, [np.min(A), np.max(A)], [0, 255])
 
