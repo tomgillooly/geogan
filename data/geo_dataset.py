@@ -9,10 +9,9 @@ from PIL import Image
 from collections import namedtuple, OrderedDict
 
 from skimage.transform import resize
-# import skimage.io as io
+from skimage.morphology import skeletonize
 import numpy as np
 
-# import matplotlib.pyplot as plt
 
 
 # def threshold(img, threshold=5000):
@@ -37,9 +36,15 @@ class GeoDataset(BaseDataset):
         self.root = opt.dataroot
         self.dir_A = os.path.join(opt.dataroot, opt.phase)
         self.A_paths = []
+        self.process = opt.process
 
         for root, dirs, files in os.walk(self.dir_A):
             self.A_paths += [os.path.join(root, file) for file in files]
+
+        self.A_paths = [path for path in self.A_paths if path.endswith(".dat")]
+
+        assert(len(self.A_paths) > 0)
+        self.A_paths = sorted(self.A_paths)
 
         assert(opt.resize_or_crop == 'resize_and_crop')
 
@@ -47,7 +52,7 @@ class GeoDataset(BaseDataset):
         A_path = self.A_paths[index]
 
         def format_correct(file_path):
-            with open(file_path) as  file:
+            with open(file_path) as file:
                 line = file.readline()
                 file.seek(0)
 
@@ -95,18 +100,35 @@ class GeoDataset(BaseDataset):
         A = A[h_offset:h_offset + self.opt.fineSize,
                w_offset:w_offset + self.opt.fineSize]
         
-        def threshold(pixel):
-            if pixel.shape:
-                return list(map(threshold, pixel))
+        def threshold(image):
+            def threshold_pixel(pixel):
+                if pixel.shape:
+                    return list(map(threshold_pixel, pixel))
 
-            if pixel < -1000:
-                return 0
-            elif pixel > 1000:
-                return 1
-            else:
-                return 0.5
+                if pixel < -1000:
+                    return 0
+                elif pixel > 1000:
+                    return 1
+                else:
+                    return 0.5
+            
+            return list(map(threshold_pixel, A))
 
-        B = list(map(threshold, A))
+        def skeleton(image):
+            pos = image > 1000
+            neg = image < -1000
+
+            pos_skel = skeletonize(pos)
+            neg_skel = skeletonize(neg)
+
+            return 0.5 + pos_skel*0.5 - neg_skel*0.5
+
+        B = np.zeros(A.shape)
+        if self.process == "threshold":
+            B = threshold(A)
+        elif self.process == "skeleton":
+            B = skeleton(A)
+
         B = np.array(B)*255
         
         A = np.interp(A, [np.min(A), np.max(A)], [0, 255])
@@ -143,7 +165,7 @@ class GeoDataset(BaseDataset):
             B = tmp.unsqueeze(0)
 
         return {'A': A, 'B': B,
-                'A_paths': A_path, 'B_paths': os.path.join(os.path.splitext(A_path)[0], '_thresh', os.path.splitext(A_path)[1])}
+                'A_paths': A_path, 'B_paths': os.path.splitext(A_path)[0] + '_thresh' + os.path.splitext(A_path)[1]}
 
     def __len__(self):
         return len(self.A_paths)
@@ -153,15 +175,29 @@ class GeoDataset(BaseDataset):
 
 
 # if __name__ == '__main__':
+# import matplotlib.pyplot as plt
+# import skimage.io as io
+
 # os.chdir('..')
 # print(os.getcwd())
-# options_dict = dict(dataroot='geology/data', phase='', resize_or_crop='resize_and_crop', loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=True)
+# # options_dict = dict(dataroot='/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT', phase='train', resize_or_crop='resize_and_crop', loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=True)
+# options_dict = dict(dataroot='geology/data', phase='train', process="skeleton", resize_or_crop='resize_and_crop', loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=True)
 # Options = namedtuple('Options', options_dict.keys())
 # opt = Options(*options_dict.values())
 # geo = GeoDataset()
 # geo.initialize(opt)
 
 # stuff = geo[1]
+
+# # dataloader = torch.utils.data.DataLoader(
+# #     geo,
+# #     batch_size=1,
+# #     shuffle=True,
+# #     num_workers=1)
+
+# # for i, batch in enumerate(dataloader):
+# #     print(i)
+
 # plt.subplot(121)
 # io.imshow(stuff['A'].numpy().transpose(1, 2, 0).squeeze())
 # plt.subplot(122)
