@@ -9,7 +9,8 @@ from PIL import Image
 from collections import namedtuple, OrderedDict
 
 from skimage.transform import resize
-from skimage.morphology import skeletonize
+from skimage.morphology import skeletonize, label, remove_small_objects, remove_small_holes
+from skimage.measure import regionprops
 import numpy as np
 
 
@@ -103,7 +104,7 @@ class GeoDataset(BaseDataset):
         def threshold(image):
             def threshold_pixel(pixel):
                 if pixel.shape:
-                    return list(map(threshold_pixel, pixel))
+                    return np.array(list(map(threshold_pixel, pixel)))
 
                 if pixel < -1000:
                     return 0
@@ -112,7 +113,7 @@ class GeoDataset(BaseDataset):
                 else:
                     return 0.5
             
-            return list(map(threshold_pixel, A))
+            return np.array(list(map(threshold_pixel, A)))
 
         def skeleton(image):
             pos = image > 1000
@@ -123,11 +124,30 @@ class GeoDataset(BaseDataset):
 
             return 0.5 + pos_skel*0.5 - neg_skel*0.5
 
+
+        def remove_small_components(image):
+            conn_comp = label((image*2).astype(int), neighbors=8, background=1)
+            # print("Number of connected components =", num_comp)
+
+            areas = [prop.area for prop in regionprops(conn_comp, image)]
+
+            perc_70th = sorted(areas)[int(.7 * len(areas))]
+
+            remove_small_objects(conn_comp, perc_70th-1, connectivity=2, in_place=True)
+            remove_small_holes(conn_comp, perc_70th-1, connectivity=2, in_place=True)
+
+            image[np.where(np.invert(conn_comp.astype(bool)))] = 0.5
+
+            return image
+
         B = np.zeros(A.shape)
-        if self.process == "threshold":
+        if self.process.startswith("threshold"):
             B = threshold(A)
-        elif self.process == "skeleton":
+        elif self.process.startswith("skeleton"):
             B = skeleton(A)
+
+        if "remove_small_components" in self.process:
+            B = remove_small_components(B)
 
         B = np.array(B)*255
         
@@ -181,7 +201,7 @@ class GeoDataset(BaseDataset):
 # os.chdir('..')
 # print(os.getcwd())
 # # options_dict = dict(dataroot='/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT', phase='train', resize_or_crop='resize_and_crop', loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=True)
-# options_dict = dict(dataroot='geology/data', phase='train', process="skeleton", resize_or_crop='resize_and_crop', loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=True)
+# options_dict = dict(dataroot='geology/data', phase='train', process="threshold_remove_small_components", resize_or_crop='resize_and_crop', loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=True)
 # Options = namedtuple('Options', options_dict.keys())
 # opt = Options(*options_dict.values())
 # geo = GeoDataset()
@@ -197,6 +217,9 @@ class GeoDataset(BaseDataset):
 
 # # for i, batch in enumerate(dataloader):
 # #     print(i)
+
+# print(np.max(stuff['A'].numpy()), np.min(stuff['A'].numpy()))
+# print(np.max(stuff['B'].numpy()), np.min(stuff['B'].numpy()))
 
 # plt.subplot(121)
 # io.imshow(stuff['A'].numpy().transpose(1, 2, 0).squeeze())
