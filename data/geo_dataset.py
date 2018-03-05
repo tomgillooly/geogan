@@ -49,6 +49,14 @@ class GeoDataset(BaseDataset):
 
         assert(opt.resize_or_crop == 'resize_and_crop')
 
+        self.inpaint_regions_file = os.path.join(opt.dataroot, opt.phase, 'inpaint_regions')
+        
+        if os.path.exists(self.inpaint_regions_file):
+            with open(self.inpaint_regions_file) as file:
+                self.inpaint_regions = [(float(x), float(y)) for line in file.read().split() for x, y in line]
+        else:
+            self.inpaint_regions = [None]*len(self.A_paths)
+
     def __getitem__(self, index):
         A_path = self.A_paths[index]
 
@@ -90,16 +98,16 @@ class GeoDataset(BaseDataset):
             A = np.array(data).reshape((cols, rows), order='F')
 
         # A = Image.fromarray(A.astype(np.uint8))
-        A = resize(A, (self.opt.loadSize * 2, self.opt.loadSize), mode='constant')
+        A = resize(A, (self.opt.fineSize * 2, self.opt.fineSize), mode='constant')
 
-        w = A.shape[1]
-        h = A.shape[0]
+        # w = A.shape[1]
+        # h = A.shape[0]
         
-        w_offset = random.randint(0, max(0, w - self.opt.fineSize - 1))
-        h_offset = random.randint(0, max(0, h - self.opt.fineSize - 1))
+        # w_offset = random.randint(0, max(0, w - self.opt.fineSize - 1))
+        # h_offset = random.randint(0, max(0, h - self.opt.fineSize - 1))
 
-        A = A[h_offset:h_offset + self.opt.fineSize,
-               w_offset:w_offset + self.opt.fineSize]
+        # A = A[h_offset:h_offset + self.opt.fineSize,
+        #        w_offset:w_offset + self.opt.fineSize]
         
         def threshold(image):
             def threshold_pixel(pixel):
@@ -115,38 +123,69 @@ class GeoDataset(BaseDataset):
             
             return np.array(list(map(threshold_pixel, A)))
 
-        def skeleton(image):
-            pos = image > 1000
-            neg = image < -1000
+        # def skeleton(image):
+        #     pos = image > 1000
+        #     neg = image < -1000
 
-            pos_skel = skeletonize(pos)
-            neg_skel = skeletonize(neg)
+        #     pos_skel = skeletonize(pos)
+        #     neg_skel = skeletonize(neg)
 
-            return 0.5 + pos_skel*0.5 - neg_skel*0.5
+        #     return 0.5 + pos_skel*0.5 - neg_skel*0.5
 
 
-        def remove_small_components(image):
-            conn_comp = label((image*2).astype(int), neighbors=8, background=1)
-            # print("Number of connected components =", num_comp)
+        # def remove_small_components(image):
+        #     conn_comp = label((image*2).astype(int), neighbors=8, background=1)
 
-            areas = [prop.area for prop in regionprops(conn_comp, image)]
+        #     areas = [prop.area for prop in regionprops(conn_comp, image)]
 
-            perc_70th = sorted(areas)[int(.7 * len(areas))]
+        #     perc_70th = sorted(areas)[int(.7 * len(areas))]
+        #     remove_small_objects(conn_comp, perc_70th-1, connectivity=2, in_place=True)
 
-            remove_small_objects(conn_comp, perc_70th-1, connectivity=2, in_place=True)
+        #     image[np.where(np.invert(conn_comp.astype(bool)))] = 0.5
 
-            image[np.where(np.invert(conn_comp.astype(bool)))] = 0.5
+        #     return image
 
-            return image
+        # B = np.zeros(A.shape)
+        # if self.process.startswith("threshold"):
+        B = threshold(A)
+        # elif self.process.startswith("skeleton"):
+        #     B = skeleton(A)
 
-        B = np.zeros(A.shape)
-        if self.process.startswith("threshold"):
-            B = threshold(A)
-        elif self.process.startswith("skeleton"):
-            B = skeleton(A)
+        # if "remove_small_components" in self.process:
+        #     B = remove_small_components(B)
 
-        if "remove_small_components" in self.process:
-            B = remove_small_components(B)
+        if not self.inpaint_regions[index]:
+            with open(self.inpaint_regions_file, 'w') as file:
+                # file_inpaint_regions = [(float(x), float(y)) for line in file.read().split() for x, y in line]
+                # file.seek(0)
+
+                w = A.shape[1]
+                h = A.shape[0]
+
+                w_offset = random.randint(0, max(0, w - 20 - 1))
+                h_offset = random.randint(0, max(0, h - 20 - 1))
+
+                self.inpaint_regions[index] = (w_offset, h_offset)
+                # file_inpaint_regions[index] = (w_offset, h_offset)
+
+                for region in self.inpaint_regions:
+                    if not region:
+                        file.write("0, 0")
+                    else:
+                        file.write("{0}, {1}".format(w_offset, h_offset))
+        
+        w_offset, h_offset = self.inpaint_regions[index]
+        # print(w_offset, h_offset)
+
+        # io.imshow(B)
+        # io.show()
+
+        B[h_offset:h_offset+100, w_offset:w_offset+100] = 0.5
+        # io.imshow(B)
+        # io.show()
+
+        # print(A.shape)
+        # print(B.shape)
 
         B = np.array(B)*255
         
