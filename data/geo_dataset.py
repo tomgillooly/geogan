@@ -117,9 +117,9 @@ class GeoDataset(BaseDataset):
                 if pixel < -1000:
                     return 0
                 elif pixel > 1000:
-                    return 1
+                    return 2
                 else:
-                    return 0.5
+                    return 1
             
             return np.array(list(map(threshold_pixel, A)))
 
@@ -147,7 +147,6 @@ class GeoDataset(BaseDataset):
 
         # B = np.zeros(A.shape)
         # if self.process.startswith("threshold"):
-        B = threshold(A)
         # elif self.process.startswith("skeleton"):
         #     B = skeleton(A)
 
@@ -162,8 +161,8 @@ class GeoDataset(BaseDataset):
                 w = A.shape[1]
                 h = A.shape[0]
 
-                w_offset = random.randint(0, max(0, w - 20 - 1))
-                h_offset = random.randint(0, max(0, h - 20 - 1))
+                w_offset = random.randint(0, max(0, w - 100 - 1))
+                h_offset = random.randint(0, max(0, h - 100 - 1))
 
                 self.inpaint_regions[index] = (w_offset, h_offset)
                 # file_inpaint_regions[index] = (w_offset, h_offset)
@@ -180,49 +179,63 @@ class GeoDataset(BaseDataset):
         # io.imshow(B)
         # io.show()
 
-        B[h_offset:h_offset+100, w_offset:w_offset+100] = 0.5
         # io.imshow(B)
         # io.show()
 
         # print(A.shape)
         # print(B.shape)
 
+        B[h_offset:h_offset+100, w_offset:w_offset+100] = 0
+        
+        A_cont = np.interp(A, [np.min(A), np.max(A)], [0, 255])
+        B_cont = np.interp(B, [np.min(B), np.max(B)], [0, 255])
+        
+        A = threshold(A)
+        B = threshold(B)
+        
+        A = np.array(A)*255
         B = np.array(B)*255
-        
-        A = np.interp(A, [np.min(A), np.max(A)], [0, 255])
 
-        if len(A.shape) < 3:
-            A = np.tile(A, (3, 1, 1)).transpose(1, 2, 0)
-            B = np.tile(B, (3, 1, 1)).transpose(1, 2, 0)
-        
-        A = transforms.ToTensor()(A)
-        B = transforms.ToTensor()(B)
 
-        A = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(A)
-        B = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(B)
+        def process_image(A, B):
+            if len(A.shape) < 3:
+                A = np.tile(A, (3, 1, 1)).transpose(1, 2, 0)
+                B = np.tile(B, (3, 1, 1)).transpose(1, 2, 0)
+            
+            A = transforms.ToTensor()(A)
+            B = transforms.ToTensor()(B)
 
-        if self.opt.which_direction == 'BtoA':
-            input_nc = self.opt.output_nc
-            output_nc = self.opt.input_nc
-        else:
-            input_nc = self.opt.input_nc
-            output_nc = self.opt.output_nc
+            A = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(A)
+            B = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(B)
 
-        if (not self.opt.no_flip) and random.random() < 0.5:
-            idx = [i for i in range(A.size(2) - 1, -1, -1)]
-            idx = torch.LongTensor(idx)
-            A = A.index_select(2, idx)
-            B = B.index_select(2, idx)
+            if self.opt.which_direction == 'BtoA':
+                input_nc = self.opt.output_nc
+                output_nc = self.opt.input_nc
+            else:
+                input_nc = self.opt.input_nc
+                output_nc = self.opt.output_nc
 
-        if input_nc == 1:  # RGB to gray
-            tmp = A[0, ...] * 0.299 + A[1, ...] * 0.587 + A[2, ...] * 0.114
-            A = tmp.unsqueeze(0)
+            if (not self.opt.no_flip) and random.random() < 0.5:
+                idx = [i for i in range(A.size(2) - 1, -1, -1)]
+                idx = torch.LongTensor(idx)
+                A = A.index_select(2, idx)
+                B = B.index_select(2, idx)
 
-        if output_nc == 1:  # RGB to gray
-            tmp = B[0, ...] * 0.299 + B[1, ...] * 0.587 + B[2, ...] * 0.114
-            B = tmp.unsqueeze(0)
+            if input_nc == 1:  # RGB to gray
+                tmp = A[0, ...] * 0.299 + A[1, ...] * 0.587 + A[2, ...] * 0.114
+                A = tmp.unsqueeze(0)
+
+            if output_nc == 1:  # RGB to gray
+                tmp = B[0, ...] * 0.299 + B[1, ...] * 0.587 + B[2, ...] * 0.114
+                B = tmp.unsqueeze(0)
+
+            return A, B
+
+        A, B = process_image(A, B)
+        A_cont, B_cont = process_image(A_cont, B_cont)
 
         return {'A': A, 'B': B,
+                'A_discrete': A_discrete, 'B_discrete': B_discrete,
                 'A_paths': A_path, 'B_paths': os.path.splitext(A_path)[0] + '_thresh' + os.path.splitext(A_path)[1]}
 
     def __len__(self):
