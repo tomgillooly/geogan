@@ -134,7 +134,6 @@ class GeoDataset(BaseDataset):
             perc_70th = sorted(areas)[int(.7 * len(areas))]
 
             remove_small_objects(conn_comp, perc_70th-1, connectivity=2, in_place=True)
-            remove_small_holes(conn_comp, perc_70th-1, connectivity=2, in_place=True)
 
             image[np.where(np.invert(conn_comp.astype(bool)))] = 0.5
 
