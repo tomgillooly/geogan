@@ -121,16 +121,16 @@ class GeoDataset(BaseDataset):
                 else:
                     return 1
             
-            return np.array(list(map(threshold_pixel, A)))
+            return np.array(list(map(threshold_pixel, image)))
 
-        # def skeleton(image):
-        #     pos = image > 1000
-        #     neg = image < -1000
+        def skeleton(image):
+            pos = image > 1
+            neg = image < 1 
 
-        #     pos_skel = skeletonize(pos)
-        #     neg_skel = skeletonize(neg)
+            pos_skel = skeletonize(pos)
+            neg_skel = skeletonize(neg)
 
-        #     return 0.5 + pos_skel*0.5 - neg_skel*0.5
+            return 1 + pos_skel - neg_skel
 
 
         # def remove_small_components(image):
@@ -193,6 +193,10 @@ class GeoDataset(BaseDataset):
         
         A = threshold(A)
         B = threshold(B)
+
+        if self.process.startswith("skeleton"):
+            A = skeleton(A)
+            B = skeleton(B)
         
         # A = np.array(A)*255
         # B = np.array(B)*255
@@ -217,8 +221,8 @@ class GeoDataset(BaseDataset):
                 A = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(A)
                 B = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(B)
             else:
-                A = torch.LongTensor(A)
-                B = torch.LongTensor(B)
+                A = torch.LongTensor(A.transpose(2, 0, 1))
+                B = torch.LongTensor(B.transpose(2, 0, 1))
 
             if self.opt.which_direction == 'BtoA':
                 input_nc = self.opt.output_nc

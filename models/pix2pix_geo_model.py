@@ -27,9 +27,13 @@ class Pix2PixGeoModel(BaseModel):
         self.netG_cont = nn.Conv2d(in_channels=3, out_channels=opt.output_nc, kernel_size=1)
         self.netG_disc = nn.Sequential(self.netG, nn.LogSoftmax(dim=3))
 
+        if len(self.gpu_ids) > 0:
+            self.netG_cont.cuda(self.gpu_ids[0])
+            self.netG_disc.cuda(self.gpu_ids[0])
+
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
-            self.netD = networks.define_D(opt.output_nc, opt.ndf,
+            self.netD = networks.define_D(opt.input_nc + opt.output_nc, opt.ndf,
                                           opt.which_model_netD,
                                           opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, self.gpu_ids)
         if not self.isTrain or opt.continue_train:
@@ -91,7 +95,7 @@ class Pix2PixGeoModel(BaseModel):
         self.real_B_discrete = Variable(self.input_B, requires_grad=False)
         self.real_B_cont = Variable(self.input_B_cont, requires_grad=False)
         
-        self.fake_B_discrete = self.netG_disc(self.real_A_cont)
+        self.fake_B_discrete = self.netG_disc(self.real_A_discrete.float())
         self.fake_B_cont = self.netG_cont(self.fake_B_discrete)
 
     # no backprop gradients
@@ -107,13 +111,14 @@ class Pix2PixGeoModel(BaseModel):
     def backward_D(self):
         # Fake
         # stop backprop to the generator by detaching fake_B
-        # Why was there a concatenation here? I think for the cyclical thing
-        pred_fake = self.netD(self.fake_B_cont.detach())
+        # In this case real_A, the input, is our conditional vector
+        fake_AB = torch.cat((self.real_A_discrete, torch.max(self.fake_B_discrete, dim=1, keepdim=True)[1]), 1)
+        pred_fake = self.netD(fake_AB.detach().float())
         self.loss_D_fake = self.criterionGAN(pred_fake, False)
 
         # Real
-        # In this case real_A, the input, is our conditional vector
-        pred_real = self.netD(self.real_B_cont)
+        real_AB = torch.cat((self.real_A_discrete, self.real_B_discrete), 1)
+        pred_real = self.netD(real_AB.float())
         self.loss_D_real = self.criterionGAN(pred_real, True)
 
         # Combined loss
@@ -127,7 +132,8 @@ class Pix2PixGeoModel(BaseModel):
         # to the generator this time
 
         # fake_AB = torch.cat((self.real_A, self.fake_B_cont), 1)
-        pred_fake = self.netD(self.fake_B_cont)
+        fake_AB = torch.cat((self.real_A_discrete, torch.max(self.fake_B_discrete, dim=1, keepdim=True)[1]), 1)
+        pred_fake = self.netD(fake_AB.float())
 
         # We only optimise with respect to the fake prediction because
         # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
@@ -135,8 +141,8 @@ class Pix2PixGeoModel(BaseModel):
 
         # Second, G(A) = B
         self.loss_G_L2 = self.criterionL2(self.fake_B_cont, self.real_A_cont) * self.opt.lambda_A
-        
-        self.loss_G_CE = self.criterionCE(self.fake_B_discrete, torch.squeeze(self.real_A_discrete, dim=3)) * self.opt.lambda_B
+
+        self.loss_G_CE = self.criterionCE(self.fake_B_discrete, torch.squeeze(self.real_A_discrete, dim=1)) * self.opt.lambda_B
 
         self.loss_G = self.loss_G_GAN + self.loss_G_L2 + self.loss_G_CE
 
@@ -158,16 +164,26 @@ class Pix2PixGeoModel(BaseModel):
 
     def get_current_errors(self):
         return OrderedDict([('G_GAN', self.loss_G_GAN.data[0]),
-                            ('G_L1', self.loss_G_L1.data[0]),
+                            ('G_L2', self.loss_G_L2.data[0]),
+                            ('G_CE', self.loss_G_CE.data[0]),
                             ('D_real', self.loss_D_real.data[0]),
                             ('D_fake', self.loss_D_fake.data[0])
                             ])
 
     def get_current_visuals(self):
-        real_A = util.tensor2im(self.real_A.data)
-        fake_B = util.tensor2im(self.fake_B.data)
-        real_B = util.tensor2im(self.real_B.data)
-        return OrderedDict([('real_A', real_A), ('fake_B', fake_B), ('real_B', real_B)])
+        # print(np.unique(self.real_A_discrete.data))
+        # print(self.fake_B_discrete.data.shape)
+
+        real_A_discrete = util.tensor2im(self.real_A_discrete.data)
+        real_A_continuous = util.tensor2im(self.real_A_cont.data)
+        real_B_discrete = util.tensor2im(self.real_B_discrete.data)
+        real_B_continuous = util.tensor2im(self.real_B_cont.data)
+        fake_B_discrete = util.tensor2im(torch.max(self.fake_B_discrete, dim=1)[1].data)
+        fake_B_continuous = util.tensor2im(self.fake_B_cont.data)
+        return OrderedDict([
+            ('real_A_discrete', real_A_discrete), ('real_A_continuous', real_A_continuous), 
+            ('real_B_discrete', real_B_discrete), ('real_B_continuous', real_B_continuous), 
+            ('fake_B_discrete', fake_B_discrete), ('fake_B_continuous', fake_B_continuous)])
 
     def save(self, label):
         self.save_network(self.netG, 'G', label, self.gpu_ids)

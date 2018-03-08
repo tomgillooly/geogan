@@ -8,10 +8,13 @@ import os
 # Converts a Tensor into a Numpy array
 # |imtype|: the desired type of the converted numpy array
 def tensor2im(image_tensor, imtype=np.uint8):
-    image_numpy = image_tensor[0].cpu().float().numpy()
-    if image_numpy.shape[0] == 1:
+    image_numpy = image_tensor[0].cpu().float().numpy().squeeze()
+    if len(image_numpy.shape) == 2:
         image_numpy = np.tile(image_numpy, (3, 1, 1))
-    image_numpy = (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 255.0
+    # image_numpy = (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 255.0
+    image_numpy = np.transpose(image_numpy, (1, 2, 0))
+    image_numpy = np.interp(image_numpy, [np.min(image_numpy), np.max(image_numpy)], [0, 255])
+
     return image_numpy.astype(imtype)
 
 
