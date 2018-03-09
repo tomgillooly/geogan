@@ -11,6 +11,7 @@ class BaseOptions():
 
     def initialize(self):
         self.parser.add_argument('--dataroot', required=True, help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
+        self.parser.add_argument('--inpaint_file_dir', type=str, help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
         self.parser.add_argument('--batchSize', type=int, default=1, help='input batch size')
         self.parser.add_argument('--loadSize', type=int, default=286, help='scale images to this size')
         self.parser.add_argument('--fineSize', type=int, default=256, help='then crop to this size')
@@ -49,6 +50,7 @@ class BaseOptions():
             self.initialize()
         self.opt = self.parser.parse_args()
         self.opt.isTrain = self.isTrain   # train or test
+        self.opt.inpaint_file_dir = self.opt.inpaint_file_dir if self.opt.inpaint_file_dir else self.opt.dataroot
 
         str_ids = self.opt.gpu_ids.split(',')
         self.opt.gpu_ids = []

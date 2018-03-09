@@ -119,22 +119,22 @@ class GeoDataset(BaseDataset):
                     return np.array(list(map(threshold_pixel, pixel)))
 
                 if pixel < -1000:
-                    return 0
+                    return -1
                 elif pixel > 1000:
-                    return 2
-                else:
                     return 1
+                else:
+                    return 0
             
             return np.array(list(map(threshold_pixel, image)))
 
         def skeleton(image):
-            pos = image > 1
-            neg = image < 1 
+            pos = image > 0
+            neg = image < 0 
 
             pos_skel = skeletonize(pos)
             neg_skel = skeletonize(neg)
 
-            return 1 + pos_skel - neg_skel
+            return 0.0 + pos_skel - neg_skel
 
 
         # def remove_small_components(image):
@@ -192,8 +192,11 @@ class GeoDataset(BaseDataset):
         B = A.copy()
         B[h_offset:h_offset+100, w_offset:w_offset+100] = 0
         
-        A_cont = np.interp(A, [np.min(A), np.max(A)], [0, 255])
-        B_cont = np.interp(B, [np.min(B), np.max(B)], [0, 255])
+        mask = np.ones(B.shape, dtype=np.uint8)
+        mask[h_offset:h_offset+100, w_offset:w_offset+100] = 0
+
+        A_cont = np.interp(A, [np.min(A), np.max(A)], [-1, 1])
+        B_cont = np.interp(B, [np.min(B), np.max(B)], [-1, 1])
         
         A = threshold(A)
         B = threshold(B)
@@ -201,9 +204,6 @@ class GeoDataset(BaseDataset):
         if self.process.startswith("skeleton"):
             A = skeleton(A)
             B = skeleton(B)
-        
-        # A = np.array(A)*255
-        # B = np.array(B)*255
 
 
         def process_image(A, B, discrete=False):
@@ -222,8 +222,8 @@ class GeoDataset(BaseDataset):
                 A = transforms.ToTensor()(A)
                 B = transforms.ToTensor()(B)
 
-                A = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(A)
-                B = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(B)
+                # A = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(A)
+                # B = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(B)
             else:
                 A = torch.LongTensor(A.transpose(2, 0, 1))
                 B = torch.LongTensor(B.transpose(2, 0, 1))
@@ -241,22 +241,16 @@ class GeoDataset(BaseDataset):
                 A = A.index_select(2, idx)
                 B = B.index_select(2, idx)
 
-            # if input_nc == 1:  # RGB to gray
-            #     tmp = A[0, ...] * 0.299 + A[1, ...] * 0.587 + A[2, ...] * 0.114
-            #     A = tmp.unsqueeze(0)
-
-            # if output_nc == 1:  # RGB to gray
-            #     tmp = B[0, ...] * 0.299 + B[1, ...] * 0.587 + B[2, ...] * 0.114
-            #     B = tmp.unsqueeze(0)
-
             return A, B
 
-        A, B = process_image(A, B, discrete=True)
+
+        A, B = process_image(A, B, discrete=False)
         A_cont, B_cont = process_image(A_cont, B_cont)
         # A_cont, B_cont = torch.LongTensor(A_cont.numpy()), torch.LongTensor(B_cont.numpy())
 
         return {'A': A, 'B': B,
                 'A_cont': A_cont, 'B_cont': B_cont,
+                'mask': mask,
                 'A_paths': A_path, 'B_paths': os.path.splitext(A_path)[0] + '_thresh' + os.path.splitext(A_path)[1]}
 
     def __len__(self):

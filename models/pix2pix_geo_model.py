@@ -7,7 +7,11 @@ from .base_model import BaseModel
 from . import networks
 
 import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
 
+import skimage.io as io
+import sys
 
 class Pix2PixGeoModel(BaseModel):
     def name(self):
@@ -24,12 +28,17 @@ class Pix2PixGeoModel(BaseModel):
         # print(self.netG)
         # self.netG = nn.Sequential(self.netG, nn.Softmax2d())
 
-        self.netG_cont = nn.Conv2d(in_channels=3, out_channels=opt.output_nc, kernel_size=1)
-        self.netG_disc = nn.Sequential(self.netG, nn.LogSoftmax(dim=3))
+        self.netG_cont = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=3, kernel_size=1),
+            # nn.ELU(),
+            nn.Conv2d(in_channels=3, out_channels=opt.output_nc, kernel_size=1),
+            # nn.ELU())
+            )
+        # self.netG_disc = nn.Sequential(self.netG, nn.LogSoftmax(dim=3))
 
         if len(self.gpu_ids) > 0:
             self.netG_cont.cuda(self.gpu_ids[0])
-            self.netG_disc.cuda(self.gpu_ids[0])
+            # self.netG_disc.cuda(self.gpu_ids[0])
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
@@ -47,8 +56,8 @@ class Pix2PixGeoModel(BaseModel):
             self.fake_AB_pool = ImagePool(opt.pool_size)
             # define loss functions
             self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
-            self.criterionL2 = torch.nn.MSELoss()
-            self.criterionCE = torch.nn.NLLLoss2d()
+            self.criterionL2 = torch.nn.MSELoss(size_average=True)
+            # self.criterionCE = torch.nn.NLLLoss2d()
 
             # initialize optimizers
             self.schedulers = []
@@ -90,13 +99,24 @@ class Pix2PixGeoModel(BaseModel):
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
     def forward(self):
-        self.real_A_cont = Variable(self.input_A_cont, requires_grad=False)
-        self.real_A_discrete = Variable(self.input_A, requires_grad=False)
-        self.real_B_discrete = Variable(self.input_B, requires_grad=False)
-        self.real_B_cont = Variable(self.input_B_cont, requires_grad=False)
+        # Continuous divergence map with chunk missing
+        self.real_A_cont = Variable(self.input_A_cont)#, requires_grad=False)
+        # Thresholded divergence map with chunk missing
+        self.real_A_discrete = Variable(self.input_A)#, requires_grad=False)
+        # Entire thresholded divergence map
+        self.real_B_discrete = Variable(self.input_B)#, requires_grad=False)
+        # Entire continuous divergence map
+        self.real_B_cont = Variable(self.input_B_cont)#, requires_grad=False)
         
-        self.fake_B_discrete = self.netG_disc(self.real_A_discrete.float())
-        self.fake_B_cont = self.netG_cont(self.fake_B_discrete)
+        # Produces three channel output with class probability assignments
+        self.fake_B = self.netG(self.real_A_discrete)
+        # Create continuous divergence field from class probabilities
+        self.fake_B_cont = self.netG_cont(self.fake_B)
+        # Find log probabilities for NLL step in backprop
+        self.fake_B_discrete = F.log_softmax(self.fake_B, dim=1)
+
+        self.fake_B_classes = torch.max(self.fake_B_discrete, dim=1, keepdim=True)[1]
+        self.fake_B_classes = self.fake_B_classes.float() - 1
 
     # no backprop gradients
     def test(self):
@@ -112,13 +132,15 @@ class Pix2PixGeoModel(BaseModel):
         # Fake
         # stop backprop to the generator by detaching fake_B
         # In this case real_A, the input, is our conditional vector
-        fake_AB = torch.cat((self.real_A_discrete, torch.max(self.fake_B_discrete, dim=1, keepdim=True)[1]), 1)
-        pred_fake = self.netD(fake_AB.detach().float())
+        fake_AB = torch.cat((self.real_A_discrete, self.fake_B_classes), 1)
+        pred_fake = self.netD(fake_AB.detach())
+        print(pred_fake)
         self.loss_D_fake = self.criterionGAN(pred_fake, False)
 
         # Real
         real_AB = torch.cat((self.real_A_discrete, self.real_B_discrete), 1)
-        pred_real = self.netD(real_AB.float())
+        pred_real = self.netD(real_AB)
+        print(pred_real)
         self.loss_D_real = self.criterionGAN(pred_real, True)
 
         # Combined loss
@@ -132,8 +154,9 @@ class Pix2PixGeoModel(BaseModel):
         # to the generator this time
 
         # fake_AB = torch.cat((self.real_A, self.fake_B_cont), 1)
-        fake_AB = torch.cat((self.real_A_discrete, torch.max(self.fake_B_discrete, dim=1, keepdim=True)[1]), 1)
-        pred_fake = self.netD(fake_AB.float())
+        fake_AB = torch.cat((self.real_A_discrete, self.fake_B_classes), 1)
+        pred_fake = self.netD(fake_AB)
+        print("G fake", pred_fake)
 
         # We only optimise with respect to the fake prediction because
         # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
@@ -142,9 +165,9 @@ class Pix2PixGeoModel(BaseModel):
         # Second, G(A) = B
         self.loss_G_L2 = self.criterionL2(self.fake_B_cont, self.real_A_cont) * self.opt.lambda_A
 
-        self.loss_G_CE = self.criterionCE(self.fake_B_discrete, torch.squeeze(self.real_A_discrete, dim=1)) * self.opt.lambda_B
+        # self.loss_G_CE = self.criterionCE(self.fake_B_discrete, torch.squeeze(self.real_A_discrete, dim=1)) * self.opt.lambda_B
 
-        self.loss_G = self.loss_G_GAN + self.loss_G_L2 + self.loss_G_CE
+        self.loss_G = self.loss_G_GAN + self.loss_G_L2 #+ self.loss_G_CE
 
         self.loss_G.backward()
 
@@ -165,7 +188,7 @@ class Pix2PixGeoModel(BaseModel):
     def get_current_errors(self):
         return OrderedDict([('G_GAN', self.loss_G_GAN.data[0]),
                             ('G_L2', self.loss_G_L2.data[0]),
-                            ('G_CE', self.loss_G_CE.data[0]),
+                            # ('G_CE', self.loss_G_CE.data[0]),
                             ('D_real', self.loss_D_real.data[0]),
                             ('D_fake', self.loss_D_fake.data[0])
                             ])
