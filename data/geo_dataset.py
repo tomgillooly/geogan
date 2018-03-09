@@ -49,13 +49,17 @@ class GeoDataset(BaseDataset):
 
         assert(opt.resize_or_crop == 'resize_and_crop')
 
-        self.inpaint_regions_file = os.path.join(opt.dataroot, opt.phase, 'inpaint_regions')
+        self.inpaint_regions_file = os.path.join(opt.inpaint_file_dir, opt.phase, 'inpaint_regions')
+        self.inpaint_regions = [None]*len(self.A_paths)
+        # self.inpaint_regions_file = os.path.join(opt.phase, 'inpaint_regions')
         
         if os.path.exists(self.inpaint_regions_file):
             with open(self.inpaint_regions_file) as file:
-                self.inpaint_regions = [(float(x), float(y)) for line in file.read().split() for x, y in line]
-        else:
-            self.inpaint_regions = [None]*len(self.A_paths)
+                for idx, line in enumerate(file):
+                    try:
+                        self.inpaint_regions[idx] = [(float(x), float(y)) for x, y in line]
+                    except ValueError:
+                        continue
 
     def __getitem__(self, index):
         A_path = self.A_paths[index]
