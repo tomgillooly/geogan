@@ -154,9 +154,6 @@ class GeoDataset(BaseDataset):
         # elif self.process.startswith("skeleton"):
         #     B = skeleton(A)
 
-        # if "remove_small_components" in self.process:
-        #     B = remove_small_components(B)
-
         if not self.inpaint_regions[index]:
             with open(self.inpaint_regions_file, 'w') as file:
                 # file_inpaint_regions = [(float(x), float(y)) for line in file.read().split() for x, y in line]
@@ -183,8 +180,6 @@ class GeoDataset(BaseDataset):
         # io.imshow(B)
         # io.show()
 
-        # io.imshow(B)
-        # io.show()
 
         # print(A.shape)
         # print(B.shape)
@@ -192,18 +187,29 @@ class GeoDataset(BaseDataset):
         B = A.copy()
         B[h_offset:h_offset+100, w_offset:w_offset+100] = 0
         
-        mask = np.ones(B.shape, dtype=np.uint8)
-        mask[h_offset:h_offset+100, w_offset:w_offset+100] = 0
+        mask = np.zeros(B.shape, dtype=np.uint8)
+        mask[h_offset:h_offset+100, w_offset:w_offset+100] = 1
+        mask = np.expand_dims(mask, 2)
+        mask = torch.LongTensor(mask.transpose(2, 0, 1))
 
         A_cont = np.interp(A, [np.min(A), np.max(A)], [-1, 1])
         B_cont = np.interp(B, [np.min(B), np.max(B)], [-1, 1])
         
-        A = threshold(A)
-        B = threshold(B)
 
-        if self.process.startswith("skeleton"):
-            A = skeleton(A)
-            B = skeleton(B)
+        def create_one_hot(image):
+            ridge = skeletonize(image >= 1000).astype(float)
+            subduction = skeletonize(image <= -1000).astype(float)
+            plate = np.ones(ridge.shape, dtype=float)
+            plate[np.where(np.logical_or(ridge == 1, subduction == 1))] = 0
+
+            return np.stack((ridge, plate, subduction), axis=2)
+
+        A = create_one_hot(A)
+        B = create_one_hot(B)
+
+        # if self.process.startswith("skeleton"):
+        #     A = skeleton(A)
+        #     B = skeleton(B)
 
 
         def process_image(A, B, discrete=False):
@@ -214,19 +220,19 @@ class GeoDataset(BaseDataset):
             # A = A.transpose(1, 2)
             # B = B.transpose(1, 2, 0)
 
-            A = np.expand_dims(A, 2)
-            B = np.expand_dims(B, 2)
             
 
             if not discrete:
+                A = np.expand_dims(A, 2)
+                B = np.expand_dims(B, 2)
                 A = transforms.ToTensor()(A)
                 B = transforms.ToTensor()(B)
 
                 # A = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(A)
                 # B = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(B)
             else:
-                A = torch.LongTensor(A.transpose(2, 0, 1))
-                B = torch.LongTensor(B.transpose(2, 0, 1))
+                A = torch.FloatTensor(A.transpose(2, 0, 1))
+                B = torch.FloatTensor(B.transpose(2, 0, 1))
 
             if self.opt.which_direction == 'BtoA':
                 input_nc = self.opt.output_nc
@@ -244,7 +250,7 @@ class GeoDataset(BaseDataset):
             return A, B
 
 
-        A, B = process_image(A, B, discrete=False)
+        A, B = process_image(A, B, discrete=True)
         A_cont, B_cont = process_image(A_cont, B_cont)
         # A_cont, B_cont = torch.LongTensor(A_cont.numpy()), torch.LongTensor(B_cont.numpy())
 
