@@ -245,10 +245,7 @@ class Pix2PixGeoModel(BaseModel):
         # Second, G(A) = B
         self.loss_G_L2 = self.criterionL2(self.fake_B_cont, self.real_B_cont) * self.opt.lambda_A
 
-        weights = torch.sum(self.fake_B_discrete.view(3, -1), dim=1)
-        weights /= torch.sum(weights)
-
-        ce_fun = self.criterionCE(weight=weights.data)
+        ce_fun = self.criterionCE()
 
         self.loss_G_CE = ce_fun(F.log_softmax(self.fake_B_discrete, dim=1), self.real_B_classes) * self.opt.lambda_B
 
