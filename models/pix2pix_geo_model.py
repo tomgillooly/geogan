@@ -1,4 +1,6 @@
 import torch
+import torchvision.transforms as transforms
+import torch.autograd as autograd
 from collections import OrderedDict
 from torch.autograd import Variable
 import util.util as util
@@ -39,12 +41,20 @@ class Pix2PixGeoModel(BaseModel):
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
-            self.netD1 = networks.define_D(opt.input_nc + opt.output_nc, opt.ndf,
-                                          opt.which_model_netD,
-                                          opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, self.gpu_ids)
-            self.netD2 = networks.define_D(opt.input_nc + 1, opt.ndf,
-                                          opt.which_model_netD,
-                                          opt.n_layers_D, opt.norm, use_sigmoid, opt.init_type, self.gpu_ids)
+            self.netD1 = networks.define_D(opt.input_nc + 1 + opt.output_nc, opt.ndf,
+                                          # opt.which_model_netD,
+                                          'wgan',
+                                          opt.n_layers_D, 'none', use_sigmoid, opt.init_type, self.gpu_ids,
+                                          n_linear=1860)
+                                          # n_linear=int((512*256)/70))
+            
+            self.netD2 = networks.define_D(opt.input_nc + 1 + 1, opt.ndf,
+                                          # opt.which_model_netD,
+                                          'wgan',
+                                          opt.n_layers_D, 'none', use_sigmoid, opt.init_type, self.gpu_ids,
+                                          n_linear=1860)
+                                          # n_linear=int((512*256)/70))
+
         if not self.isTrain or opt.continue_train:
             self.load_network(self.netG, 'G', opt.which_epoch)
             if self.isTrain:
@@ -141,57 +151,96 @@ class Pix2PixGeoModel(BaseModel):
     def get_image_paths(self):
         return self.image_paths
 
+
+    def calc_gradient_penalty(self, netD, real_data, fake_data):
+        # print "real_data: ", real_data.size(), fake_data.size()
+        alpha = torch.rand(real_data.shape[0], 1)
+        alpha = alpha.expand(alpha.shape[0], real_data[0, ...].nelement()).contiguous().view(-1, *real_data.shape[1:])
+        alpha = alpha.cuda(self.gpu_ids[0]) if len(self.gpu_ids) > 0 else alpha
+
+        interpolates = alpha * real_data + ((1 - alpha) * fake_data)
+
+        if len(self.gpu_ids) > 0:
+            interpolates = interpolates.cuda(self.gpu_ids[0])
+        interpolates = autograd.Variable(interpolates, requires_grad=True)
+
+        disc_interpolates = netD(interpolates)
+
+        gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
+                                  grad_outputs=torch.ones(disc_interpolates.size()).cuda(self.gpu_ids[0]) if len(self.gpu_ids) > 0 else torch.ones(
+                                      disc_interpolates.size()),
+                                  create_graph=True, retain_graph=True, only_inputs=True)[0]
+        gradients = gradients.view(gradients.size(0), -1)
+
+        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+
+        return gradient_penalty
+
+
     def backward_D1(self):
         # Fake
         # stop backprop to the generator by detaching fake_B
         # In this case real_A, the input, is our conditional vector
-        fake_AB = torch.cat((self.real_A_discrete, self.fake_B_discrete), 1)
-        pred_fake = self.netD1(fake_AB.detach())
-        self.loss_D1_fake = self.criterionGAN(pred_fake, False)
+        fake_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.fake_B_discrete), dim=1)
+        self.loss_D1_fake = self.netD1(fake_AB.detach())
+        # self.loss_D1_fake = self.criterionGAN(pred_fake, False)
 
         # Real
-        real_AB = torch.cat((self.real_A_discrete, self.real_B_discrete), 1)
-        pred_real = self.netD1(real_AB)
-        self.loss_D1_real = self.criterionGAN(pred_real, True)
+        real_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.real_B_discrete), dim=1)
+        self.loss_D1_real = self.netD1(real_AB)
+        # self.loss_D1_real = self.criterionGAN(pred_real, True)
+
+        grad_pen = self.calc_gradient_penalty(self.netD1, real_AB.data, fake_AB.data)
 
         # Combined loss
-        self.loss_D1 = (self.loss_D1_fake + self.loss_D1_real) * 0.5
+        # self.loss_D1 = (self.loss_D1_fake + self.loss_D1_real) * 0.5
+        self.loss_D1 = self.loss_D1_fake - self.loss_D1_real + grad_pen * self.opt.lambda_C
 
         self.loss_D1.backward()
+
 
     def backward_D2(self):
         # Fake
         # stop backprop to the generator by detaching fake_B
         # In this case real_A, the input, is our conditional vector
-        fake_AB = torch.cat((self.real_A_discrete, self.fake_B_cont), 1)
-        pred_fake = self.netD2(fake_AB.detach())
-        self.loss_D2_fake = self.criterionGAN(pred_fake, False)
+        fake_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.fake_B_cont), dim=1)
+        self.loss_D2_fake = self.netD2(fake_AB.detach())
+        # self.loss_D2_fake = self.criterionGAN(pred_fake, False)
 
         # Real
-        real_AB = torch.cat((self.real_A_discrete, self.real_B_cont), 1)
-        pred_real = self.netD2(real_AB)
-        self.loss_D2_real = self.criterionGAN(pred_real, True)
+        real_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.real_B_cont), dim=1)
+        self.loss_D2_real = self.netD2(real_AB)
+        # self.loss_D2_real = self.criterionGAN(pred_real, True)
+
+        grad_pen = self.calc_gradient_penalty(self.netD2, real_AB.data, fake_AB.data)
 
         # Combined loss
-        self.loss_D2 = (self.loss_D2_fake + self.loss_D2_real) * 0.5
+        # self.loss_D2 = (self.loss_D2_fake + self.loss_D2_real) * 0.5
+        self.loss_D2 = self.loss_D2_fake - self.loss_D2_real + grad_pen * self.opt.lambda_C
 
         self.loss_D2.backward()
+
 
     def backward_G(self):
         # First, G(A) should fake the discriminator
         # Note that we don't detach here because we DO want to backpropagate
         # to the generator this time
 
-        fake_AB = torch.cat((self.real_A_discrete, self.fake_B_discrete), 1)
+        # fake_AB = torch.cat((self.real_A_discrete, self.fake_B_discrete), 1)
+        fake_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.fake_B_discrete), dim=1)
         pred_fake1 = self.netD1(fake_AB)
         
-        fake_AB = torch.cat((self.real_A_discrete, self.fake_B_cont), 1)
+        # fake_AB = torch.cat((self.real_A_discrete, self.fake_B_cont), 1)
+        fake_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.fake_B_cont), dim=1)
         pred_fake2 = self.netD2(fake_AB)
 
         # We only optimise with respect to the fake prediction because
         # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
-        self.loss_G_GAN1 = self.criterionGAN(pred_fake1, True)
-        self.loss_G_GAN2 = self.criterionGAN(pred_fake2, True)
+        # self.loss_G_GAN1 = self.criterionGAN(pred_fake1, True)
+        # self.loss_G_GAN2 = self.criterionGAN(pred_fake2, True)
+
+        self.loss_G_GAN1 = -pred_fake1.mean()
+        self.loss_G_GAN2 = -pred_fake2.mean()
 
         # Second, G(A) = B
         self.loss_G_L2 = self.criterionL2(self.fake_B_cont, self.real_B_cont) * self.opt.lambda_A
@@ -212,14 +261,14 @@ class Pix2PixGeoModel(BaseModel):
         # target and generated data in object
         self.forward()
 
-        # Nothing fancy, no cyclical business to worry about
-        self.optimizer_D1.zero_grad()
-        self.backward_D1()
-        self.optimizer_D1.step()
+        for _ in range(1):
+            self.optimizer_D1.zero_grad()
+            self.backward_D1()
+            self.optimizer_D1.step()
 
-        self.optimizer_D2.zero_grad()
-        self.backward_D2()
-        self.optimizer_D2.step()
+            self.optimizer_D2.zero_grad()
+            self.backward_D2()
+            self.optimizer_D2.step()
 
         self.optimizer_G.zero_grad()
         self.optimizer_G_cont.zero_grad()
