@@ -234,25 +234,22 @@ class GeoDataset(BaseDataset):
                 A = torch.FloatTensor(A.transpose(2, 0, 1))
                 B = torch.FloatTensor(B.transpose(2, 0, 1))
 
-            if self.opt.which_direction == 'BtoA':
-                input_nc = self.opt.output_nc
-                output_nc = self.opt.input_nc
-            else:
-                input_nc = self.opt.input_nc
-                output_nc = self.opt.output_nc
-
-            if (not self.opt.no_flip) and random.random() < 0.5:
-                idx = [i for i in range(A.size(2) - 1, -1, -1)]
-                idx = torch.LongTensor(idx)
-                A = A.index_select(2, idx)
-                B = B.index_select(2, idx)
-
             return A, B
 
 
         A, B = process_image(A, B, discrete=True)
         A_cont, B_cont = process_image(A_cont, B_cont)
         # A_cont, B_cont = torch.LongTensor(A_cont.numpy()), torch.LongTensor(B_cont.numpy())
+
+        if (not self.opt.no_flip) and random.random() < 0.5:
+            idx = [i for i in range(A.size(2) - 1, -1, -1)]
+            idx = torch.LongTensor(idx)
+            A = A.index_select(2, idx)
+            B = B.index_select(2, idx)
+            A_cont = A_cont.index_select(2, idx)
+            B_cont = B_cont.index_select(2, idx)
+            mask = mask.index_select(2, idx)
+
 
         return {'A': A, 'B': B,
                 'A_cont': A_cont, 'B_cont': B_cont,
