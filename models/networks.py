@@ -128,7 +128,8 @@ def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch', use_dropo
 
 
 def define_D(input_nc, ndf, which_model_netD,
-             n_layers_D=3, norm='batch', use_sigmoid=False, init_type='normal', gpu_ids=[]):
+             n_layers_D=3, norm='batch', use_sigmoid=False, init_type='normal', gpu_ids=[], **kwargs):
+
     netD = None
     use_gpu = len(gpu_ids) > 0
     norm_layer = get_norm_layer(norm_type=norm)
@@ -141,6 +142,8 @@ def define_D(input_nc, ndf, which_model_netD,
         netD = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids)
     elif which_model_netD == 'pixel':
         netD = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids)
+    elif which_model_netD == 'wgan':
+        netD = WGANNLayerDiscriminator(input_nc, kwargs['n_linear'], ndf, norm_layer=norm_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids)
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' %
                                   which_model_netD)
@@ -392,6 +395,7 @@ class UnetSkipConnectionBlock(nn.Module):
 class NLayerDiscriminator(nn.Module):
     def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d, use_sigmoid=False, gpu_ids=[]):
         super(NLayerDiscriminator, self).__init__()
+
         self.gpu_ids = gpu_ids
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
@@ -412,8 +416,12 @@ class NLayerDiscriminator(nn.Module):
             nf_mult = min(2**n, 8)
             sequence += [
                 nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
-                          kernel_size=kw, stride=2, padding=padw, bias=use_bias),
-                norm_layer(ndf * nf_mult),
+                          kernel_size=kw, stride=2, padding=padw, bias=use_bias)]
+
+            if norm_layer:
+                sequence += [norm_layer(ndf * nf_mult)]
+
+            sequence += [
                 nn.LeakyReLU(0.2, True)
             ]
 
@@ -421,8 +429,12 @@ class NLayerDiscriminator(nn.Module):
         nf_mult = min(2**n_layers, 8)
         sequence += [
             nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
-                      kernel_size=kw, stride=1, padding=padw, bias=use_bias),
-            norm_layer(ndf * nf_mult),
+                      kernel_size=kw, stride=1, padding=padw, bias=use_bias)]
+
+        if norm_layer:
+            sequence += [norm_layer(ndf * nf_mult)]
+
+        sequence += [
             nn.LeakyReLU(0.2, True)
         ]
 
@@ -438,6 +450,21 @@ class NLayerDiscriminator(nn.Module):
             return nn.parallel.data_parallel(self.model, input, self.gpu_ids)
         else:
             return self.model(input)
+
+class WGANNLayerDiscriminator(NLayerDiscriminator):
+    def __init__(self, input_nc, n_linear, ndf=64, n_layers=3, norm_layer=None, use_sigmoid=False, gpu_ids=[]):
+        super(WGANNLayerDiscriminator, self).__init__(input_nc, ndf, n_layers, norm_layer, use_sigmoid, gpu_ids)
+
+        self.linear = nn.Linear(n_linear, 1)
+
+
+    def forward(self, input):
+        if len(self.gpu_ids) and isinstance(input.data, torch.cuda.FloatTensor):
+            output =  nn.parallel.data_parallel(self.model, input, self.gpu_ids)
+            return nn.parallel.data_parallel(self.linear, output.view(1, -1), self.gpu_ids)
+        else:
+            output = self.model(input)
+            return self.linear(output.view(1, -1))
 
 
 class PixelDiscriminator(nn.Module):
