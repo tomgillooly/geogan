@@ -35,6 +35,9 @@ class BaseModel():
     def get_current_errors(self):
         return {}
 
+    def get_current_metrics(self):
+        return {}
+
     def save(self, label):
         pass
 

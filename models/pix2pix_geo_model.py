@@ -13,6 +13,10 @@ import torch.nn.functional as F
 import numpy as np
 
 import skimage.io as io
+
+from scipy.spatial.distance import directed_hausdorff
+from skimage.filters import roberts
+
 import sys
 
 class Pix2PixGeoModel(BaseModel):
@@ -41,6 +45,7 @@ class Pix2PixGeoModel(BaseModel):
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
+            # use_sigmoid = True
             self.netD1 = networks.define_D(opt.input_nc + 1 + opt.output_nc, opt.ndf,
                                           # opt.which_model_netD,
                                           'wgan',
@@ -57,8 +62,10 @@ class Pix2PixGeoModel(BaseModel):
 
         if not self.isTrain or opt.continue_train:
             self.load_network(self.netG, 'G', opt.which_epoch)
+            self.load_network(self.netG_cont, 'G_cont', opt.which_epoch)
             if self.isTrain:
-                self.load_network(self.netD, 'D', opt.which_epoch)
+                self.load_network(self.netD1, 'D1', label, opt.which_epoch)
+                self.load_network(self.netD2, 'D2', label, opt.which_epoch)
 
         if self.isTrain:
             # Image pool not doing anything in this model because size is set to zero, just
@@ -141,11 +148,30 @@ class Pix2PixGeoModel(BaseModel):
         self.real_B_classes = F.log_softmax(self.real_B_discrete, dim=1)
         self.real_B_classes = torch.max(self.real_B_discrete, dim=1, keepdim=False)[1]
 
+        self.fake_B_one_hot = torch.zeros(self.fake_B_discrete.shape)
+        
+        self.fake_B_one_hot.scatter_(1, fake_B_classes.data.cpu(), 1.0)
+
     # no backprop gradients
     def test(self):
-        self.real_A = Variable(self.input_A, volatile=True)
-        self.fake_B = self.netG(self.real_A)
-        self.real_B = Variable(self.input_B, volatile=True)
+        self.real_A_cont = Variable(self.input_A_cont)#, requires_grad=False)
+        self.real_A_discrete = Variable(self.input_A, volatile=True)
+        
+        mask_var = Variable(self.mask.float(), volatile=True)
+        self.fake_B_discrete = self.netG(torch.cat((self.real_A_discrete, mask_var), dim=1))
+        self.fake_B_cont = self.netG_cont(self.fake_B_discrete)
+        
+        self.fake_B_classes = torch.max(self.fake_B_discrete, dim=1, keepdim=True)[1]
+
+        self.real_B_cont = Variable(self.input_B_cont)#, requires_grad=False)
+        self.real_B_discrete = Variable(self.input_B, volatile=True)
+
+        self.real_B_classes = F.log_softmax(self.real_B_discrete, dim=1)
+        self.real_B_classes = torch.max(self.real_B_discrete, dim=1, keepdim=False)[1]
+
+        self.fake_B_one_hot = torch.zeros(self.fake_B_discrete.shape)
+
+        self.fake_B_one_hot.scatter_(1, self.fake_B_classes.data.cpu(), 1.0)
 
     # get image paths
     def get_image_paths(self):
@@ -289,27 +315,199 @@ class Pix2PixGeoModel(BaseModel):
     def get_current_visuals(self):
         # print(np.unique(self.real_A_discrete.data))
         # print(self.fake_B_discrete.data.shape)
-
-        fake_B_one_hot = torch.zeros(self.fake_B_discrete.shape)
-        fake_B_classes = torch.max(self.fake_B_discrete, dim=1, keepdim=True)[1]
-
-        fake_B_one_hot.scatter_(1, fake_B_classes.data.cpu(), 1.0)
-
+        mask_edge = roberts(self.mask.numpy().squeeze())
+        mask_edge_coords = np.where(mask_edge)
 
         real_A_discrete = util.tensor2im(self.real_A_discrete.data)
+        real_A_discrete[mask_edge_coords] = np.max(real_A_discrete)
+
         real_A_continuous = util.tensor2im(self.real_A_cont.data)
+        real_A_continuous[mask_edge_coords] = np.max(real_A_continuous)
+
         real_B_discrete = util.tensor2im(self.real_B_discrete.data)
+        real_B_discrete[mask_edge_coords] = np.max(real_B_discrete)
+
         real_B_continuous = util.tensor2im(self.real_B_cont.data)
+        real_B_continuous[mask_edge_coords] = np.max(real_B_continuous)
+
         fake_B_discrete = util.tensor2im(self.fake_B_discrete.data)
-        fake_B_one_hot = util.tensor2im(fake_B_one_hot)
+        fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
+
+        fake_B_one_hot = util.tensor2im(self.fake_B_one_hot)
+        fake_B_one_hot[mask_edge_coords] = np.max(fake_B_one_hot)
+
         fake_B_continuous = util.tensor2im(self.fake_B_cont.data)
+        fake_B_continuous[mask_edge_coords] = np.max(fake_B_continuous)
+
         return OrderedDict([
-            ('real_A_discrete', real_A_discrete), ('real_A_continuous', real_A_continuous), 
-            ('real_B_discrete', real_B_discrete), ('real_B_continuous', real_B_continuous), 
-            ('fake_B_one_hot', fake_B_one_hot),
+            ('real_A_discrete', real_A_discrete),
             ('fake_B_discrete', fake_B_discrete),
-            ('fake_B_continuous', fake_B_continuous)
+            ('fake_B_one_hot', fake_B_one_hot),
+            ('real_B_discrete', real_B_discrete),
+            ('real_A_continuous', real_A_continuous), 
+            ('fake_B_continuous', fake_B_continuous),
+            ('real_B_continuous', real_B_continuous), 
             ])
+
+
+    def get_current_metrics(self):
+        import skimage.io as io
+        import matplotlib.pyplot as plt
+
+        metrics = []
+
+        precisions = []
+        recalls = []
+
+        inpaint_precisions = []
+        inpaint_recalls = []
+
+        eps = np.finfo(float).eps
+
+        def get_stats(real, fake):
+            num_true_pos = np.sum(np.logical_and(fake_channel, fake_channel == real_channel).ravel())
+            num_true_neg = np.sum(np.logical_and(1-fake_channel, fake_channel == real_channel).ravel())
+            num_false_pos = np.sum((fake_channel > real_channel).ravel())
+            num_false_neg = np.sum((fake_channel < real_channel).ravel())
+
+            return (num_true_pos, num_true_neg, num_false_pos, num_false_neg)
+
+        mask_coords = np.where(self.mask.numpy().squeeze())
+        mask_tl =(mask_coords[0][0], mask_coords[1][0])
+        mask_br =(mask_coords[0][-1], mask_coords[1][-1])
+
+        d_h = 0.0
+
+        for c in np.unique(self.real_B_classes.data.numpy()):
+            fake_channel = self.fake_B_one_hot.numpy().squeeze()[c]
+            real_channel = self.real_B_discrete.data.numpy().squeeze()[c]
+            # num_true_pos = np.sum(np.logical_and(fake_channel, fake_channel == real_channel).ravel())
+            # num_true_neg = np.sum(np.logical_and(1-fake_channel, fake_channel == real_channel).ravel())
+            # num_false_pos = np.sum((fake_channel > real_channel).ravel())
+            # num_false_neg = np.sum((fake_channel < real_channel).ravel())
+
+            # plt.subplot(241)
+            # io.imshow(self.mask.numpy().squeeze())
+            # plt.subplot(242)
+            # io.imshow(fake_channel)
+            # plt.subplot(243)
+            # io.imshow(real_channel)
+            # plt.subplot(244)
+            # io.imshow((fake_channel == real_channel))
+            # plt.subplot(245)
+            # io.imshow(np.logical_and(fake_channel, fake_channel == real_channel))
+            # plt.subplot(246)
+            # io.imshow(np.logical_and(1 - fake_channel, fake_channel == real_channel))
+            # plt.subplot(247)
+            # io.imshow(fake_channel > real_channel)
+            # plt.subplot(248)
+            # io.imshow(fake_channel < real_channel)
+            # plt.show()
+
+            # print(num_true_pos)
+            # print(num_true_neg)
+            # print(num_false_pos)
+            # print(num_false_neg)
+
+            # num_true_pos, num_true_neg, num_false_pos, num_false_neg = get_stats(real_channel, fake_channel)
+
+            # precision = num_true_pos / (num_true_pos + num_false_pos + eps)
+            # metrics.append(('Class {} Precision'.format(c),  precision))
+            # precisions.append(precision)
+            
+            # recall = num_true_pos / (num_true_pos + num_false_neg + eps)
+            # metrics.append(('Class {} Recall'.format(c),  recall))
+            # recalls.append(recall)
+
+            fake_channel = fake_channel[mask_tl[0]:mask_br[0], mask_tl[1]:mask_br[1]]
+            real_channel = real_channel[mask_tl[0]:mask_br[0], mask_tl[1]:mask_br[1]]
+
+            # plt.subplot(121)
+            # io.imshow(fake_channel)
+            # plt.subplot(122)
+            # io.imshow(real_channel)
+            # plt.show()
+
+            num_true_pos, num_true_neg, num_false_pos, num_false_neg = get_stats(real_channel, fake_channel)
+
+            precision = (num_true_pos) / (num_true_pos + num_false_pos + eps)
+            metrics.append(('Class {} Precision (Inpainted region)'.format(c),  precision))
+            inpaint_precisions.append(precision)
+            
+            recall = (num_true_pos) / (num_true_pos + num_false_neg + eps)
+            metrics.append(('Class {} Recall (Inpainted region)'.format(c),  recall))
+            inpaint_recalls.append(recall)
+
+
+
+            # u : (M,N) ndarray
+            #     Input array.
+            # v : (O,N) ndarray
+            #     Input array.
+            # seed : int or None
+            #     Local np.random.RandomState seed. Default is 0, a random shuffling of u and v that guarantees reproducibility.
+            # Returns:    
+            # d : double
+            #     The directed Hausdorff distance between arrays u and v,
+            # index_1 : int
+            #     index of point contributing to Hausdorff pair in u
+            # index_2 : int
+            #     index of point contributing to Hausdorff pair in v
+            # fake_coords = np.array(list(zip(*np.where(fake_channel))))
+            # real_coords = np.array(list(zip(*np.where(real_channel))))
+            fake_coords = np.array(np.where(fake_channel)).T
+            real_coords = np.array(np.where(real_channel)).T
+
+            # print(fake_coords)
+            # print(real_coords)
+
+            if not fake_coords.any() and real_coords.any():
+                d_h = np.inf
+            elif fake_coords.any() and real_coords.any():
+                d_h_fr, i1_fr, i2_fr = directed_hausdorff(fake_coords, real_coords)
+                d_h_rf, i1_rf, i2_rf = directed_hausdorff(real_coords, fake_coords)
+
+                d_h = max(d_h, max(d_h_fr, d_h_rf))
+            # print(d_h_fr)
+            # print(d_h_rf)
+            # i1, i2 = (i1_fr, i2_fr) if d_h_fr > d_h_rf else (i2_rf, i1_rf)
+
+            # print(i1)
+            # print(i2)
+            # print(fake_coords[i1])
+            # print(real_coords[i2])
+
+            # f_y, f_x = fake_coords[i1][0], fake_coords[i1][1]
+            # r_y, r_x = real_coords[i2][0], real_coords[i2][1]
+
+            # fake_layer = np.zeros(fake_channel.shape)
+            # fake_layer[f_y, f_x] = 1
+            # fake_channel_dh = np.stack((fake_channel, fake_layer, fake_layer), axis=2)
+
+            # real_layer = np.zeros(real_channel.shape)
+            # real_layer[r_y, r_x] = 1
+            # real_channel_dh = np.stack((real_channel, real_layer, real_layer), axis=2)
+
+            # plt.subplot(221)
+            # io.imshow(fake_channel)
+            # plt.subplot(222)
+            # io.imshow(real_channel)
+            # plt.subplot(223)
+            # io.imshow(fake_channel_dh)
+            # plt.subplot(224)
+            # io.imshow(real_channel_dh)
+            # plt.show()
+
+
+        metrics.append(('Hausdorff distance', d_h))
+
+        # metrics.append(('Average precision', np.mean(precisions)))
+        # metrics.append(('Average recall', np.mean(recalls)))
+
+        metrics.append(('Average precision (inpainted region)', np.mean(inpaint_precisions)))
+        metrics.append(('Average recall (inpainted region)', np.mean(inpaint_recalls)))
+
+        return OrderedDict(metrics)
 
     def save(self, label):
         self.save_network(self.netG, 'G', label, self.gpu_ids)

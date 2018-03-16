@@ -42,6 +42,15 @@ class HTML:
                             br()
                             p(txt)
 
+    def add_text(self, txts, width=400):
+        self.add_table()
+        with self.t:
+            with tr():
+                for txt in txts:
+                    with td(style="word-wrap: break-word;", halign="center", valign="top"):
+                        with p():
+                            p(txt)
+
     def save(self):
         html_file = '%s/index.html' % self.web_dir
         f = open(html_file, 'wt')

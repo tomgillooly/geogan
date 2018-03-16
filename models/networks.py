@@ -418,6 +418,9 @@ class NLayerDiscriminator(nn.Module):
                 nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
                           kernel_size=kw, stride=2, padding=padw, bias=use_bias)]
 
+            # Its possible that we don't need to break out like this, the code might just handle it
+            # There's already a 'None' norm layer option above
+            # Sequential definitely doesn't handle it on it's own
             if norm_layer:
                 sequence += [norm_layer(ndf * nf_mult)]
 
