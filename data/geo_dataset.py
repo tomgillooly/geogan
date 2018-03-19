@@ -106,6 +106,9 @@ class GeoDataset(BaseDataset):
         # A = np.empty([cols,rows], dtype=np.float32)
             # r=0
             # c=0
+
+        # It is possible to do an interpolation here, but it's really slow
+        # and ends up looking about the same
         def read_geo_file(path):
             with open(path) as file:
                 data = list(map(float, file.read().split()))
@@ -115,16 +118,16 @@ class GeoDataset(BaseDataset):
 
                     data = [data[i] for i in range(2, len(data), 3)]
 
-                return np.array(data).reshape((cols, rows), order='F')
+                return np.array(data).reshape((rows, cols), order='C')
 
         A_DIV = read_geo_file(DIV_path)
         A_Vx = read_geo_file(Vx_path)
         A_Vy = read_geo_file(Vy_path)
 
         # A = Image.fromarray(A.astype(np.uint8))
-        A_DIV = resize(A_DIV, (self.opt.fineSize * 2, self.opt.fineSize), mode='constant')
-        A_Vx = resize(A_Vx, (self.opt.fineSize * 2, self.opt.fineSize), mode='constant')
-        A_Vy = resize(A_Vy, (self.opt.fineSize * 2, self.opt.fineSize), mode='constant')
+        A_DIV = resize(A_DIV, (self.opt.fineSize, self.opt.fineSize * 2), mode='constant')
+        A_Vx = resize(A_Vx, (self.opt.fineSize, self.opt.fineSize * 2), mode='constant')
+        A_Vy = resize(A_Vy, (self.opt.fineSize, self.opt.fineSize * 2), mode='constant')
 
         # A = A_DIV
 
@@ -374,14 +377,14 @@ class GeoDataset(BaseDataset):
 # io.imshow(stuff['B'].numpy().transpose(1, 2, 0))
 # plt.show()
 
-# plt.subplot(231)
+# plt.subplot(421)
 # io.imshow(stuff['A'].numpy().squeeze().transpose(1, 2, 0))
-# plt.subplot(232)
+# plt.subplot(422)
 # io.imshow(stuff['B'].numpy().squeeze().transpose(1, 2, 0))
-# plt.subplot(233)
-# io.imshow(stuff['mask'].numpy().transpose(1, 2, 0).squeeze())
+# plt.subplot(423)
+# # io.imshow(stuff['mask'].numpy().transpose(1, 2, 0).squeeze())
 # io.imshow(stuff['A_DIV'].numpy().squeeze())
-# plt.subplot(234)
+# plt.subplot(424)
 # io.imshow(stuff['B_DIV'].numpy().squeeze())
 # plt.subplot(425)
 # io.imshow(stuff['A_Vx'].numpy().squeeze())
