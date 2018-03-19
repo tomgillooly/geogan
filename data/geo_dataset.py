@@ -1,3 +1,4 @@
+import glob
 import os.path
 import random
 import torchvision.transforms as transforms
@@ -12,8 +13,6 @@ from skimage.transform import resize
 from skimage.morphology import skeletonize, label, remove_small_objects, remove_small_holes
 from skimage.measure import regionprops
 import numpy as np
-
-
 
 # def threshold(img, threshold=5000):
 #     zero_idx = np.where(np.abs(img) <= threshold)
@@ -39,13 +38,20 @@ class GeoDataset(BaseDataset):
         self.A_paths = []
         self.process = opt.process
 
-        for root, dirs, files in os.walk(self.dir_A):
-            self.A_paths += [os.path.join(root, file) for file in files]
+        # for root, dirs, files in os.walk(self.dir_A):
+        #     self.A_paths += [os.path.join(root, file) for file in files]
 
-        self.A_paths = [path for path in self.A_paths if path.endswith(".dat")]
+        # self.A_paths = [path for path in self.A_paths if path.endswith(".dat")]
 
+        DIV_paths = glob.glob(os.path.join(self.dir_A, '*_DIV.dat'))
+        Vx_paths = glob.glob(os.path.join(self.dir_A, '*_Vx.dat'))
+        Vy_paths = glob.glob(os.path.join(self.dir_A, '*_Vy.dat'))
+
+        # self.A_paths = sorted(self.A_paths)
+
+        self.A_paths = list(zip(DIV_paths, Vx_paths, Vy_paths))
+        
         assert(len(self.A_paths) > 0)
-        self.A_paths = sorted(self.A_paths)
 
         assert(opt.resize_or_crop == 'resize_and_crop')
 
@@ -62,7 +68,7 @@ class GeoDataset(BaseDataset):
                         continue
 
     def __getitem__(self, index):
-        A_path = self.A_paths[index]
+        DIV_path, Vx_path, Vy_path = self.A_paths[index]
 
         def format_correct(file_path):
             with open(file_path) as file:
@@ -71,9 +77,10 @@ class GeoDataset(BaseDataset):
 
                 return len(line.split()) == 1
 
-        while not format_correct(A_path):
+        while not format_correct(DIV_path):
             self.A_paths.pop(index)
-            A_path = self.A_paths[index]
+            # A_path = self.A_paths[index]
+            DIV_path, Vx_path, Vy_path = self.A_paths[index]
 
         # imgnames=get_img_names(inputdir, max=0)
 
@@ -94,15 +101,45 @@ class GeoDataset(BaseDataset):
             # sys.stdout.write("Reading {} ({}/{})".format(imgn,index+1, N))
 
         # Read the image into an array
-        A = np.empty([cols,rows], dtype=np.float32)
+        # A = np.empty([cols,rows], dtype=np.float32)
+        # A = np.empty([cols,rows], dtype=np.float32)
+        # A = np.empty([cols,rows], dtype=np.float32)
             # r=0
             # c=0
-        with open(A_path) as file:
-            data = list(map(float, file.read().split()))
-            A = np.array(data).reshape((cols, rows), order='F')
+        def read_geo_file(path):
+            with open(path) as file:
+                data = list(map(float, file.read().split()))
+
+                if len(data) > rows*cols*depth:
+                    assert(len(data) == rows*cols*3)
+
+                    data = [data[i] for i in range(2, len(data), 3)]
+
+                return np.array(data).reshape((cols, rows), order='F')
+
+        A_DIV = read_geo_file(DIV_path)
+        A_Vx = read_geo_file(Vx_path)
+        A_Vy = read_geo_file(Vy_path)
 
         # A = Image.fromarray(A.astype(np.uint8))
-        A = resize(A, (self.opt.fineSize * 2, self.opt.fineSize), mode='constant')
+        A_DIV = resize(A_DIV, (self.opt.fineSize * 2, self.opt.fineSize), mode='constant')
+        A_Vx = resize(A_Vx, (self.opt.fineSize * 2, self.opt.fineSize), mode='constant')
+        A_Vy = resize(A_Vy, (self.opt.fineSize * 2, self.opt.fineSize), mode='constant')
+
+        # A = A_DIV
+
+        # First array is gradient in rows
+        grad_y = np.gradient(A_Vy, axis=0)
+        # Second array is gradient in columns
+        grad_x = np.gradient(A_Vx, axis=1)
+
+        A_DIV = grad_x + grad_y
+
+        # plt.subplot(121)
+        # io.imshow(A)
+        # plt.subplot(122)
+        # io.imshow(test_DIV)
+        # plt.show()
 
         # w = A.shape[1]
         # h = A.shape[0]
@@ -118,9 +155,9 @@ class GeoDataset(BaseDataset):
                 if pixel.shape:
                     return np.array(list(map(threshold_pixel, pixel)))
 
-                if pixel < -1000:
+                if pixel < -self.opt.div_threshold:
                     return -1
-                elif pixel > 1000:
+                elif pixel > self.opt.div_threshold:
                     return 1
                 else:
                     return 0
@@ -159,8 +196,8 @@ class GeoDataset(BaseDataset):
                 # file_inpaint_regions = [(float(x), float(y)) for line in file.read().split() for x, y in line]
                 # file.seek(0)
 
-                w = A.shape[1]
-                h = A.shape[0]
+                w = A_DIV.shape[1]
+                h = A_DIV.shape[0]
 
                 w_offset = random.randint(0, max(0, w - 100 - 1))
                 h_offset = random.randint(0, max(0, h - 100 - 1))
@@ -184,28 +221,41 @@ class GeoDataset(BaseDataset):
         # print(A.shape)
         # print(B.shape)
 
-        B = A.copy()
-        B[h_offset:h_offset+100, w_offset:w_offset+100] = 0
+        B_DIV = A_DIV.copy()
+        B_DIV[h_offset:h_offset+100, w_offset:w_offset+100] = 0
         
-        mask = np.zeros(B.shape, dtype=np.uint8)
+        B_Vx = A_Vx.copy()
+        B_Vx[h_offset:h_offset+100, w_offset:w_offset+100] = 0
+        
+        B_Vy = A_Vy.copy()
+        B_Vy[h_offset:h_offset+100, w_offset:w_offset+100] = 0
+        
+        mask = np.zeros(B_DIV.shape, dtype=np.uint8)
         mask[h_offset:h_offset+100, w_offset:w_offset+100] = 1
         mask = np.expand_dims(mask, 2)
         mask = torch.LongTensor(mask.transpose(2, 0, 1))
-
-        A_cont = np.interp(A, [np.min(A), np.max(A)], [-1, 1])
-        B_cont = np.interp(B, [np.min(B), np.max(B)], [-1, 1])
         
 
         def create_one_hot(image):
-            ridge = skeletonize(image >= 1000).astype(float)
-            subduction = skeletonize(image <= -1000).astype(float)
+            ridge = skeletonize(image >= self.opt.div_threshold).astype(float)
+            subduction = skeletonize(image <= -self.opt.div_threshold).astype(float)
             plate = np.ones(ridge.shape, dtype=float)
             plate[np.where(np.logical_or(ridge == 1, subduction == 1))] = 0
 
             return np.stack((ridge, plate, subduction), axis=2)
 
-        A = create_one_hot(A)
-        B = create_one_hot(B)
+        A = create_one_hot(A_DIV)
+        B = A.copy()
+        B[h_offset:h_offset+100, w_offset:w_offset+100] = [0, 1, 0]
+
+        A_DIV = np.interp(A_DIV, [np.min(A_DIV), np.max(A_DIV)], [-1, 1])
+        A_Vx = np.interp(A_Vx, [np.min(A_Vx), np.max(A_Vx)], [-1, 1])
+        A_Vy = np.interp(A_Vy, [np.min(A_Vy), np.max(A_Vy)], [-1, 1])
+
+        B_DIV = np.interp(B_DIV, [np.min(B_DIV), np.max(B_DIV)], [-1, 1])
+        B_Vx = np.interp(B_Vx, [np.min(B_Vx), np.max(B_Vx)], [-1, 1])
+        B_Vy = np.interp(B_Vy, [np.min(B_Vy), np.max(B_Vy)], [-1, 1])
+        # B = create_one_hot(B_DIV)
 
         # if self.process.startswith("skeleton"):
         #     A = skeleton(A)
@@ -238,23 +288,31 @@ class GeoDataset(BaseDataset):
 
 
         A, B = process_image(A, B, discrete=True)
-        A_cont, B_cont = process_image(A_cont, B_cont)
-        # A_cont, B_cont = torch.LongTensor(A_cont.numpy()), torch.LongTensor(B_cont.numpy())
+        A_DIV, B_DIV = process_image(A_DIV, B_DIV)
+        A_Vx, B_Vx = process_image(A_Vx, B_Vx)
+        A_Vy, B_Vy = process_image(A_Vy, B_Vy)
+        # A_DIV, B_DIV = torch.LongTensor(A_DIV.numpy()), torch.LongTensor(B_DIV.numpy())
 
         if (not self.opt.no_flip) and random.random() < 0.5:
             idx = [i for i in range(A.size(2) - 1, -1, -1)]
             idx = torch.LongTensor(idx)
             A = A.index_select(2, idx)
             B = B.index_select(2, idx)
-            A_cont = A_cont.index_select(2, idx)
-            B_cont = B_cont.index_select(2, idx)
+            A_DIV = A_DIV.index_select(2, idx)
+            B_DIV = B_DIV.index_select(2, idx)
+            A_Vx = A_Vx.index_select(2, idx)
+            B_Vx = B_Vx.index_select(2, idx)
+            A_Vy = A_Vy.index_select(2, idx)
+            B_Vy = B_Vy.index_select(2, idx)
             mask = mask.index_select(2, idx)
 
 
         return {'A': A, 'B': B,
-                'A_cont': A_cont, 'B_cont': B_cont,
+                'A_DIV': A_DIV, 'B_DIV': B_DIV,
+                'A_Vx': A_Vx, 'B_Vx': B_Vx,
+                'A_Vy': A_Vy, 'B_Vy': B_Vy,
                 'mask': mask,
-                'A_paths': A_path, 'B_paths': os.path.splitext(A_path)[0] + '_thresh' + os.path.splitext(A_path)[1]}
+                'A_paths': DIV_path, 'B_paths': os.path.splitext(DIV_path)[0] + '_out' + os.path.splitext(DIV_path)[1]}
 
     def __len__(self):
         return len(self.A_paths)
@@ -268,30 +326,69 @@ class GeoDataset(BaseDataset):
 # import skimage.io as io
 
 # os.chdir('..')
-# print(os.getcwd())
-# # options_dict = dict(dataroot='/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT', phase='train', resize_or_crop='resize_and_crop', loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=True)
-# options_dict = dict(dataroot='geology/data', phase='train', process="threshold_remove_small_components", resize_or_crop='resize_and_crop', loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=True)
+# options_dict = dict(dataroot='geology/data', phase='test', inpaint_file_dir='geology/data', process="skeleton", resize_or_crop='resize_and_crop',
+#     loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=False, div_threshold=0.003)
 # Options = namedtuple('Options', options_dict.keys())
 # opt = Options(*options_dict.values())
 # geo = GeoDataset()
 # geo.initialize(opt)
 
-# stuff = geo[1]
+# stuff = geo[0]
 
-# # dataloader = torch.utils.data.DataLoader(
-# #     geo,
-# #     batch_size=1,
-# #     shuffle=True,
-# #     num_workers=1)
+# dataloader = torch.utils.data.DataLoader(
+#     geo,
+#     batch_size=1,
+#     shuffle=True,
+#     num_workers=1)
 
-# # for i, batch in enumerate(dataloader):
-# #     print(i)
+# for i, batch in enumerate(dataloader):
+#     print(i)
 
 # print(np.max(stuff['A'].numpy()), np.min(stuff['A'].numpy()))
 # print(np.max(stuff['B'].numpy()), np.min(stuff['B'].numpy()))
+# plt.subplot(141)
+# io.imshow(stuff['A'][0, :, :].numpy())
+# plt.subplot(142)
+# io.imshow(stuff['A'][1, :, :].numpy())
+# plt.subplot(143)
+# io.imshow(stuff['A'][2, :, :].numpy())
+# plt.subplot(144)
+# io.imshow(stuff['A'].numpy().transpose(1, 2, 0))
+# plt.show()
 
-# plt.subplot(121)
-# io.imshow(stuff['A'].numpy().transpose(1, 2, 0).squeeze())
-# plt.subplot(122)
-# io.imshow(stuff['B'].numpy().transpose(1, 2, 0).squeeze())
+# plt.subplot(131)
+# io.imshow(stuff['A_cont'].numpy().squeeze())
+# plt.subplot(132)
+# io.imshow(stuff['B_cont'].numpy().squeeze())
+# plt.subplot(133)
+# io.imshow(stuff['mask'].numpy().transpose(1, 2, 0).squeeze())
+# io.show()
+
+# plt.subplot(141)
+# io.imshow(stuff['B'][0, :, :].numpy())
+# plt.subplot(142)
+# io.imshow(stuff['B'][1, :, :].numpy())
+# plt.subplot(143)
+# io.imshow(stuff['B'][2, :, :].numpy())
+# plt.subplot(144)
+# io.imshow(stuff['B'].numpy().transpose(1, 2, 0))
+# plt.show()
+
+# plt.subplot(231)
+# io.imshow(stuff['A'].numpy().squeeze().transpose(1, 2, 0))
+# plt.subplot(232)
+# io.imshow(stuff['B'].numpy().squeeze().transpose(1, 2, 0))
+# plt.subplot(233)
+# io.imshow(stuff['mask'].numpy().transpose(1, 2, 0).squeeze())
+# io.imshow(stuff['A_DIV'].numpy().squeeze())
+# plt.subplot(234)
+# io.imshow(stuff['B_DIV'].numpy().squeeze())
+# plt.subplot(425)
+# io.imshow(stuff['A_Vx'].numpy().squeeze())
+# plt.subplot(426)
+# io.imshow(stuff['B_Vx'].numpy().squeeze())
+# plt.subplot(427)
+# io.imshow(stuff['A_Vy'].numpy().squeeze())
+# plt.subplot(428)
+# io.imshow(stuff['B_Vy'].numpy().squeeze())
 # plt.show()

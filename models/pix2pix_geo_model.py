@@ -34,18 +34,26 @@ class Pix2PixGeoModel(BaseModel):
         # print(self.netG)
         # self.netG = nn.Sequential(self.netG, nn.Softmax2d())
 
-        self.netG_cont = nn.Sequential(
+        self.netG_DIV = nn.Sequential(
+            nn.Conv2d(in_channels=opt.output_nc, out_channels=1, kernel_size=1),
+            )
+        self.netG_Vx = nn.Sequential(
+            nn.Conv2d(in_channels=opt.output_nc, out_channels=1, kernel_size=1),
+            )
+        self.netG_Vy = nn.Sequential(
             nn.Conv2d(in_channels=opt.output_nc, out_channels=1, kernel_size=1),
             )
         # self.netG_disc = nn.Sequential(self.netG, nn.LogSoftmax(dim=3))
 
         if len(self.gpu_ids) > 0:
-            self.netG_cont.cuda(self.gpu_ids[0])
+            self.netG_DIV.cuda(self.gpu_ids[0])
+            self.netG_Vx.cuda(self.gpu_ids[0])
+            self.netG_Vy.cuda(self.gpu_ids[0])
             # self.netG_disc.cuda(self.gpu_ids[0])
 
         if self.isTrain:
-            use_sigmoid = opt.no_lsgan
-            # use_sigmoid = True
+            # use_sigmoid = opt.no_lsgan
+            use_sigmoid = True
             self.netD1 = networks.define_D(opt.input_nc + 1 + opt.output_nc, opt.ndf,
                                           # opt.which_model_netD,
                                           'wgan',
@@ -59,13 +67,31 @@ class Pix2PixGeoModel(BaseModel):
                                           opt.n_layers_D, 'none', use_sigmoid, opt.init_type, self.gpu_ids,
                                           n_linear=1860)
                                           # n_linear=int((512*256)/70))
+            
+            self.netD3 = networks.define_D(opt.input_nc + 1 + 1, opt.ndf,
+                                          # opt.which_model_netD,
+                                          'wgan',
+                                          opt.n_layers_D, 'none', use_sigmoid, opt.init_type, self.gpu_ids,
+                                          n_linear=1860)
+                                          # n_linear=int((512*256)/70))
+            
+            self.netD4 = networks.define_D(opt.input_nc + 1 + 1, opt.ndf,
+                                          # opt.which_model_netD,
+                                          'wgan',
+                                          opt.n_layers_D, 'none', use_sigmoid, opt.init_type, self.gpu_ids,
+                                          n_linear=1860)
+                                          # n_linear=int((512*256)/70))
 
         if not self.isTrain or opt.continue_train:
             self.load_network(self.netG, 'G', opt.which_epoch)
-            self.load_network(self.netG_cont, 'G_cont', opt.which_epoch)
+            self.load_network(self.netG_DIV, 'G_DIV', opt.which_epoch)
+            self.load_network(self.netG_DIV, 'G_Vx', opt.which_epoch)
+            self.load_network(self.netG_DIV, 'G_Vy', opt.which_epoch)
             if self.isTrain:
                 self.load_network(self.netD1, 'D1', label, opt.which_epoch)
                 self.load_network(self.netD2, 'D2', label, opt.which_epoch)
+                self.load_network(self.netD3, 'D3', label, opt.which_epoch)
+                self.load_network(self.netD4, 'D4', label, opt.which_epoch)
 
         if self.isTrain:
             # Image pool not doing anything in this model because size is set to zero, just
@@ -81,16 +107,28 @@ class Pix2PixGeoModel(BaseModel):
             self.optimizers = []
             self.optimizer_G = torch.optim.Adam(self.netG.parameters(),
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
-            self.optimizer_G_cont = torch.optim.Adam(self.netG_cont.parameters(),
+            self.optimizer_G_DIV = torch.optim.Adam(self.netG_DIV.parameters(),
+                                                lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_G_Vx = torch.optim.Adam(self.netG_Vx.parameters(),
+                                                lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_G_Vy = torch.optim.Adam(self.netG_Vy.parameters(),
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D1 = torch.optim.Adam(self.netD1.parameters(),
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_D2 = torch.optim.Adam(self.netD2.parameters(),
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_D3 = torch.optim.Adam(self.netD3.parameters(),
+                                                lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_D4 = torch.optim.Adam(self.netD4.parameters(),
+                                                lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
-            self.optimizers.append(self.optimizer_G_cont)
+            self.optimizers.append(self.optimizer_G_DIV)
+            self.optimizers.append(self.optimizer_G_Vx)
+            self.optimizers.append(self.optimizer_G_Vy)
             self.optimizers.append(self.optimizer_D1)
             self.optimizers.append(self.optimizer_D2)
+            self.optimizers.append(self.optimizer_D3)
+            self.optimizers.append(self.optimizer_D4)
             # Just a linear decay over the last 100 iterations, by default
             for optimizer in self.optimizers:
                 self.schedulers.append(networks.get_scheduler(optimizer, opt))
@@ -106,64 +144,91 @@ class Pix2PixGeoModel(BaseModel):
         AtoB = self.opt.which_direction == 'AtoB'
         input_A = input['A' if AtoB else 'B']
         input_B = input['B' if AtoB else 'A']
-        input_A_cont = input['A_cont' if AtoB else 'B_cont']
-        input_B_cont = input['B_cont' if AtoB else 'A_cont']
+        input_A_DIV = input['A_DIV' if AtoB else 'B_DIV']
+        input_B_DIV = input['B_DIV' if AtoB else 'A_DIV']
+        input_A_Vx = input['A_Vx' if AtoB else 'B_Vx']
+        input_B_Vx = input['B_Vx' if AtoB else 'A_Vx']
+        input_A_Vy = input['A_Vy' if AtoB else 'B_Vy']
+        input_B_Vy = input['B_Vy' if AtoB else 'A_Vy']
         mask = input['mask']
         
         if len(self.gpu_ids) > 0:
             input_A = input_A.cuda(self.gpu_ids[0], async=True)
             input_B = input_B.cuda(self.gpu_ids[0], async=True)
-            input_A_cont = input_A_cont.cuda(self.gpu_ids[0], async=True)
-            input_B_cont = input_B_cont.cuda(self.gpu_ids[0], async=True)
+            input_A_DIV = input_A_DIV.cuda(self.gpu_ids[0], async=True)
+            input_B_DIV = input_B_DIV.cuda(self.gpu_ids[0], async=True)
+            input_A_Vx = input_A_Vx.cuda(self.gpu_ids[0], async=True)
+            input_B_Vx = input_B_Vx.cuda(self.gpu_ids[0], async=True)
+            input_A_Vy = input_A_Vy.cuda(self.gpu_ids[0], async=True)
+            input_B_Vy = input_B_Vy.cuda(self.gpu_ids[0], async=True)
             mask = mask.cuda(self.gpu_ids[0], async=True)
         
         self.input_A = input_A
         self.input_B = input_B
-        self.input_A_cont = input_A_cont
-        self.input_B_cont = input_B_cont
+        self.input_A_DIV = input_A_DIV
+        self.input_B_DIV = input_B_DIV
+        self.input_A_Vx = input_A_Vx
+        self.input_B_Vx = input_B_Vx
+        self.input_A_Vy = input_A_Vy
+        self.input_B_Vy = input_B_Vy
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
         self.mask = mask
 
     def forward(self):
         # Continuous divergence map with chunk missing
-        self.real_A_cont = Variable(self.input_A_cont)#, requires_grad=False)
+        self.real_A_DIV = Variable(self.input_A_DIV)#, requires_grad=False)
+        # Vector fields with chunk missing
+        self.real_A_Vx = Variable(self.input_A_Vx)#, requires_grad=False)
+        self.real_A_Vy = Variable(self.input_A_Vy)#, requires_grad=False)
         # Thresholded divergence map with chunk missing
         self.real_A_discrete = Variable(self.input_A)#, requires_grad=False)
         # Entire thresholded divergence map
         self.real_B_discrete = Variable(self.input_B)#, requires_grad=False)
         # Entire continuous divergence map
-        self.real_B_cont = Variable(self.input_B_cont)#, requires_grad=False)
+        self.real_B_DIV = Variable(self.input_B_DIV)#, requires_grad=False)
+        # Entire vector field
+        self.real_B_Vx = Variable(self.input_B_Vx)#, requires_grad=False)
+        self.real_B_Vy = Variable(self.input_B_Vy)#, requires_grad=False)
         
         # Produces three channel output with class probability assignments
         self.fake_B_discrete = self.netG(torch.cat((self.real_A_discrete, Variable(self.mask.float())), dim=1))
         # Create continuous divergence field from class probabilities
-        self.fake_B_cont = self.netG_cont(self.fake_B_discrete)
+        self.fake_B_DIV = self.netG_DIV(self.fake_B_discrete)
+        # Create vector field from class probabilities
+        self.fake_B_Vx = self.netG_Vx(self.fake_B_discrete)
+        self.fake_B_Vy = self.netG_Vy(self.fake_B_discrete)
         # Find log probabilities for NLL step in backprop
         
         self.fake_B_classes = F.log_softmax(self.fake_B_discrete, dim=1)
         # Apply max and normalise to get -1 to 1 range
-        self.fake_B_classes = torch.max(self.fake_B_classes, dim=1)
+        self.fake_B_classes = torch.max(self.fake_B_classes, dim=1, keepdim=True)[1]
 
         self.real_B_classes = F.log_softmax(self.real_B_discrete, dim=1)
         self.real_B_classes = torch.max(self.real_B_discrete, dim=1, keepdim=False)[1]
 
         self.fake_B_one_hot = torch.zeros(self.fake_B_discrete.shape)
         
-        self.fake_B_one_hot.scatter_(1, fake_B_classes.data.cpu(), 1.0)
+        self.fake_B_one_hot.scatter_(1, self.fake_B_classes.data.cpu(), 1.0)
 
     # no backprop gradients
     def test(self):
-        self.real_A_cont = Variable(self.input_A_cont)#, requires_grad=False)
+        self.real_A_DIV = Variable(self.input_A_DIV)#, requires_grad=False)
+        self.real_A_Vx = Variable(self.input_A_Vx)#, requires_grad=False)
+        self.real_A_Vy = Variable(self.input_A_Vy)#, requires_grad=False)
         self.real_A_discrete = Variable(self.input_A, volatile=True)
         
         mask_var = Variable(self.mask.float(), volatile=True)
         self.fake_B_discrete = self.netG(torch.cat((self.real_A_discrete, mask_var), dim=1))
-        self.fake_B_cont = self.netG_cont(self.fake_B_discrete)
+        self.fake_B_DIV = self.netG_DIV(self.fake_B_discrete)
+        self.fake_B_Vx = self.netG_Vx(self.fake_B_discrete)
+        self.fake_B_Vy = self.netG_Vy(self.fake_B_discrete)
         
         self.fake_B_classes = torch.max(self.fake_B_discrete, dim=1, keepdim=True)[1]
 
-        self.real_B_cont = Variable(self.input_B_cont)#, requires_grad=False)
+        self.real_B_DIV = Variable(self.input_B_DIV)#, requires_grad=False)
+        self.real_B_Vx = Variable(self.input_B_Vx)#, requires_grad=False)
+        self.real_B_Vy = Variable(self.input_B_Vy)#, requires_grad=False)
         self.real_B_discrete = Variable(self.input_B, volatile=True)
 
         self.real_B_classes = F.log_softmax(self.real_B_discrete, dim=1)
@@ -229,12 +294,12 @@ class Pix2PixGeoModel(BaseModel):
         # Fake
         # stop backprop to the generator by detaching fake_B
         # In this case real_A, the input, is our conditional vector
-        fake_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.fake_B_cont), dim=1)
+        fake_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.fake_B_DIV), dim=1)
         self.loss_D2_fake = self.netD2(fake_AB.detach())
         # self.loss_D2_fake = self.criterionGAN(pred_fake, False)
 
         # Real
-        real_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.real_B_cont), dim=1)
+        real_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.real_B_DIV), dim=1)
         self.loss_D2_real = self.netD2(real_AB)
         # self.loss_D2_real = self.criterionGAN(pred_real, True)
 
@@ -247,6 +312,50 @@ class Pix2PixGeoModel(BaseModel):
         self.loss_D2.backward()
 
 
+    def backward_D3(self):
+        # Fake
+        # stop backprop to the generator by detaching fake_B
+        # In this case real_A, the input, is our conditional vector
+        fake_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.fake_B_Vx), dim=1)
+        self.loss_D3_fake = self.netD3(fake_AB.detach())
+        # self.loss_D3_fake = self.criterionGAN(pred_fake, False)
+
+        # Real
+        real_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.real_B_Vx), dim=1)
+        self.loss_D3_real = self.netD3(real_AB)
+        # self.loss_D3_real = self.criterionGAN(pred_real, True)
+
+        grad_pen = self.calc_gradient_penalty(self.netD3, real_AB.data, fake_AB.data)
+
+        # Combined loss
+        # self.loss_D3 = (self.loss_D3_fake + self.loss_D3_real) * 0.5
+        self.loss_D3 = self.loss_D3_fake - self.loss_D3_real + grad_pen * self.opt.lambda_C
+
+        self.loss_D3.backward()
+
+
+    def backward_D4(self):
+        # Fake
+        # stop backprop to the generator by detaching fake_B
+        # In this case real_A, the input, is our conditional vector
+        fake_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.fake_B_Vy), dim=1)
+        self.loss_D4_fake = self.netD4(fake_AB.detach())
+        # self.loss_D4_fake = self.criterionGAN(pred_fake, False)
+
+        # Real
+        real_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.real_B_Vy), dim=1)
+        self.loss_D4_real = self.netD4(real_AB)
+        # self.loss_D4_real = self.criterionGAN(pred_real, True)
+
+        grad_pen = self.calc_gradient_penalty(self.netD4, real_AB.data, fake_AB.data)
+
+        # Combined loss
+        # self.loss_D4 = (self.loss_D4_fake + self.loss_D4_real) * 0.5
+        self.loss_D4 = self.loss_D4_fake - self.loss_D4_real + grad_pen * self.opt.lambda_C
+
+        self.loss_D4.backward()
+
+
     def backward_G(self):
         # First, G(A) should fake the discriminator
         # Note that we don't detach here because we DO want to backpropagate
@@ -256,9 +365,15 @@ class Pix2PixGeoModel(BaseModel):
         fake_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.fake_B_discrete), dim=1)
         pred_fake1 = self.netD1(fake_AB)
         
-        # fake_AB = torch.cat((self.real_A_discrete, self.fake_B_cont), 1)
-        fake_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.fake_B_cont), dim=1)
+        # fake_AB = torch.cat((self.real_A_discrete, self.fake_B_DIV), 1)
+        fake_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.fake_B_DIV), dim=1)
         pred_fake2 = self.netD2(fake_AB)
+        
+        fake_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.fake_B_Vx), dim=1)
+        pred_fake3 = self.netD3(fake_AB)
+
+        fake_AB = torch.cat((self.real_A_discrete, Variable(self.mask.float()), self.fake_B_Vy), dim=1)
+        pred_fake4 = self.netD4(fake_AB)
 
         # We only optimise with respect to the fake prediction because
         # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
@@ -267,15 +382,19 @@ class Pix2PixGeoModel(BaseModel):
 
         self.loss_G_GAN1 = -pred_fake1.mean()
         self.loss_G_GAN2 = -pred_fake2.mean()
+        self.loss_G_GAN3 = -pred_fake3.mean()
+        self.loss_G_GAN4 = -pred_fake4.mean()
 
         # Second, G(A) = B
-        self.loss_G_L2 = self.criterionL2(self.fake_B_cont, self.real_B_cont) * self.opt.lambda_A
+        self.loss_G_L2_DIV = self.criterionL2(self.fake_B_DIV, self.real_B_DIV) * self.opt.lambda_A
+        self.loss_G_L2_Vx = self.criterionL2(self.fake_B_Vx, self.real_B_Vx) * self.opt.lambda_A
+        self.loss_G_L2_Vy = self.criterionL2(self.fake_B_Vy, self.real_B_Vy) * self.opt.lambda_A
 
         ce_fun = self.criterionCE()
 
         self.loss_G_CE = ce_fun(F.log_softmax(self.fake_B_discrete, dim=1), self.real_B_classes) * self.opt.lambda_B
 
-        self.loss_G = self.loss_G_GAN1 + self.loss_G_GAN2 + self.loss_G_L2 + self.loss_G_CE
+        self.loss_G = self.loss_G_GAN1 + self.loss_G_GAN2 + self.loss_G_GAN3 + self.loss_G_GAN4 + self.loss_G_L2_DIV + self.loss_G_L2_Vx + self.loss_G_L2_Vy + self.loss_G_CE
 
         self.loss_G.backward()
 
@@ -284,7 +403,7 @@ class Pix2PixGeoModel(BaseModel):
         # target and generated data in object
         self.forward()
 
-        for _ in range(1):
+        for _ in range(25):
             self.optimizer_D1.zero_grad()
             self.backward_D1()
             self.optimizer_D1.step()
@@ -293,11 +412,21 @@ class Pix2PixGeoModel(BaseModel):
             self.backward_D2()
             self.optimizer_D2.step()
 
+            self.optimizer_D3.zero_grad()
+            self.backward_D3()
+            self.optimizer_D3.step()
+
+            self.optimizer_D4.zero_grad()
+            self.backward_D4()
+            self.optimizer_D4.step()
+
         self.optimizer_G.zero_grad()
-        self.optimizer_G_cont.zero_grad()
+        self.optimizer_G_DIV.zero_grad()
         self.backward_G()
         self.optimizer_G.step()
-        self.optimizer_G_cont.step()
+        self.optimizer_G_DIV.step()
+        self.optimizer_G_Vx.step()
+        self.optimizer_G_Vy.step()
 
     def get_current_errors(self):
         return OrderedDict([
@@ -310,25 +439,41 @@ class Pix2PixGeoModel(BaseModel):
             ('D1_fake', self.loss_D1_fake.data[0]),
             ('D2_real', self.loss_D2_real.data[0]),
             ('D2_fake', self.loss_D2_fake.data[0])
+            ('D3_real', self.loss_D3_real.data[0]),
+            ('D3_fake', self.loss_D3_fake.data[0]),
+            ('D4_real', self.loss_D4_real.data[0]),
+            ('D4_fake', self.loss_D4_fake.data[0])
             ])
 
     def get_current_visuals(self):
         # print(np.unique(self.real_A_discrete.data))
         # print(self.fake_B_discrete.data.shape)
-        mask_edge = roberts(self.mask.numpy().squeeze())
+        mask_edge = roberts(self.mask.cpu().numpy().squeeze())
         mask_edge_coords = np.where(mask_edge)
 
         real_A_discrete = util.tensor2im(self.real_A_discrete.data)
         real_A_discrete[mask_edge_coords] = np.max(real_A_discrete)
 
-        real_A_continuous = util.tensor2im(self.real_A_cont.data)
-        real_A_continuous[mask_edge_coords] = np.max(real_A_continuous)
+        real_A_DIV = util.tensor2im(self.real_A_DIV.data)
+        real_A_DIV[mask_edge_coords] = np.max(real_A_DIV)
+
+        real_A_Vx = util.tensor2im(self.real_A_Vx.data)
+        real_A_Vx[mask_edge_coords] = np.max(real_A_Vx)
+
+        real_A_Vy = util.tensor2im(self.real_A_Vy.data)
+        real_A_Vy[mask_edge_coords] = np.max(real_A_Vy)
 
         real_B_discrete = util.tensor2im(self.real_B_discrete.data)
         real_B_discrete[mask_edge_coords] = np.max(real_B_discrete)
 
-        real_B_continuous = util.tensor2im(self.real_B_cont.data)
-        real_B_continuous[mask_edge_coords] = np.max(real_B_continuous)
+        real_B_DIV = util.tensor2im(self.real_B_DIV.data)
+        real_B_DIV[mask_edge_coords] = np.max(real_B_DIV)
+
+        real_B_Vx = util.tensor2im(self.real_B_DIV.data)
+        real_B_Vx[mask_edge_coords] = np.max(real_B_Vx)
+
+        real_B_Vy = util.tensor2im(self.real_B_DIV.data)
+        real_B_Vy[mask_edge_coords] = np.max(real_B_Vy)
 
         fake_B_discrete = util.tensor2im(self.fake_B_discrete.data)
         fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
@@ -336,23 +481,35 @@ class Pix2PixGeoModel(BaseModel):
         fake_B_one_hot = util.tensor2im(self.fake_B_one_hot)
         fake_B_one_hot[mask_edge_coords] = np.max(fake_B_one_hot)
 
-        fake_B_continuous = util.tensor2im(self.fake_B_cont.data)
-        fake_B_continuous[mask_edge_coords] = np.max(fake_B_continuous)
+        fake_B_DIV = util.tensor2im(self.fake_B_DIV.data)
+        fake_B_DIV[mask_edge_coords] = np.max(fake_B_DIV)
+
+        fake_B_Vx = util.tensor2im(self.fake_B_Vx.data)
+        fake_B_Vx[mask_edge_coords] = np.max(fake_B_Vx)
+
+        fake_B_Vy = util.tensor2im(self.fake_B_Vy.data)
+        fake_B_Vy[mask_edge_coords] = np.max(fake_B_Vy)
 
         return OrderedDict([
-            ('real_A_discrete', real_A_discrete),
-            ('fake_B_discrete', fake_B_discrete),
-            ('fake_B_one_hot', fake_B_one_hot),
-            ('real_B_discrete', real_B_discrete),
-            ('real_A_continuous', real_A_continuous), 
-            ('fake_B_continuous', fake_B_continuous),
-            ('real_B_continuous', real_B_continuous), 
+            ('input_one_hot', real_A_discrete),
+            ('output_softmax', fake_B_discrete),
+            ('output_one_hot', fake_B_one_hot),
+            ('ground_truth_one_hot', real_B_discrete),
+            ('input_divergence', real_A_DIV), 
+            ('output_divergence', fake_B_DIV),
+            ('ground_truth_divergence', real_B_DIV), 
+            ('input_Vx', real_A_Vx), 
+            ('output_Vx', fake_B_Vx),
+            ('ground_truth_Vx', real_B_Vx), 
+            ('input_Vy', real_A_Vy), 
+            ('output_Vy', fake_B_Vy),
+            ('ground_truth_Vy', real_B_Vy), 
             ])
 
 
     def get_current_metrics(self):
-        import skimage.io as io
-        import matplotlib.pyplot as plt
+        # import skimage.io as io
+        # import matplotlib.pyplot as plt
 
         metrics = []
 
@@ -511,6 +668,8 @@ class Pix2PixGeoModel(BaseModel):
 
     def save(self, label):
         self.save_network(self.netG, 'G', label, self.gpu_ids)
-        self.save_network(self.netG_cont, 'G_cont', label, self.gpu_ids)
+        self.save_network(self.netG_DIV, 'G_DIV', label, self.gpu_ids)
+        self.save_network(self.netG_Vx, 'G_Vx', label, self.gpu_ids)
+        self.save_network(self.netG_Vy, 'G_Vy', label, self.gpu_ids)
         self.save_network(self.netD1, 'D1', label, self.gpu_ids)
         self.save_network(self.netD2, 'D2', label, self.gpu_ids)
