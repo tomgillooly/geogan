@@ -14,7 +14,7 @@ import numpy as np
 
 import skimage.io as io
 
-from scipy.spatial.distance import directed_hausdorff
+from scipy.spatial.distance import directed_hausdorff, euclidean
 from skimage.filters import roberts
 
 import sys
@@ -106,8 +106,8 @@ class Pix2PixGeoModel(BaseModel):
         AtoB = self.opt.which_direction == 'AtoB'
         input_A = input['A' if AtoB else 'B']
         input_B = input['B' if AtoB else 'A']
-        input_A_cont = input['A_cont' if AtoB else 'B_cont']
-        input_B_cont = input['B_cont' if AtoB else 'A_cont']
+        input_A_cont = input['A_DIV' if AtoB else 'B_DIV']
+        input_B_cont = input['B_DIV' if AtoB else 'A_DIV']
         mask = input['mask']
         
         if len(self.gpu_ids) > 0:
@@ -143,14 +143,14 @@ class Pix2PixGeoModel(BaseModel):
         
         self.fake_B_classes = F.log_softmax(self.fake_B_discrete, dim=1)
         # Apply max and normalise to get -1 to 1 range
-        self.fake_B_classes = torch.max(self.fake_B_classes, dim=1)
+        self.fake_B_classes = torch.max(self.fake_B_classes, dim=1, keepdim=True)[1]
 
         self.real_B_classes = F.log_softmax(self.real_B_discrete, dim=1)
         self.real_B_classes = torch.max(self.real_B_discrete, dim=1, keepdim=False)[1]
 
         self.fake_B_one_hot = torch.zeros(self.fake_B_discrete.shape)
         
-        self.fake_B_one_hot.scatter_(1, fake_B_classes.data.cpu(), 1.0)
+        self.fake_B_one_hot.scatter_(1, self.fake_B_classes.data.cpu(), 1.0)
 
     # no backprop gradients
     def test(self):
@@ -315,7 +315,7 @@ class Pix2PixGeoModel(BaseModel):
     def get_current_visuals(self):
         # print(np.unique(self.real_A_discrete.data))
         # print(self.fake_B_discrete.data.shape)
-        mask_edge = roberts(self.mask.numpy().squeeze())
+        mask_edge = roberts(self.mask.cpu().numpy().squeeze())
         mask_edge_coords = np.where(mask_edge)
 
         real_A_discrete = util.tensor2im(self.real_A_discrete.data)
@@ -330,7 +330,7 @@ class Pix2PixGeoModel(BaseModel):
         real_B_continuous = util.tensor2im(self.real_B_cont.data)
         real_B_continuous[mask_edge_coords] = np.max(real_B_continuous)
 
-        fake_B_discrete = util.tensor2im(self.fake_B_discrete.data)
+        fake_B_discrete = util.tensor2im(F.log_softmax(self.fake_B_discrete, dim=1).data)
         fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
 
         fake_B_one_hot = util.tensor2im(self.fake_B_one_hot)
@@ -376,7 +376,9 @@ class Pix2PixGeoModel(BaseModel):
         mask_tl =(mask_coords[0][0], mask_coords[1][0])
         mask_br =(mask_coords[0][-1], mask_coords[1][-1])
 
-        d_h = 0.0
+        d_h_recall = 0.0
+        d_h_precision = 0.0
+        d_h_s = 0.0
 
         for c in np.unique(self.real_B_classes.data.numpy()):
             fake_channel = self.fake_B_one_hot.numpy().squeeze()[c]
@@ -428,15 +430,15 @@ class Pix2PixGeoModel(BaseModel):
             # io.imshow(real_channel)
             # plt.show()
 
-            num_true_pos, num_true_neg, num_false_pos, num_false_neg = get_stats(real_channel, fake_channel)
+            # num_true_pos, num_true_neg, num_false_pos, num_false_neg = get_stats(real_channel, fake_channel)
 
-            precision = (num_true_pos) / (num_true_pos + num_false_pos + eps)
-            metrics.append(('Class {} Precision (Inpainted region)'.format(c),  precision))
-            inpaint_precisions.append(precision)
+            # precision = (num_true_pos) / (num_true_pos + num_false_pos + eps)
+            # metrics.append(('Class {} Precision (Inpainted region)'.format(c),  precision))
+            # inpaint_precisions.append(precision)
             
-            recall = (num_true_pos) / (num_true_pos + num_false_neg + eps)
-            metrics.append(('Class {} Recall (Inpainted region)'.format(c),  recall))
-            inpaint_recalls.append(recall)
+            # recall = (num_true_pos) / (num_true_pos + num_false_neg + eps)
+            # metrics.append(('Class {} Recall (Inpainted region)'.format(c),  recall))
+            # inpaint_recalls.append(recall)
 
 
 
@@ -461,13 +463,45 @@ class Pix2PixGeoModel(BaseModel):
             # print(fake_coords)
             # print(real_coords)
 
-            if not fake_coords.any() and real_coords.any():
-                d_h = np.inf
+            if not fake_coords.any() or not real_coords.any():
+                mask_diagonal = euclidean(mask_br, mask_tl)
+                d_h_fr = mask_diagonal
+                d_h_rf = mask_diagonal
+                d_h_s = mask_diagonal
             elif fake_coords.any() and real_coords.any():
                 d_h_fr, i1_fr, i2_fr = directed_hausdorff(fake_coords, real_coords)
                 d_h_rf, i1_rf, i2_rf = directed_hausdorff(real_coords, fake_coords)
 
-                d_h = max(d_h, max(d_h_fr, d_h_rf))
+                # f_y, f_x = fake_coords[i1_fr][0], fake_coords[i1_fr][1]
+                # r_y, r_x = real_coords[i2_fr][0], real_coords[i2_fr][1]
+
+                # pixel_layer = np.zeros(fake_channel.shape)
+                # pixel_layer[f_y, f_x] = 1
+                # pixel_layer[r_y, r_x] = 1
+                # overlay_dh_fr = np.stack((fake_channel, real_channel, pixel_layer), axis=2)
+
+                # f_y, f_x = fake_coords[i2_rf][0], fake_coords[i2_rf][1]
+                # r_y, r_x = real_coords[i1_rf][0], real_coords[i1_rf][1]
+
+                # pixel_layer = np.zeros(fake_channel.shape)
+                # pixel_layer[f_y, f_x] = 1
+                # pixel_layer[r_y, r_x] = 1
+                # overlay_dh_rf = np.stack((fake_channel, real_channel, pixel_layer), axis=2)
+
+                # plt.subplot(211)
+                # io.imshow(overlay_dh_rf)
+                # plt.title('Real to fake (recall)')
+                # plt.subplot(212)
+                # io.imshow(overlay_dh_fr)
+                # plt.title('Fake to real (precision)')
+                # plt.suptitle('Real - green, fake - red, fake pix - m, real pix - c\n'+
+                #     'Recall {}, precision {}'.format(d_h_rf, d_h_fr))
+                # plt.show()
+
+                d_h_s = max(d_h_s, max(d_h_fr, d_h_rf))
+
+            d_h_recall = max(d_h_recall, d_h_rf)
+            d_h_precision = max(d_h_precision, d_h_fr)
             # print(d_h_fr)
             # print(d_h_rf)
             # i1, i2 = (i1_fr, i2_fr) if d_h_fr > d_h_rf else (i2_rf, i1_rf)
@@ -477,37 +511,37 @@ class Pix2PixGeoModel(BaseModel):
             # print(fake_coords[i1])
             # print(real_coords[i2])
 
-            # f_y, f_x = fake_coords[i1][0], fake_coords[i1][1]
-            # r_y, r_x = real_coords[i2][0], real_coords[i2][1]
 
-            # fake_layer = np.zeros(fake_channel.shape)
-            # fake_layer[f_y, f_x] = 1
-            # fake_channel_dh = np.stack((fake_channel, fake_layer, fake_layer), axis=2)
-
-            # real_layer = np.zeros(real_channel.shape)
-            # real_layer[r_y, r_x] = 1
-            # real_channel_dh = np.stack((real_channel, real_layer, real_layer), axis=2)
-
-            # plt.subplot(221)
-            # io.imshow(fake_channel)
-            # plt.subplot(222)
-            # io.imshow(real_channel)
-            # plt.subplot(223)
-            # io.imshow(fake_channel_dh)
-            # plt.subplot(224)
-            # io.imshow(real_channel_dh)
-            # plt.show()
-
-
-        metrics.append(('Hausdorff distance', d_h))
+        metrics.append(('Hausdorff distance (R)', d_h_recall))
+        metrics.append(('Hausdorff distance (P)', d_h_precision))
+        metrics.append(('Hausdorff distance (S)', d_h_s))
 
         # metrics.append(('Average precision', np.mean(precisions)))
         # metrics.append(('Average recall', np.mean(recalls)))
 
-        metrics.append(('Average precision (inpainted region)', np.mean(inpaint_precisions)))
-        metrics.append(('Average recall (inpainted region)', np.mean(inpaint_recalls)))
+        # metrics.append(('Average precision (inpainted region)', np.mean(inpaint_precisions)))
+        # metrics.append(('Average recall (inpainted region)', np.mean(inpaint_recalls)))
 
         return OrderedDict(metrics)
+
+
+    def accumulate_metrics(self, metrics):
+        d_h_recall = []
+        d_h_precision = []
+        d_h_s = []
+
+        for metric in metrics:
+            d_h_recall.append(metric['Hausdorff distance (R)'])
+            d_h_precision.append(metric['Hausdorff distance (P)'])
+            d_h_s.append(metric['Hausdorff distance (S)'])
+
+
+        return OrderedDict([
+            ('Hausdorff distance (R)', np.mean(d_h_recall)),
+            ('Hausdorff distance (P)', np.mean(d_h_precision)),
+            ('Hausdorff distance (S)', np.mean(d_h_s)),
+            ])
+
 
     def save(self, label):
         self.save_network(self.netG, 'G', label, self.gpu_ids)

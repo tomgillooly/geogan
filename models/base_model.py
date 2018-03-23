@@ -38,6 +38,9 @@ class BaseModel():
     def get_current_metrics(self):
         return {}
 
+    def accumulate_metrics(self, metrics):
+        return {}
+
     def save(self, label):
         pass
 
