@@ -369,10 +369,11 @@ class GeoDataset(BaseDataset):
 # if __name__ == '__main__':
 # import matplotlib.pyplot as plt
 # import skimage.io as io
+# from skimage.filters import roberts
 
 # os.chdir('..')
-# options_dict = dict(dataroot='geology/data', phase='test', inpaint_file_dir='geology/data', process="skeleton", resize_or_crop='resize_and_crop',
-#     loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=False, div_threshold=0.003)
+# options_dict = dict(dataroot=os.path.expanduser('~/data/geology/'), phase='test', inpaint_file_dir=os.path.expanduser('~/data/geology/'), process="skeleton", resize_or_crop='resize_and_crop',
+#     loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=False, div_threshold=1000)
 # Options = namedtuple('Options', options_dict.keys())
 # opt = Options(*options_dict.values())
 # geo = GeoDataset()
