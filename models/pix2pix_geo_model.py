@@ -154,6 +154,15 @@ class Pix2PixGeoModel(BaseModel):
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
         self.mask = mask
+        mask_x1 = input['mask_x1']
+        mask_x2 = input['mask_x2']
+        mask_y1 = input['mask_y1']
+        mask_y2 = input['mask_y2']
+
+        self.batch_size =input_A.shape[0]
+        # Masks are always the same size
+        self.mask_size_y = mask_y2[0] - mask_y1[0]
+        self.mask_size_x = mask_x2[0] - mask_x1[0]
 
     def forward(self):
         # Continuous divergence map with chunk missing
@@ -292,6 +301,30 @@ class Pix2PixGeoModel(BaseModel):
         self.loss_D2.backward()
 
 
+    def backward_D(self, net_D, cond_data, real_data, fake_data):
+        # Fake
+        # stop backprop to the generator by detaching fake_B
+        # In this case real_A, the input, is our conditional vector
+        fake_AB = torch.cat((cond_data, fake_data), dim=1)
+        fake_loss = net_D(fake_AB.detach())
+        # self.loss_D2_fake = self.criterionGAN(pred_fake, False)
+
+        # Real
+        real_AB = torch.cat((cond_data, real_data), dim=1)
+        real_loss = net_D(real_AB)
+        # self.loss_D2_real = self.criterionGAN(pred_real, True)
+
+        grad_pen = self.calc_gradient_penalty(net_D, real_AB.data, fake_AB.data)
+
+        # Combined loss
+        # self.loss_D2 = (self.loss_D2_fake + self.loss_D2_real) * 0.5
+        loss = fake_loss - real_loss + grad_pen * self.opt.lambda_C
+
+        loss.backward()
+
+        return loss, real_loss, fake_loss
+
+
     def backward_G(self):
         # First, G(A) should fake the discriminator
         # Note that we don't detach here because we DO want to backpropagate
@@ -313,18 +346,35 @@ class Pix2PixGeoModel(BaseModel):
         self.loss_G_GAN1 = -pred_fake1.mean()
         self.loss_G_GAN2 = -pred_fake2.mean()
 
+        self.loss_G_GAN = self.loss_G_GAN1 + self.loss_G_GAN2
+
         # Second, G(A) = B
-        self.loss_G_L2_DIV = self.criterionL2(self.fake_B_DIV, self.real_B_DIV) * self.opt.lambda_A
-        self.loss_G_L2_Vx = self.criterionL2(self.fake_B_Vx, self.real_B_Vx) * self.opt.lambda_A
-        self.loss_G_L2_Vy = self.criterionL2(self.fake_B_Vy, self.real_B_Vy) * self.opt.lambda_A
+        self.loss_G_L2_DIV_global = self.criterionL2(self.fake_B_DIV, self.real_B_DIV) * self.opt.lambda_A
+        self.loss_G_L2_Vx_global = self.criterionL2(self.fake_B_Vx, self.real_B_Vx) * self.opt.lambda_A
+        self.loss_G_L2_Vy_global = self.criterionL2(self.fake_B_Vy, self.real_B_Vy) * self.opt.lambda_A
+
+        self.loss_G_L2_global = self.loss_G_L2_DIV_global + self.loss_G_L2_Vx_global + self.loss_G_L2_Vy_global
+
+        self.loss_G_L2_DIV_local = self.criterionL2(
+            self.fake_B_DIV[np.where(self.mask)].view(self.batch_size, 1, self.mask_size_y, self.mask_size_x),
+            self.real_B_DIV[np.where(self.mask)].view(self.batch_size, 1, self.mask_size_y, self.mask_size_x)) * self.opt.lambda_A
+        self.loss_G_L2_Vx_local = self.criterionL2(
+            self.fake_B_Vx[np.where(self.mask)].view(self.batch_size, 1, self.mask_size_y, self.mask_size_x), 
+            self.real_B_Vx[np.where(self.mask)].view(self.batch_size, 1, self.mask_size_y, self.mask_size_x)) * self.opt.lambda_A
+        self.loss_G_L2_Vy_local = self.criterionL2(
+            self.fake_B_Vy[np.where(self.mask)].view(self.batch_size, 1, self.mask_size_y, self.mask_size_x),
+            self.real_B_Vy[np.where(self.mask)].view(self.batch_size, 1, self.mask_size_y, self.mask_size_x)) * self.opt.lambda_A
+
+        self.loss_G_L2_local = self.loss_G_L2_DIV_local + self.loss_G_L2_Vx_local + self.loss_G_L2_Vy_local
 
         ce_fun = self.criterionCE()
 
         self.loss_G_CE = ce_fun(F.log_softmax(self.fake_B_discrete, dim=1), self.real_B_classes) * self.opt.lambda_B
 
-        self.loss_G = self.loss_G_GAN1 + self.loss_G_GAN2 + self.loss_G_L2_DIV + self.loss_G_L2_Vx + self.loss_G_L2_Vy + self.loss_G_CE
+        self.loss_G = self.loss_G_GAN + self.loss_G_L2_global + self.loss_G_L2_local + self.loss_G_CE
 
         self.loss_G.backward()
+
 
     def optimize_parameters(self):
         # Doesn't do anything with discriminator, just populates input (conditional), 
@@ -333,11 +383,15 @@ class Pix2PixGeoModel(BaseModel):
 
         for _ in range(25):
             self.optimizer_D1.zero_grad()
-            self.backward_D1()
+            # self.backward_D1()
+            self.loss_D1, self.loss_D1_real, self.loss_D1_fake = self.backward_D(self.netD1, self.real_A_discrete, self.real_B_discrete, self.fake_B_discrete)
             self.optimizer_D1.step()
 
             self.optimizer_D2.zero_grad()
-            self.backward_D2()
+            # self.backward_D2()
+            self.loss_D2, self.loss_D2_real, self.loss_D2_fake = self.backward_D(self.netD2, self.real_A_discrete, 
+                torch.cat((self.real_B_DIV, self.real_B_Vx, self.real_B_Vy), dim=1), 
+                torch.cat((self.fake_B_DIV, self.real_B_Vx, self.real_B_Vy), dim=1))
             self.optimizer_D2.step()
 
         self.optimizer_G.zero_grad()
@@ -348,18 +402,21 @@ class Pix2PixGeoModel(BaseModel):
         self.optimizer_G_Vx.step()
         self.optimizer_G_Vy.step()
 
+
     def get_current_errors(self):
         return OrderedDict([
             ('G', self.loss_G.data[0]),
             ('G_GAN_D1', self.loss_G_GAN1.data[0]),
             ('G_GAN_D2', self.loss_G_GAN2.data[0]),
-            ('G_L2', self.loss_G_L2.data[0]),
+            ('G_L2_global', self.loss_G_L2_global.data[0]),
+            ('G_L2_local', self.loss_G_L2_local.data[0]),
             ('G_CE', self.loss_G_CE.data[0]),
             ('D1_real', self.loss_D1_real.data[0]),
             ('D1_fake', self.loss_D1_fake.data[0]),
             ('D2_real', self.loss_D2_real.data[0]),
             ('D2_fake', self.loss_D2_fake.data[0])
             ])
+
 
     def get_current_visuals(self):
         # print(np.unique(self.real_A_discrete.data))
@@ -385,13 +442,13 @@ class Pix2PixGeoModel(BaseModel):
         real_B_DIV = util.tensor2im(self.real_B_DIV.data)
         real_B_DIV[mask_edge_coords] = np.max(real_B_DIV)
 
-        real_B_Vx = util.tensor2im(self.real_B_DIV.data)
+        real_B_Vx = util.tensor2im(self.real_B_Vx.data)
         real_B_Vx[mask_edge_coords] = np.max(real_B_Vx)
 
-        real_B_Vy = util.tensor2im(self.real_B_DIV.data)
+        real_B_Vy = util.tensor2im(self.real_B_Vy.data)
         real_B_Vy[mask_edge_coords] = np.max(real_B_Vy)
 
-        fake_B_discrete = util.tensor2im(self.fake_B_discrete.data)
+        fake_B_discrete = util.tensor2im(F.log_softmax(self.fake_B_discrete, dim=1).data)
         fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
 
         fake_B_one_hot = util.tensor2im(self.fake_B_one_hot)
