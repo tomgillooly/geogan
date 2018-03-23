@@ -28,32 +28,52 @@ results_file_name = os.path.join(web_dir, opt.name + '_results')
 if os.path.exists(results_file_name):
     os.remove(results_file_name)
 
+
+img_data = []
+metric_data = []
+
+for i, data in enumerate(dataset):
+    if i >= opt.how_many:
+        break
+    model.set_input(data)
+    model.test()
+    visuals = model.get_current_visuals()
+    img_path = model.get_image_paths()
+
+    # for key, value in model.get_current_metrics().items():
+    #     print(key,"=",value)
+
+    metric_data.append(model.get_current_metrics())
+
+    # if opt.metrics:
+    #   thresh = 1000
+    #   accuracy = 0
+
+    #   out_im = visuals['fake_B']
+    #   # print(np.bincount(out_im.ravel()))
+    #   io.imshow(out_im)
+    #   io.show()
+
+    print('%04d: process image... %s' % (i, img_path))
+    # visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio)
+    img_data.append((visuals, img_path))
+
+
 with open(results_file_name, 'a') as results_file:
-    for i, data in enumerate(dataset):
-        if i >= opt.how_many:
-            break
-        model.set_input(data)
-        model.test()
-        visuals = model.get_current_visuals()
-        img_path = model.get_image_paths()
+    total_metrics = model.accumulate_metrics(metric_data)
 
-        # for key, value in model.get_current_metrics().items():
-        #     print(key,"=",value)
+    text = []
+    for key, value in total_metrics.items():
+            try:
+                text.append("{} = {:.04} ".format(key, value))
+            except ValueError:
+                print(key, value)
 
-        metrics = model.get_current_metrics()
+    if text:
+        webpage.add_text(text)
 
-        # if opt.metrics:
-        # 	thresh = 1000
-        # 	accuracy = 0
 
-        # 	out_im = visuals['fake_B']
-        # 	# print(np.bincount(out_im.ravel()))
-        # 	io.imshow(out_im)
-        # 	io.show()
-
-        print('%04d: process image... %s' % (i, img_path))
-        visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio)
-
+    for (visuals, img_path), metrics in zip(img_data, metric_data):
         text = []
 
         results = []
@@ -66,6 +86,7 @@ with open(results_file_name, 'a') as results_file:
 
         results_file.write(', '.join(results))
 
+        visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio)
 
         if text:
             webpage.add_text(text)
