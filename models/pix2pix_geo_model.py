@@ -558,15 +558,15 @@ class Pix2PixGeoModel(BaseModel):
             # io.imshow(real_channel)
             # plt.show()
 
-            num_true_pos, num_true_neg, num_false_pos, num_false_neg = get_stats(real_channel, fake_channel)
+            # num_true_pos, num_true_neg, num_false_pos, num_false_neg = get_stats(real_channel, fake_channel)
 
-            precision = (num_true_pos) / (num_true_pos + num_false_pos + eps)
-            metrics.append(('Class {} Precision (Inpainted region)'.format(c),  precision))
-            inpaint_precisions.append(precision)
+            # precision = (num_true_pos) / (num_true_pos + num_false_pos + eps)
+            # metrics.append(('Class {} Precision (Inpainted region)'.format(c),  precision))
+            # inpaint_precisions.append(precision)
             
-            recall = (num_true_pos) / (num_true_pos + num_false_neg + eps)
-            metrics.append(('Class {} Recall (Inpainted region)'.format(c),  recall))
-            inpaint_recalls.append(recall)
+            # recall = (num_true_pos) / (num_true_pos + num_false_neg + eps)
+            # metrics.append(('Class {} Recall (Inpainted region)'.format(c),  recall))
+            # inpaint_recalls.append(recall)
 
 
 
@@ -592,12 +592,17 @@ class Pix2PixGeoModel(BaseModel):
             # print(real_coords)
 
             if not fake_coords.any() and real_coords.any():
-                d_h = np.inf
+                d_h_fr = np.inf
+                d_h_rf = np.inf
+                d_h_s = np.inf
             elif fake_coords.any() and real_coords.any():
                 d_h_fr, i1_fr, i2_fr = directed_hausdorff(fake_coords, real_coords)
                 d_h_rf, i1_rf, i2_rf = directed_hausdorff(real_coords, fake_coords)
 
-                d_h = max(d_h, max(d_h_fr, d_h_rf))
+                d_h_s = max(d_h, max(d_h_fr, d_h_rf))
+
+            d_h_recall = d_h_rf
+            d_h_precision = d_h_fr
             # print(d_h_fr)
             # print(d_h_rf)
             # i1, i2 = (i1_fr, i2_fr) if d_h_fr > d_h_rf else (i2_rf, i1_rf)
@@ -629,13 +634,15 @@ class Pix2PixGeoModel(BaseModel):
             # plt.show()
 
 
-        metrics.append(('Hausdorff distance', d_h))
+        metrics.append(('Hausdorff distance (R)', d_h_recalll))
+        metrics.append(('Hausdorff distance (P)', d_h_precision))
+        metrics.append(('Hausdorff distance (S)', d_h_s))
 
         # metrics.append(('Average precision', np.mean(precisions)))
         # metrics.append(('Average recall', np.mean(recalls)))
 
-        metrics.append(('Average precision (inpainted region)', np.mean(inpaint_precisions)))
-        metrics.append(('Average recall (inpainted region)', np.mean(inpaint_recalls)))
+        # metrics.append(('Average precision (inpainted region)', np.mean(inpaint_precisions)))
+        # metrics.append(('Average recall (inpainted region)', np.mean(inpaint_recalls)))
 
         return OrderedDict(metrics)
 
