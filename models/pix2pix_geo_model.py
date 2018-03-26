@@ -179,9 +179,11 @@ class Pix2PixGeoModel(BaseModel):
         # Entire vector field
         self.real_B_Vx = Variable(self.input_B_Vx)#, requires_grad=False)
         self.real_B_Vy = Variable(self.input_B_Vy)#, requires_grad=False)
+
+        self.mask = Variable(self.mask)
         
         # Produces three channel output with class probability assignments
-        self.fake_B_discrete = self.netG(torch.cat((self.real_A_discrete, Variable(self.mask.float())), dim=1))
+        self.fake_B_discrete = self.netG(torch.cat((self.real_A_discrete, self.mask.float()), dim=1))
         # Create continuous divergence field from class probabilities
         self.fake_B_DIV = self.netG_DIV(self.fake_B_discrete)
         # Create vector field from class probabilities

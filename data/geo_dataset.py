@@ -97,6 +97,8 @@ class GeoDataset(BaseDataset):
             # A_path = self.A_paths[index]
             DIV_path, Vx_path, Vy_path = self.A_paths[index]
 
+        series_number = re.search('serie(\d+)', DIV_path).group(1)
+
         # imgnames=get_img_names(inputdir, max=0)
 
         # DEBUG : only use 2 images!
@@ -260,6 +262,7 @@ class GeoDataset(BaseDataset):
                         file.write("{0},{1},{2}\n".format(w_offset, h_offset, layer))
         
         w_offset, h_offset, layer = self.inpaint_regions[index]
+        # print(w_offset, h_offset, layer)
 
         mask_x1 = w_offset
         mask_x2 = w_offset+100
@@ -283,9 +286,9 @@ class GeoDataset(BaseDataset):
 
         B[:, :, 1][np.where(np.logical_and(mask, B[:, :, layer]))] = 1
         B[mask_y1:mask_y2, mask_x1:mask_x2, layer] = 0
-        
+            
         mask = np.expand_dims(mask, 2)
-        mask = torch.LongTensor(mask.transpose(2, 0, 1))
+        mask = torch.ByteTensor(mask.transpose(2, 0, 1))
 
         A_DIV = np.interp(A_DIV, [np.min(A_DIV), np.max(A_DIV)], [-1, 1])
         A_Vx = np.interp(A_Vx, [np.min(A_Vx), np.max(A_Vx)], [-1, 1])
@@ -332,6 +335,7 @@ class GeoDataset(BaseDataset):
         A_Vy, B_Vy = process_image(A_Vy, B_Vy)
         # A_DIV, B_DIV = torch.LongTensor(A_DIV.numpy()), torch.LongTensor(B_DIV.numpy())
 
+
         if (not self.opt.no_flip) and random.random() < 0.5:
             idx = [i for i in range(A.size(2) - 1, -1, -1)]
             idx = torch.LongTensor(idx)
@@ -349,6 +353,10 @@ class GeoDataset(BaseDataset):
             mask_x1 = mask.shape[2] - mask_x2
             mask_x2 = mask.shape[2] - tmp
 
+        mask_x1 = torch.LongTensor([mask_x1])
+        mask_x2 = torch.LongTensor([mask_x2])
+        mask_y1 = torch.LongTensor([mask_y1])
+        mask_y2 = torch.LongTensor([mask_y2])
 
         return {'A': A, 'B': B,
                 'A_DIV': A_DIV, 'B_DIV': B_DIV,
@@ -357,7 +365,9 @@ class GeoDataset(BaseDataset):
                 'mask': mask,
                 'mask_x1': mask_x1, 'mask_x2': mask_x2,
                 'mask_y1': mask_y1, 'mask_y2': mask_y2,
-                'A_paths': DIV_path, 'B_paths': os.path.splitext(DIV_path)[0] + '_out' + os.path.splitext(DIV_path)[1]}
+                'A_paths': DIV_path,
+                'B_paths': os.path.splitext(DIV_path)[0] + '_out' + os.path.splitext(DIV_path)[1]
+                }
 
     def __len__(self):
         return len(self.A_paths)
@@ -373,22 +383,46 @@ class GeoDataset(BaseDataset):
 
 # os.chdir('..')
 # options_dict = dict(dataroot=os.path.expanduser('~/data/geology/'), phase='test', inpaint_file_dir=os.path.expanduser('~/data/geology/'), process="skeleton", resize_or_crop='resize_and_crop',
-#     loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=False, div_threshold=1000)
+#     loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=True, div_threshold=1000)
 # Options = namedtuple('Options', options_dict.keys())
 # opt = Options(*options_dict.values())
 # geo = GeoDataset()
 # geo.initialize(opt)
 
-# stuff = geo[0]
+# # stuff = geo[0]
+
 
 # dataloader = torch.utils.data.DataLoader(
 #     geo,
-#     batch_size=1,
-#     shuffle=True,
+#     batch_size=2,
+#     shuffle=False,
 #     num_workers=1)
 
+# # batch = next(iter(dataloader))
+
+
 # for i, batch in enumerate(dataloader):
+#     mask = batch['mask']
+#     print(batch['mask_x1'])
+#     print(batch['mask_x2'])
+#     print(batch['mask_y1'])
+#     print(batch['mask_y2'])
+#     print(mask.shape)
+#     print(mask.repeat(1, 3, 1, 1).shape)
+#     mask_regions = batch['B'].masked_select(mask.repeat(1, 3, 1, 1)).view(2, 3, 100, 100)
+
+#     _, axes = plt.subplots(2, 2)
+#     ax = axes.ravel()
+#     ax[0].imshow(batch['B'][0, :, :, :].numpy().squeeze().transpose(1, 2, 0))
+#     ax[1].imshow(batch['B'][1, :, :, :].numpy().squeeze().transpose(1, 2, 0))
+#     ax[2].imshow(mask_regions[0, :, :, :].numpy().squeeze().transpose(1, 2, 0))
+#     ax[3].imshow(mask_regions[1, :, :, :].numpy().squeeze().transpose(1, 2, 0))
+
+#     plt.show()
+
+#     break
 #     print(i)
+
 
 # print(np.max(stuff['A'].numpy()), np.min(stuff['A'].numpy()))
 # print(np.max(stuff['B'].numpy()), np.min(stuff['B'].numpy()))
