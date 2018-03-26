@@ -306,30 +306,27 @@ class Pix2PixGeoModel(BaseModel):
 
         self.loss_G_GAN = self.loss_G_GAN1 + self.loss_G_GAN2
 
-        # Second, G(A) = B
-        self.loss_G_L2_DIV_global = self.criterionL2(self.fake_B_DIV, self.real_B_DIV) * self.opt.lambda_A
-        self.loss_G_L2_Vx_global = self.criterionL2(self.fake_B_Vx, self.real_B_Vx) * self.opt.lambda_A
-        self.loss_G_L2_Vy_global = self.criterionL2(self.fake_B_Vy, self.real_B_Vy) * self.opt.lambda_A
+        self.loss_G_L2_DIV = self.criterionL2(
+            self.fake_B_DIV.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y, self.mask_size_x),
+            self.real_B_DIV.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y, self.mask_size_x)) * self.opt.lambda_A
+        self.loss_G_L2_Vx = self.criterionL2(
+            self.fake_B_Vx.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y, self.mask_size_x), 
+            self.real_B_Vx.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y, self.mask_size_x)) * self.opt.lambda_A
+        self.loss_G_L2_Vy = self.criterionL2(
+            self.fake_B_Vy.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y, self.mask_size_x),
+            self.real_B_Vy.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y, self.mask_size_x)) * self.opt.lambda_A
 
-        self.loss_G_L2_global = self.loss_G_L2_DIV_global + self.loss_G_L2_Vx_global + self.loss_G_L2_Vy_global
-
-        self.loss_G_L2_DIV_local = self.criterionL2(
-            self.fake_B_DIV[np.where(self.mask)].view(self.batch_size, 1, self.mask_size_y, self.mask_size_x),
-            self.real_B_DIV[np.where(self.mask)].view(self.batch_size, 1, self.mask_size_y, self.mask_size_x)) * self.opt.lambda_A
-        self.loss_G_L2_Vx_local = self.criterionL2(
-            self.fake_B_Vx[np.where(self.mask)].view(self.batch_size, 1, self.mask_size_y, self.mask_size_x), 
-            self.real_B_Vx[np.where(self.mask)].view(self.batch_size, 1, self.mask_size_y, self.mask_size_x)) * self.opt.lambda_A
-        self.loss_G_L2_Vy_local = self.criterionL2(
-            self.fake_B_Vy[np.where(self.mask)].view(self.batch_size, 1, self.mask_size_y, self.mask_size_x),
-            self.real_B_Vy[np.where(self.mask)].view(self.batch_size, 1, self.mask_size_y, self.mask_size_x)) * self.opt.lambda_A
-
-        self.loss_G_L2_local = self.loss_G_L2_DIV_local + self.loss_G_L2_Vx_local + self.loss_G_L2_Vy_local
+        self.loss_G_L2 = self.loss_G_L2_DIV + self.loss_G_L2_Vx + self.loss_G_L2_Vy
 
         ce_fun = self.criterionCE()
 
-        self.loss_G_CE = ce_fun(F.log_softmax(self.fake_B_discrete, dim=1), self.real_B_classes) * self.opt.lambda_B
+        self.loss_G_CE = ce_fun(F.log_softmax(
+            self.fake_B_discrete.masked_select(self.mask.repeat(1, 3, 1, 1)).view(
+                self.batch_size, 1, self.mask_size_y, self.mask_size_x), dim=1),
+            self.real_B_classes.masked_select(self.mask.repeat(1, 3, 1, 1)).view(
+                self.batch_size, 1, self.mask_size_y, self.mask_size_x)) * self.opt.lambda_B
 
-        self.loss_G = self.loss_G_GAN + self.loss_G_L2_global + self.loss_G_L2_local + self.loss_G_CE
+        self.loss_G = self.loss_G_GAN + self.loss_G_L2 + self.loss_G_CE
 
         self.loss_G.backward()
 
@@ -342,7 +339,8 @@ class Pix2PixGeoModel(BaseModel):
         for _ in range(25):
             self.optimizer_D1.zero_grad()
             # self.backward_D1()
-            self.loss_D1, self.loss_D1_real, self.loss_D1_fake = self.backward_D(self.netD1, self.real_A_discrete, self.real_B_discrete, self.fake_B_discrete)
+            self.loss_D1, self.loss_D1_real, self.loss_D1_fake = self.backward_D(self.netD1, self.real_A_discrete,
+                self.real_B_discrete, self.fake_B_discrete)
             self.optimizer_D1.step()
 
             self.optimizer_D2.zero_grad()
@@ -366,8 +364,7 @@ class Pix2PixGeoModel(BaseModel):
             ('G', self.loss_G.data[0]),
             ('G_GAN_D1', self.loss_G_GAN1.data[0]),
             ('G_GAN_D2', self.loss_G_GAN2.data[0]),
-            ('G_L2_global', self.loss_G_L2_global.data[0]),
-            ('G_L2_local', self.loss_G_L2_local.data[0]),
+            ('G_L2', self.loss_G_L2.data[0]),
             ('G_CE', self.loss_G_CE.data[0]),
             ('D1_real', self.loss_D1_real.data[0]),
             ('D1_fake', self.loss_D1_fake.data[0]),
