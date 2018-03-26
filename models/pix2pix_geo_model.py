@@ -259,50 +259,6 @@ class Pix2PixGeoModel(BaseModel):
         return gradient_penalty
 
 
-    def backward_D1(self):
-        # Fake
-        # stop backprop to the generator by detaching fake_B
-        # In this case real_A, the input, is our conditional vector
-        fake_AB = torch.cat((self.real_A_discrete, self.fake_B_discrete), dim=1)
-        self.loss_D1_fake = self.netD1(fake_AB.detach())
-        # self.loss_D1_fake = self.criterionGAN(pred_fake, False)
-
-        # Real
-        real_AB = torch.cat((self.real_A_discrete, self.real_B_discrete), dim=1)
-        self.loss_D1_real = self.netD1(real_AB)
-        # self.loss_D1_real = self.criterionGAN(pred_real, True)
-
-        grad_pen = self.calc_gradient_penalty(self.netD1, real_AB.data, fake_AB.data)
-
-        # Combined loss
-        # self.loss_D1 = (self.loss_D1_fake + self.loss_D1_real) * 0.5
-        self.loss_D1 = self.loss_D1_fake - self.loss_D1_real + grad_pen * self.opt.lambda_C
-
-        self.loss_D1.backward()
-
-
-    def backward_D2(self):
-        # Fake
-        # stop backprop to the generator by detaching fake_B
-        # In this case real_A, the input, is our conditional vector
-        fake_AB = torch.cat((self.real_A_discrete, self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
-        self.loss_D2_fake = self.netD2(fake_AB.detach())
-        # self.loss_D2_fake = self.criterionGAN(pred_fake, False)
-
-        # Real
-        real_AB = torch.cat((self.real_A_discrete, self.real_B_DIV, self.real_B_Vx, self.real_B_Vy), dim=1)
-        self.loss_D2_real = self.netD2(real_AB)
-        # self.loss_D2_real = self.criterionGAN(pred_real, True)
-
-        grad_pen = self.calc_gradient_penalty(self.netD2, real_AB.data, fake_AB.data)
-
-        # Combined loss
-        # self.loss_D2 = (self.loss_D2_fake + self.loss_D2_real) * 0.5
-        self.loss_D2 = self.loss_D2_fake - self.loss_D2_real + grad_pen * self.opt.lambda_C
-
-        self.loss_D2.backward()
-
-
     def backward_D(self, net_D, cond_data, real_data, fake_data):
         # Fake
         # stop backprop to the generator by detaching fake_B
