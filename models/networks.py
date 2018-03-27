@@ -458,16 +458,17 @@ class WGANNLayerDiscriminator(NLayerDiscriminator):
     def __init__(self, input_nc, n_linear, ndf=64, n_layers=3, norm_layer=None, use_sigmoid=False, gpu_ids=[]):
         super(WGANNLayerDiscriminator, self).__init__(input_nc, ndf, n_layers, norm_layer, use_sigmoid, gpu_ids)
 
+        self.n_linear = n_linear
         self.linear = nn.Linear(n_linear, 1)
 
 
     def forward(self, input):
         if len(self.gpu_ids) and isinstance(input.data, torch.cuda.FloatTensor):
             output =  nn.parallel.data_parallel(self.model, input, self.gpu_ids)
-            return nn.parallel.data_parallel(self.linear, output.view(1, -1), self.gpu_ids)
+            return nn.parallel.data_parallel(self.linear, output.view(-1, self.n_linear), self.gpu_ids)
         else:
             output = self.model(input)
-            return self.linear(output.view(1, -1))
+            return self.linear(output.view(-1, self.n_linear))
 
 
 class PixelDiscriminator(nn.Module):

@@ -223,7 +223,7 @@ class Pix2PixGeoModel(BaseModel):
         self.real_B_discrete = Variable(self.input_B, volatile=True)
 
         self.real_B_classes = F.log_softmax(self.real_B_discrete, dim=1)
-        self.real_B_classes = torch.max(self.real_B_discrete, dim=1, keepdim=False)[1]
+        self.real_B_classes = torch.max(self.real_B_discrete, dim=1, keepdim=True)[1]
 
         self.fake_B_one_hot = torch.zeros(self.fake_B_discrete.shape)
 
@@ -264,12 +264,12 @@ class Pix2PixGeoModel(BaseModel):
         # stop backprop to the generator by detaching fake_B
         # In this case real_A, the input, is our conditional vector
         fake_AB = torch.cat((cond_data, fake_data), dim=1)
-        fake_loss = net_D(fake_AB.detach())
+        fake_loss = net_D(fake_AB.detach()).mean()
         # self.loss_D2_fake = self.criterionGAN(pred_fake, False)
 
         # Real
         real_AB = torch.cat((cond_data, real_data), dim=1)
-        real_loss = net_D(real_AB)
+        real_loss = net_D(real_AB).mean()
         # self.loss_D2_real = self.criterionGAN(pred_real, True)
 
         grad_pen = self.calc_gradient_penalty(net_D, real_AB.data, fake_AB.data)
@@ -307,24 +307,29 @@ class Pix2PixGeoModel(BaseModel):
         self.loss_G_GAN = self.loss_G_GAN1 + self.loss_G_GAN2
 
         self.loss_G_L2_DIV = self.criterionL2(
-            self.fake_B_DIV.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y, self.mask_size_x),
-            self.real_B_DIV.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y, self.mask_size_x)) * self.opt.lambda_A
+            self.fake_B_DIV.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y[0], self.mask_size_x[0]),
+            self.real_B_DIV.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y[0], self.mask_size_x[0])) * self.opt.lambda_A
         self.loss_G_L2_Vx = self.criterionL2(
-            self.fake_B_Vx.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y, self.mask_size_x), 
-            self.real_B_Vx.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y, self.mask_size_x)) * self.opt.lambda_A
+            self.fake_B_Vx.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y[0], self.mask_size_x[0]), 
+            self.real_B_Vx.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y[0], self.mask_size_x[0])) * self.opt.lambda_A
         self.loss_G_L2_Vy = self.criterionL2(
-            self.fake_B_Vy.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y, self.mask_size_x),
-            self.real_B_Vy.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y, self.mask_size_x)) * self.opt.lambda_A
+            self.fake_B_Vy.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y[0], self.mask_size_x[0]),
+            self.real_B_Vy.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y[0], self.mask_size_x[0])) * self.opt.lambda_A
 
         self.loss_G_L2 = self.loss_G_L2_DIV + self.loss_G_L2_Vx + self.loss_G_L2_Vy
 
         ce_fun = self.criterionCE()
 
-        self.loss_G_CE = ce_fun(F.log_softmax(
-            self.fake_B_discrete.masked_select(self.mask.repeat(1, 3, 1, 1)).view(
-                self.batch_size, 1, self.mask_size_y, self.mask_size_x), dim=1),
-            self.real_B_classes.masked_select(self.mask.repeat(1, 3, 1, 1)).view(
-                self.batch_size, 1, self.mask_size_y, self.mask_size_x)) * self.opt.lambda_B
+        fake_B_discrete_masked = self.fake_B_discrete.masked_select(self.mask.repeat(1, 3, 1, 1)).view(
+                self.batch_size, 3, self.mask_size_y[0], self.mask_size_x[0])
+        real_B_classes_masked = self.real_B_classes.masked_select(self.mask.squeeze()).view(
+                self.batch_size, self.mask_size_y[0], self.mask_size_x[0])
+
+        # print(fake_B_discrete_masked)
+        # print(real_B_classes_masked)
+
+        self.loss_G_CE = ce_fun(F.log_softmax(fake_B_discrete_masked, dim=1),
+            real_B_classes_masked) * self.opt.lambda_B
 
         self.loss_G = self.loss_G_GAN + self.loss_G_L2 + self.loss_G_CE
 
@@ -336,7 +341,7 @@ class Pix2PixGeoModel(BaseModel):
         # target and generated data in object
         self.forward()
 
-        for _ in range(25):
+        for _ in range(5):
             self.optimizer_D1.zero_grad()
             # self.backward_D1()
             self.loss_D1, self.loss_D1_real, self.loss_D1_fake = self.backward_D(self.netD1, self.real_A_discrete,
@@ -376,7 +381,8 @@ class Pix2PixGeoModel(BaseModel):
     def get_current_visuals(self):
         # print(np.unique(self.real_A_discrete.data))
         # print(self.fake_B_discrete.data.shape)
-        mask_edge = roberts(self.mask.cpu().numpy().squeeze())
+
+        mask_edge = roberts(self.mask.data.cpu().numpy().squeeze()[0, ...])
         mask_edge_coords = np.where(mask_edge)
 
         real_A_discrete = util.tensor2im(self.real_A_discrete.data)
