@@ -257,9 +257,9 @@ class GeoDataset(BaseDataset):
 
                 for region in self.inpaint_regions:
                     if not region:
-                        file.write("0,0,0\n")
+                        file.write("None\n")
                     else:
-                        file.write("{0},{1},{2}\n".format(w_offset, h_offset, layer))
+                        file.write("{0},{1},{2}\n".format(*region))
         
         w_offset, h_offset, layer = self.inpaint_regions[index]
         # print(w_offset, h_offset, layer)
