@@ -293,7 +293,7 @@ class Pix2PixGeoModel(BaseModel):
         pred_fake1 = self.netD1(fake_AB)
         
         # fake_AB = torch.cat((self.real_A_discrete, self.fake_B_DIV), 1)
-        fake_AB = torch.cat((self.real_A_discrete, self.fake_B_DIV, self.real_B_Vx, self.real_B_Vy), dim=1)
+        fake_AB = torch.cat((self.real_A_discrete, self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
         pred_fake2 = self.netD2(fake_AB)
 
         # We only optimise with respect to the fake prediction because
@@ -352,7 +352,7 @@ class Pix2PixGeoModel(BaseModel):
             # self.backward_D2()
             self.loss_D2, self.loss_D2_real, self.loss_D2_fake = self.backward_D(self.netD2, self.real_A_discrete, 
                 torch.cat((self.real_B_DIV, self.real_B_Vx, self.real_B_Vy), dim=1), 
-                torch.cat((self.fake_B_DIV, self.real_B_Vx, self.real_B_Vy), dim=1))
+                torch.cat((self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1))
             self.optimizer_D2.step()
 
         self.optimizer_G.zero_grad()
