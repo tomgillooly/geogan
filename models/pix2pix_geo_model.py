@@ -276,9 +276,14 @@ class Pix2PixGeoModel(BaseModel):
 
         # Combined loss
         # self.loss_D2 = (self.loss_D2_fake + self.loss_D2_real) * 0.5
-        loss = fake_loss - real_loss + grad_pen * self.opt.lambda_C
+        try:
+            loss = fake_loss - real_loss + grad_pen * self.opt.lambda_C
+        except RuntimeError as r:
+            print(fake_loss.shape)
+            print(real_loss.shape)
+            print(gradient_penalty.shape)
 
-        loss.backward()
+            raise r
 
         return loss, real_loss, fake_loss
 
