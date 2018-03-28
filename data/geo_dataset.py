@@ -232,34 +232,48 @@ class GeoDataset(BaseDataset):
         A = create_one_hot(A_DIV)
 
         if not self.inpaint_regions[index]:
+            # If we have a batch size > 1, we need to update our inpaint regions
+            # from the other thread
+            # Also, we have to do this in stages because the file.seek(0) doesnt seem
+            # to work when we do it twice inside one context manager block
+            with open(self.inpaint_regions_file, 'a+') as file:
+                file.seek(0)
+
+                for idx, line in enumerate(file):
+
+                    try:
+                        self.inpaint_regions[idx] = tuple([int(param.lstrip()) for param in line.rstrip().split(',')])
+                    except ValueError:
+                        continue
+
+
+            w = A_DIV.shape[1]
+            h = A_DIV.shape[0]
+
+            success = False
+
+            while not success:
+
+                w_offset = random.randint(0, max(0, w - 100 - 1))
+                h_offset = random.randint(0, max(0, h - 100 - 1))
+
+                layer = int(round(random.random())*2)
+
+                if np.sum(A[h_offset:h_offset+100, w_offset:w_offset+100, layer]) > 0 and np.sum(A[h_offset:h_offset+100, w_offset:w_offset+100, 2-layer]) > 0:
+                    self.inpaint_regions[index] = (w_offset, h_offset, layer)
+                    
+                    success = True
+
+
             with open(self.inpaint_regions_file, 'w') as file:
-                # file_inpaint_regions = [(float(x), float(y)) for line in file.read().split() for x, y in line]
-                # file.seek(0)
-
-                w = A_DIV.shape[1]
-                h = A_DIV.shape[0]
-
-                success = False
-
-                while not success:
-
-                    w_offset = random.randint(0, max(0, w - 100 - 1))
-                    h_offset = random.randint(0, max(0, h - 100 - 1))
-
-                    layer = int(round(random.random())*2)
-
-                    if np.sum(A[h_offset:h_offset+100, w_offset:w_offset+100, layer]) > 0 and np.sum(A[h_offset:h_offset+100, w_offset:w_offset+100, 2-layer]) > 0:
-                        self.inpaint_regions[index] = (w_offset, h_offset, layer)
-                        
-                        success = True
-
-                    # file_inpaint_regions[index] = (w_offset, h_offset)
-
-                for region in self.inpaint_regions:
+                file.seek(0)
+                for idx, region in enumerate(self.inpaint_regions):
                     if not region:
                         file.write("None\n")
                     else:
                         file.write("{0},{1},{2}\n".format(*region))
+
+                file.truncate()
         
         w_offset, h_offset, layer = self.inpaint_regions[index]
         # print(w_offset, h_offset, layer)
