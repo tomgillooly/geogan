@@ -336,12 +336,12 @@ class Pix2PixGeoModel(BaseModel):
         self.loss_G.backward()
 
 
-    def optimize_parameters(self):
+    def optimize_parameters(self, **kwargs):
         # Doesn't do anything with discriminator, just populates input (conditional), 
         # target and generated data in object
         self.forward()
 
-        for _ in range(5):
+        for _ in range(5 if kwargs['step_no'] >= 25 else 25):
             self.optimizer_D1.zero_grad()
             # self.backward_D1()
             self.loss_D1, self.loss_D1_real, self.loss_D1_fake = self.backward_D(self.netD1, self.real_A_discrete,

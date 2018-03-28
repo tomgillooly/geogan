@@ -24,7 +24,7 @@ for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
         total_steps += opt.batchSize
         epoch_iter += opt.batchSize
         model.set_input(data)
-        model.optimize_parameters()
+        model.optimize_parameters(step_no=total_steps)
 
         if total_steps % opt.display_freq == 0:
             save_result = total_steps % opt.update_html_freq == 0
