@@ -27,3 +27,5 @@ python train.py --dataroot $DATAROOT --name geo_pix2pix_wgan_high_iter_start --m
 kill %1
 
 deactivate
+
+git checkout master
