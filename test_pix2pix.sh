@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 if [ "$HOSTNAME" == "tomoplata-OptiPlex-790" ]; then
 	VIRTUALENV_NAME=pytorch3
 	DATAROOT=~/data/geology
