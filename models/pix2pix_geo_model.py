@@ -98,14 +98,21 @@ class Pix2PixGeoModel(BaseModel):
                                           # n_linear=int((512*256)/70))
             
             # Discrete input data + discrete output data
-            self.netD1 = DiscriminatorWGANGP(opt.input_nc + opt.output_nc, (256, 512), opt.ndf)
+            self.netD1s = [DiscriminatorWGANGP(opt.input_nc + opt.output_nc, (256, 512), opt.ndf)
+                            for _ in range(self.opt.num_discrims)]
 
             # Discrete input data + DIV, Vx, Vy
-            self.netD2 = DiscriminatorWGANGP(opt.input_nc + 3, (256, 512), opt.ndf)
+            self.netD2s = [DiscriminatorWGANGP(opt.input_nc + 3, (256, 512), opt.ndf)
+                            for _ in range(self.opt.num_discrims)]
 
 
-            self.netD1.apply(weights_init)
-            self.netD2.apply(weights_init)
+            [netD1.apply(weights_init) for netD1 in self.netD1s]
+            [netD2.apply(weights_init) for netD2 in self.netD2s]
+
+
+            if len(self.gpu_ids) > 0:
+                [netD.cuda() for netD in self.netD1s]
+                [netD.cuda() for netD in self.netD2s]
             
             # self.netD2 = networks.define_D(opt.input_nc + 3, opt.ndf,
             #                               # opt.which_model_netD,
@@ -120,8 +127,8 @@ class Pix2PixGeoModel(BaseModel):
             self.load_network(self.netG_DIV, 'G_Vx', opt.which_epoch)
             self.load_network(self.netG_DIV, 'G_Vy', opt.which_epoch)
             if self.isTrain:
-                self.load_network(self.netD1, 'D1', label, opt.which_epoch)
-                self.load_network(self.netD2, 'D2', label, opt.which_epoch)
+                [self.load_network(netD1s[i], 'D1_%d' % i, label, opt.which_epoch) for i in range(len(self.netD1s))]
+                [self.load_network(netD2s[i], 'D2_%d' % i, label, opt.which_epoch) for i in range(len(self.netD2s))]
 
         if self.isTrain:
             # Image pool not doing anything in this model because size is set to zero, just
@@ -143,16 +150,17 @@ class Pix2PixGeoModel(BaseModel):
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizer_G_Vy = torch.optim.Adam(self.netG_Vy.parameters(),
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
-            self.optimizer_D1 = torch.optim.Adam(self.netD1.parameters(),
-                                                lr=opt.lr, betas=(opt.beta1, 0.999))
-            self.optimizer_D2 = torch.optim.Adam(self.netD2.parameters(),
-                                                lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_D1s = [torch.optim.Adam(netD1.parameters(),
+                                                lr=opt.lr, betas=(opt.beta1, 0.999)) for netD1 in self.netD1s]
+            self.optimizer_D2s = [torch.optim.Adam(netD2.parameters(),
+                                                lr=opt.lr, betas=(opt.beta1, 0.999)) for netD2 in self.netD2s]
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_G_DIV)
             self.optimizers.append(self.optimizer_G_Vx)
             self.optimizers.append(self.optimizer_G_Vy)
-            self.optimizers.append(self.optimizer_D1)
-            self.optimizers.append(self.optimizer_D2)
+            self.optimizers += self.optimizer_D1s
+            self.optimizers += self.optimizer_D2s
+
             # Just a linear decay over the last 100 iterations, by default
             for optimizer in self.optimizers:
                 self.schedulers.append(networks.get_scheduler(optimizer, opt))
@@ -160,7 +168,7 @@ class Pix2PixGeoModel(BaseModel):
         print('---------- Networks initialized -------------')
         networks.print_network(self.netG)
         if self.isTrain:
-            networks.print_network(self.netD1)
+            networks.print_network(self.netD1s[0])
         print('-----------------------------------------------')
 
     def set_input(self, input):
@@ -303,7 +311,7 @@ class Pix2PixGeoModel(BaseModel):
         return gradient_penalty
 
 
-    def backward_D(self, net_D, cond_data, real_data, fake_data):
+    def backward_single_D(self, net_D, cond_data, real_data, fake_data):
         # Fake
         # stop backprop to the generator by detaching fake_B
         # In this case real_A, the input, is our conditional vector
@@ -327,6 +335,26 @@ class Pix2PixGeoModel(BaseModel):
         return loss, real_loss, fake_loss
 
 
+    def backward_D(self, net_Ds, optimisers, cond_data, real_data, fake_data):
+
+        losses = torch.FloatTensor((len(net_Ds)))
+        real_losses = torch.FloatTensor((len(net_Ds)))
+        fake_losses = torch.FloatTensor((len(net_Ds)))
+
+        for i, (net_D, optimiser) in enumerate(zip(net_Ds, optimisers)):
+            optimiser.zero_grad()
+            loss, real_loss, fake_loss = self.backward_single_D(
+                net_D, cond_data, real_data, fake_data)
+            loss.backward()
+            optimiser.step()
+
+            losses[i] = loss.data[0]
+            real_losses[i] = real_loss.data[0]
+            fake_losses[i] = fake_loss.data[0]
+
+        return losses.mean(), real_losses.mean(), fake_losses.mean()
+
+
     def backward_G(self):
         # First, G(A) should fake the discriminator
         # Note that we don't detach here because we DO want to backpropagate
@@ -334,19 +362,19 @@ class Pix2PixGeoModel(BaseModel):
 
         # fake_AB = torch.cat((self.real_A_discrete, self.fake_B_discrete), 1)
         fake_AB = torch.cat((self.real_A_discrete, self.fake_B_discrete), dim=1)
-        pred_fake1 = self.netD1(fake_AB)
+        pred_fake1 = torch.cat([netD1(fake_AB).mean() for netD1 in self.netD1s]).mean()
         
         # fake_AB = torch.cat((self.real_A_discrete, self.fake_B_DIV), 1)
         fake_AB = torch.cat((self.real_A_discrete, self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
-        pred_fake2 = self.netD2(fake_AB)
+        pred_fake2 = torch.cat([netD2(fake_AB).mean() for netD2 in self.netD2s]).mean()
 
         # We only optimise with respect to the fake prediction because
         # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
         # self.loss_G_GAN1 = self.criterionGAN(pred_fake1, True)
         # self.loss_G_GAN2 = self.criterionGAN(pred_fake2, True)
 
-        self.loss_G_GAN1 = -pred_fake1.mean()
-        self.loss_G_GAN2 = -pred_fake2.mean()
+        self.loss_G_GAN1 = -pred_fake1
+        self.loss_G_GAN2 = -pred_fake2
 
         self.loss_G_GAN = self.loss_G_GAN1 + self.loss_G_GAN2
 
@@ -386,18 +414,14 @@ class Pix2PixGeoModel(BaseModel):
         self.forward()
 
         for _ in range(5 if kwargs['step_no'] >= 25 else 25):
-            self.optimizer_D1.zero_grad()
-            # self.backward_D1()
-            self.loss_D1, self.loss_D1_real, self.loss_D1_fake = self.backward_D(self.netD1, self.real_A_discrete,
+            self.loss_D1, self.loss_D1_real, self.loss_D1_fake = self.backward_D(self.netD1s, self.optimizer_D1s, self.real_A_discrete,
                 self.real_B_discrete, self.fake_B_discrete)
-            self.optimizer_D1.step()
 
-            self.optimizer_D2.zero_grad()
-            # self.backward_D2()
-            self.loss_D2, self.loss_D2_real, self.loss_D2_fake = self.backward_D(self.netD2, self.real_A_discrete, 
+            self.loss_D2, self.loss_D2_real, self.loss_D2_fake = self.backward_D(self.netD2s, self.optimizer_D2s, self.real_A_discrete, 
                 torch.cat((self.real_B_DIV, self.real_B_Vx, self.real_B_Vy), dim=1), 
                 torch.cat((self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1))
-            self.optimizer_D2.step()
+
+
 
         self.optimizer_G.zero_grad()
         self.optimizer_G_DIV.zero_grad()
@@ -683,5 +707,7 @@ class Pix2PixGeoModel(BaseModel):
         self.save_network(self.netG_DIV, 'G_DIV', label, self.gpu_ids)
         self.save_network(self.netG_Vx, 'G_Vx', label, self.gpu_ids)
         self.save_network(self.netG_Vy, 'G_Vy', label, self.gpu_ids)
-        self.save_network(self.netD1, 'D1', label, self.gpu_ids)
-        self.save_network(self.netD2, 'D2', label, self.gpu_ids)
+
+        for i in range(len(self.netD1s))
+            self.save_network(self.netD1s[i], 'D1_%d' % i, label, self.gpu_ids)
+            self.save_network(self.netD2s[i], 'D2_%d' % i, label, self.gpu_ids)
