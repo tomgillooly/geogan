@@ -19,6 +19,33 @@ from skimage.filters import roberts
 
 import sys
 
+class DiscriminatorWGANGP(nn.Module):
+
+    def __init__(self, in_dim, image_dims, dim=64):
+        super(DiscriminatorWGANGP, self).__init__()
+
+        def conv_ln_lrelu(in_dim, out_dim):
+            return nn.Sequential(
+                nn.Conv2d(in_dim, out_dim, 5, 2, 2),
+                # Since there is no effective implementation of LayerNorm,
+                # we use InstanceNorm2d instead of LayerNorm here.
+                # Gulrajanis code uses TensorFlow batch normalisation
+                nn.InstanceNorm2d(out_dim, affine=True),
+                nn.LeakyReLU(0.2))
+
+        self.ls = nn.Sequential(
+            nn.Conv2d(in_dim, dim, 5, 2, 2), nn.LeakyReLU(0.2),         # (b, c, x, y) -> (b, dim, x/2, y/2)
+            conv_ln_lrelu(dim, dim * 2),                                # (b, dim, x/2, y/2) -> (b, dim*2, x/4, y/4)
+            conv_ln_lrelu(dim * 2, dim * 4),                            # (b, dim*2, x/4, y/4) -> (b, dim*4, x/8, y/8)
+            conv_ln_lrelu(dim * 4, dim * 8),                            # (b, dim*4, x/8, y/8) -> (b, dim*8, x/16, y/16)
+            nn.Conv2d(dim * 8, 1, 
+                (int(image_dims[0]/16 + 0.5), int(image_dims[1]/16 + 0.5)))) # (b, dim*8, x/16, y/16) -> (b, 1, 1, 1)
+
+    def forward(self, x):
+        y = self.ls(x)
+        y = y.view(-1)
+        return y
+
 class Pix2PixGeoModel(BaseModel):
     def name(self):
         return 'Pix2PixGeoModel'
@@ -53,22 +80,26 @@ class Pix2PixGeoModel(BaseModel):
 
         if self.isTrain:
             # use_sigmoid = opt.no_lsgan
-            use_sigmoid = True
-            # Discrete input data + discrete output data
-            self.netD1 = networks.define_D(opt.input_nc + opt.output_nc, opt.ndf,
-                                          # opt.which_model_netD,
-                                          'wgan',
-                                          opt.n_layers_D, 'none', use_sigmoid, opt.init_type, self.gpu_ids,
-                                          n_linear=1860)
+            # use_sigmoid = True
+            # self.netD1 = networks.define_D(opt.input_nc + opt.output_nc, opt.ndf,
+            #                               # opt.which_model_netD,
+            #                               'wgan',
+            #                               opt.n_layers_D, 'none', use_sigmoid, opt.init_type, self.gpu_ids,
+            #                               n_linear=1860)
                                           # n_linear=int((512*256)/70))
             
+            # Discrete input data + discrete output data
+            self.netD1 = DiscriminatorWGANGP(opt.input_nc + opt.output_nc, (256, 512), opt.ndf)
+
             # Discrete input data + DIV, Vx, Vy
-            self.netD2 = networks.define_D(opt.input_nc + 3, opt.ndf,
-                                          # opt.which_model_netD,
-                                          'wgan',
-                                          opt.n_layers_D, 'none', use_sigmoid, opt.init_type, self.gpu_ids,
-                                          n_linear=1860)
-                                          # n_linear=int((512*256)/70))
+            self.netD2 = DiscriminatorWGANGP(opt.input_nc + 3, (256, 512), opt.ndf)
+            
+            # self.netD2 = networks.define_D(opt.input_nc + 3, opt.ndf,
+            #                               # opt.which_model_netD,
+            #                               'wgan',
+            #                               opt.n_layers_D, 'none', use_sigmoid, opt.init_type, self.gpu_ids,
+            #                               n_linear=1860)
+            #                               # n_linear=int((512*256)/70))
 
         if not self.isTrain or opt.continue_train:
             self.load_network(self.netG, 'G', opt.which_epoch)
