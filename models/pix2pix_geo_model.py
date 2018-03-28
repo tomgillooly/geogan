@@ -19,6 +19,15 @@ from skimage.filters import roberts
 
 import sys
 
+# Weight init procedure taken from  https://github.com/pytorch/examples/blob/master/dcgan/main.py#L131
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        m.weight.data.normal_(0.0, 0.02)
+    elif classname.find('InstanceNorm') != -1:
+        m.weight.data.normal_(1.0, 0.02)
+        m.bias.data.fill_(0)
+
 class DiscriminatorWGANGP(nn.Module):
 
     def __init__(self, in_dim, image_dims, dim=64):
@@ -93,6 +102,10 @@ class Pix2PixGeoModel(BaseModel):
 
             # Discrete input data + DIV, Vx, Vy
             self.netD2 = DiscriminatorWGANGP(opt.input_nc + 3, (256, 512), opt.ndf)
+
+
+            self.netD1.apply(weights_init)
+            self.netD2.apply(weights_init)
             
             # self.netD2 = networks.define_D(opt.input_nc + 3, opt.ndf,
             #                               # opt.which_model_netD,
