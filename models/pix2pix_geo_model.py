@@ -320,9 +320,19 @@ class Pix2PixGeoModel(BaseModel):
             print(self.real_B_DIV.shape)
             print(self.mask.shape)
 
+            print(self.mask_size_x)
+            print(self.mask_size_y)
+
+            print(self.mask_x1)
+            print(self.mask_y1)
+            print(self.mask_x2)
+            print(self.mask_y2)
+
+            print(self.fake_B_DIV.masked_select(self.mask).shape)
+
             raise r
 
-            
+
         self.loss_G_L2_Vx = self.criterionL2(
             self.fake_B_Vx.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y[0], self.mask_size_x[0]), 
             self.real_B_Vx.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y[0], self.mask_size_x[0])) * self.opt.lambda_A
