@@ -327,6 +327,8 @@ class Pix2PixGeoModel(BaseModel):
 
             print(self.fake_B_DIV.masked_select(self.mask).shape)
 
+            print(self.image_paths)
+
             raise r
 
 
