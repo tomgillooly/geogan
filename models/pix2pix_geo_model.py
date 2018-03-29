@@ -322,7 +322,9 @@ class Pix2PixGeoModel(BaseModel):
 
             print(self.mask_size_x)
             print(self.mask_size_y)
-            
+
+            print(torch.sum(torch.sum(self.mask, dim=3), dim=2))
+
             print(self.fake_B_DIV.masked_select(self.mask).shape)
 
             raise r
