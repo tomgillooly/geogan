@@ -17,6 +17,7 @@ if [ "$HOSTNAME" == "marky" ]; then
 fi
 
 git checkout fix_up_high_iter
+echo `git rev-parse HEAD`
 
 source $HOME/$VIRTUALENV_NAME/bin/activate
 
