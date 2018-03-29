@@ -16,7 +16,7 @@ if [ "$HOSTNAME" == "marky" ]; then
 	VIRTUALENV_NAME=pytorch3_cuda8
 fi
 
-git checkout fix_up_high_iter
+git checkout $1
 echo `git rev-parse HEAD`
 
 source $HOME/$VIRTUALENV_NAME/bin/activate
@@ -29,4 +29,4 @@ kill %1
 
 deactivate
 
-git checkout master
+git checkout dummy
