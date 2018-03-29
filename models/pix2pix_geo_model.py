@@ -332,7 +332,9 @@ class Pix2PixGeoModel(BaseModel):
 
         loss.backward()
 
-        return loss, real_loss, fake_loss
+        # We could use view, but it looks like it just causes memory overflow
+        # return torch.cat((loss, real_loss, fake_loss), dim=0).view(-1, 3, 1)
+        return torch.cat((loss, real_loss, fake_loss), dim=0).unsqueeze(0).unsqueeze(-1)
 
 
     def backward_D(self, net_Ds, optimisers, cond_data, real_data, fake_data):
@@ -341,18 +343,29 @@ class Pix2PixGeoModel(BaseModel):
         real_losses = torch.FloatTensor((len(net_Ds)))
         fake_losses = torch.FloatTensor((len(net_Ds)))
 
-        for i, (net_D, optimiser) in enumerate(zip(net_Ds, optimisers)):
+        # for i, (net_D, optimiser) in enumerate(zip(net_Ds, optimisers)):
+        #     optimiser.zero_grad()
+        #     loss, real_loss, fake_loss = self.backward_single_D(
+        #         net_D, cond_data, real_data, fake_data)
+        #     loss.backward()
+        #     optimiser.step()
+
+        #     losses[i] = loss.data[0]
+        #     real_losses[i] = real_loss.data[0]
+        #     fake_losses[i] = fake_loss.data[0]
+
+        # return losses.mean(), real_losses.mean(), fake_losses.mean()
+        for optimiser in optimisers:
             optimiser.zero_grad()
-            loss, real_loss, fake_loss = self.backward_single_D(
-                net_D, cond_data, real_data, fake_data)
-            loss.backward()
+
+        loss = torch.cat([self.backward_single_D(net_D, cond_data, real_data, fake_data) for net_D in net_Ds], dim=2)
+
+        for optimiser in optimisers:
             optimiser.step()
 
-            losses[i] = loss.data[0]
-            real_losses[i] = real_loss.data[0]
-            fake_losses[i] = fake_loss.data[0]
+        # loss[:, 0, :].backward()        
 
-        return losses.mean(), real_losses.mean(), fake_losses.mean()
+        return torch.mean(loss[:, 0, :], dim=1), torch.mean(loss[:, 1, :], dim=1), torch.mean(loss[:, 2, :], dim=1)
 
 
     def backward_G(self):
@@ -542,85 +555,12 @@ class Pix2PixGeoModel(BaseModel):
         for c in np.unique(self.real_B_classes.data.numpy()):
             fake_channel = self.fake_B_one_hot.numpy().squeeze()[c]
             real_channel = self.real_B_discrete.data.numpy().squeeze()[c]
-            # num_true_pos = np.sum(np.logical_and(fake_channel, fake_channel == real_channel).ravel())
-            # num_true_neg = np.sum(np.logical_and(1-fake_channel, fake_channel == real_channel).ravel())
-            # num_false_pos = np.sum((fake_channel > real_channel).ravel())
-            # num_false_neg = np.sum((fake_channel < real_channel).ravel())
-
-            # plt.subplot(241)
-            # io.imshow(self.mask.numpy().squeeze())
-            # plt.subplot(242)
-            # io.imshow(fake_channel)
-            # plt.subplot(243)
-            # io.imshow(real_channel)
-            # plt.subplot(244)
-            # io.imshow((fake_channel == real_channel))
-            # plt.subplot(245)
-            # io.imshow(np.logical_and(fake_channel, fake_channel == real_channel))
-            # plt.subplot(246)
-            # io.imshow(np.logical_and(1 - fake_channel, fake_channel == real_channel))
-            # plt.subplot(247)
-            # io.imshow(fake_channel > real_channel)
-            # plt.subplot(248)
-            # io.imshow(fake_channel < real_channel)
-            # plt.show()
-
-            # print(num_true_pos)
-            # print(num_true_neg)
-            # print(num_false_pos)
-            # print(num_false_neg)
-
-            # num_true_pos, num_true_neg, num_false_pos, num_false_neg = get_stats(real_channel, fake_channel)
-
-            # precision = num_true_pos / (num_true_pos + num_false_pos + eps)
-            # metrics.append(('Class {} Precision'.format(c),  precision))
-            # precisions.append(precision)
-            
-            # recall = num_true_pos / (num_true_pos + num_false_neg + eps)
-            # metrics.append(('Class {} Recall'.format(c),  recall))
-            # recalls.append(recall)
-
+           
             fake_channel = fake_channel[mask_tl[0]:mask_br[0], mask_tl[1]:mask_br[1]]
             real_channel = real_channel[mask_tl[0]:mask_br[0], mask_tl[1]:mask_br[1]]
 
-            # plt.subplot(121)
-            # io.imshow(fake_channel)
-            # plt.subplot(122)
-            # io.imshow(real_channel)
-            # plt.show()
-
-            # num_true_pos, num_true_neg, num_false_pos, num_false_neg = get_stats(real_channel, fake_channel)
-
-            # precision = (num_true_pos) / (num_true_pos + num_false_pos + eps)
-            # metrics.append(('Class {} Precision (Inpainted region)'.format(c),  precision))
-            # inpaint_precisions.append(precision)
-            
-            # recall = (num_true_pos) / (num_true_pos + num_false_neg + eps)
-            # metrics.append(('Class {} Recall (Inpainted region)'.format(c),  recall))
-            # inpaint_recalls.append(recall)
-
-
-
-            # u : (M,N) ndarray
-            #     Input array.
-            # v : (O,N) ndarray
-            #     Input array.
-            # seed : int or None
-            #     Local np.random.RandomState seed. Default is 0, a random shuffling of u and v that guarantees reproducibility.
-            # Returns:    
-            # d : double
-            #     The directed Hausdorff distance between arrays u and v,
-            # index_1 : int
-            #     index of point contributing to Hausdorff pair in u
-            # index_2 : int
-            #     index of point contributing to Hausdorff pair in v
-            # fake_coords = np.array(list(zip(*np.where(fake_channel))))
-            # real_coords = np.array(list(zip(*np.where(real_channel))))
             fake_coords = np.array(np.where(fake_channel)).T
             real_coords = np.array(np.where(real_channel)).T
-
-            # print(fake_coords)
-            # print(real_coords)
 
             if not fake_coords.any() or not real_coords.any():
                 mask_diagonal = euclidean(mask_br, mask_tl)
@@ -631,46 +571,11 @@ class Pix2PixGeoModel(BaseModel):
                 d_h_fr, i1_fr, i2_fr = directed_hausdorff(fake_coords, real_coords)
                 d_h_rf, i1_rf, i2_rf = directed_hausdorff(real_coords, fake_coords)
 
-                # f_y, f_x = fake_coords[i1_fr][0], fake_coords[i1_fr][1]
-                # r_y, r_x = real_coords[i2_fr][0], real_coords[i2_fr][1]
-
-                # pixel_layer = np.zeros(fake_channel.shape)
-                # pixel_layer[f_y, f_x] = 1
-                # pixel_layer[r_y, r_x] = 1
-                # overlay_dh_fr = np.stack((fake_channel, real_channel, pixel_layer), axis=2)
-
-                # f_y, f_x = fake_coords[i2_rf][0], fake_coords[i2_rf][1]
-                # r_y, r_x = real_coords[i1_rf][0], real_coords[i1_rf][1]
-
-                # pixel_layer = np.zeros(fake_channel.shape)
-                # pixel_layer[f_y, f_x] = 1
-                # pixel_layer[r_y, r_x] = 1
-                # overlay_dh_rf = np.stack((fake_channel, real_channel, pixel_layer), axis=2)
-
-                # plt.subplot(211)
-                # io.imshow(overlay_dh_rf)
-                # plt.title('Real to fake (recall)')
-                # plt.subplot(212)
-                # io.imshow(overlay_dh_fr)
-                # plt.title('Fake to real (precision)')
-                # plt.suptitle('Real - green, fake - red, fake pix - m, real pix - c\n'+
-                #     'Recall {}, precision {}'.format(d_h_rf, d_h_fr))
-                # plt.show()
-
                 d_h_s = max(d_h_s, max(d_h_fr, d_h_rf))
 
             d_h_recall = max(d_h_recall, d_h_rf)
             d_h_precision = max(d_h_precision, d_h_fr)
-            # print(d_h_fr)
-            # print(d_h_rf)
-            # i1, i2 = (i1_fr, i2_fr) if d_h_fr > d_h_rf else (i2_rf, i1_rf)
-
-            # print(i1)
-            # print(i2)
-            # print(fake_coords[i1])
-            # print(real_coords[i2])
-
-
+ 
         metrics.append(('Hausdorff distance (R)', d_h_recall))
         metrics.append(('Hausdorff distance (P)', d_h_precision))
         metrics.append(('Hausdorff distance (S)', d_h_s))
@@ -708,6 +613,6 @@ class Pix2PixGeoModel(BaseModel):
         self.save_network(self.netG_Vx, 'G_Vx', label, self.gpu_ids)
         self.save_network(self.netG_Vy, 'G_Vy', label, self.gpu_ids)
 
-        for i in range(len(self.netD1s))
+        for i in range(len(self.netD1s)):
             self.save_network(self.netD1s[i], 'D1_%d' % i, label, self.gpu_ids)
             self.save_network(self.netD2s[i], 'D2_%d' % i, label, self.gpu_ids)
