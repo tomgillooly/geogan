@@ -9,7 +9,7 @@ else
 	VIRTUALENV_NAME=cyclegan3
 	DATAROOT=/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT
 	HOME=/home/tgillooly/
-	OPTIONS="--no_flip True"
+	OPTIONS="--no_flip"
 fi
 
 if [ "$HOSTNAME" == "marky" ]; then
