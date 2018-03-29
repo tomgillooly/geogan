@@ -16,9 +16,6 @@ if [ "$HOSTNAME" == "marky" ]; then
 	VIRTUALENV_NAME=pytorch3_cuda8
 fi
 
-git checkout $1
-echo `git rev-parse HEAD`
-
 source $HOME/$VIRTUALENV_NAME/bin/activate
 
 python -m visdom.server > visdom.log 2>&1 &
@@ -28,5 +25,3 @@ python train.py --dataroot $DATAROOT --name geo_pix2pix_wgan_high_iter_start --m
 kill %1
 
 deactivate
-
-git checkout dummy
