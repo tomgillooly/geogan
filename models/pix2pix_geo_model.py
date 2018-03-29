@@ -322,12 +322,7 @@ class Pix2PixGeoModel(BaseModel):
 
             print(self.mask_size_x)
             print(self.mask_size_y)
-
-            print(self.mask_x1)
-            print(self.mask_y1)
-            print(self.mask_x2)
-            print(self.mask_y2)
-
+            
             print(self.fake_B_DIV.masked_select(self.mask).shape)
 
             raise r
