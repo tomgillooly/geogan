@@ -59,6 +59,8 @@ class GeoDataset(BaseDataset):
 
         self.A_paths = list(zip(DIV_paths, Vx_paths, Vy_paths))
         
+        print(len(self(DIV_paths)))
+
         assert(len(self.A_paths) > 0)
 
         assert(opt.resize_or_crop == 'resize_and_crop')
