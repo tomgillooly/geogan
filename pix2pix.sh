@@ -9,7 +9,7 @@ else
 	VIRTUALENV_NAME=cyclegan3
 	DATAROOT=/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT
 	HOME=/home/tgillooly/
-	OPTIONS="--display_port 8098"
+	# OPTIONS="--display_port 8098"
 fi
 
 if [ "$HOSTNAME" == "marky" ]; then
@@ -25,3 +25,5 @@ python train.py --dataroot $DATAROOT --name geo_pix2pix_wgan_high_iter_start --m
 kill %1
 
 deactivate
+
+git checkout dummy

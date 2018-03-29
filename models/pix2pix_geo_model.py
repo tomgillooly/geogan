@@ -311,9 +311,18 @@ class Pix2PixGeoModel(BaseModel):
 
         self.loss_G_GAN = self.loss_G_GAN1 + self.loss_G_GAN2
 
-        self.loss_G_L2_DIV = self.criterionL2(
-            self.fake_B_DIV.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y[0], self.mask_size_x[0]),
-            self.real_B_DIV.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y[0], self.mask_size_x[0])) * self.opt.lambda_A
+        try:
+            self.loss_G_L2_DIV = self.criterionL2(
+                self.fake_B_DIV.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y[0], self.mask_size_x[0]),
+                self.real_B_DIV.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y[0], self.mask_size_x[0])) * self.opt.lambda_A
+        except RuntimeError as r:
+            print(self.fake_B_DIV.shape)
+            print(self.real_B_DIV.shape)
+            print(self.mask.shape)
+
+            raise r
+
+            
         self.loss_G_L2_Vx = self.criterionL2(
             self.fake_B_Vx.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y[0], self.mask_size_x[0]), 
             self.real_B_Vx.masked_select(self.mask).view(self.batch_size, 1, self.mask_size_y[0], self.mask_size_x[0])) * self.opt.lambda_A

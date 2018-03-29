@@ -58,8 +58,6 @@ class GeoDataset(BaseDataset):
         # self.A_paths = sorted(self.A_paths)
 
         self.A_paths = list(zip(DIV_paths, Vx_paths, Vy_paths))
-        
-        print(len(DIV_paths))
 
         assert(len(self.A_paths) > 0)
 
