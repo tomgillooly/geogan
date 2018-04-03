@@ -463,7 +463,7 @@ class Pix2PixGeoModel(BaseModel):
         # print(np.unique(self.real_A_discrete.data))
         # print(self.fake_B_discrete.data.shape)
 
-        mask_edge = roberts(self.mask.data.cpu().numpy().squeeze()[0, ...])
+        mask_edge = roberts(self.mask.cpu().numpy()[0, ...].squeeze())
         mask_edge_coords = np.where(mask_edge)
 
         real_A_discrete = util.tensor2im(self.real_A_discrete.data)
