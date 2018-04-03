@@ -398,7 +398,10 @@ class Pix2PixGeoModel(BaseModel):
         self.loss_G_GAN = self.loss_G_GAN1 + self.loss_G_GAN2
 
         # if we aren't taking local loss, use entire image
-        loss_mask = Variable(torch.ones(self.mask.shape).byte())
+        loss_mask = torch.ones(self.mask.shape).byte()
+        loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
+        loss_mask = Variable(loss_mask)
+
         im_dims = self.mask.shape[2:]
 
         if self.opt.local_loss:
