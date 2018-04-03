@@ -484,7 +484,7 @@ class Pix2PixGeoModel(BaseModel):
             ('D1_fake', self.loss_D1_fake.data[0]),
             ('D1_grad_pen', self.loss_D1_grad_pen.data[0]),
             ('D2_real', self.loss_D2_real.data[0]),
-            ('D2_fake', self.loss_D2_fake.data[0])
+            ('D2_fake', self.loss_D2_fake.data[0]),
             ('D2_grad_pen', self.loss_D2_grad_pen.data[0])
             ])
 
