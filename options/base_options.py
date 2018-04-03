@@ -43,6 +43,7 @@ class BaseOptions():
         self.parser.add_argument('--process', type=str, default="skeleton", help='Which method to use when processing the geology database')
         self.parser.add_argument('--init_type', type=str, default='normal', help='network initialization [normal|xavier|kaiming|orthogonal]')
         self.parser.add_argument('--div_threshold', type=float, default=1000, help='network initialization [normal|xavier|kaiming|orthogonal]')
+        self.parser.add_argument('--inpaint_single_class', action='store_true', help='If specified, only remove one class from inpainted region')
 
         self.initialized = True
 

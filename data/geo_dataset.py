@@ -298,8 +298,11 @@ class GeoDataset(BaseDataset):
         
         B = A.copy()
 
-        B[:, :, 1][np.where(np.logical_and(mask, B[:, :, layer]))] = 1
-        B[mask_y1:mask_y2, mask_x1:mask_x2, layer] = 0
+        if self.opt.inpaint_single_class:
+            B[:, :, 1][np.where(np.logical_and(mask, B[:, :, layer]))] = 1
+            B[mask_y1:mask_y2, mask_x1:mask_x2, layer] = 0
+        else:
+            B[np.where(mask)] = [0, 1, 0]
             
         mask = np.expand_dims(mask, 2)
         mask = torch.ByteTensor(mask.transpose(2, 0, 1))
