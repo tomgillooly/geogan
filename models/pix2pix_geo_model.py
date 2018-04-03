@@ -120,13 +120,10 @@ class Pix2PixGeoModel(BaseModel):
             self.load_network(self.netG_DIV, 'G_Vx', opt.which_epoch)
             self.load_network(self.netG_DIV, 'G_Vy', opt.which_epoch)
             if self.isTrain:
-                [self.load_network(netD1s[i], 'D1_%d' % i, label, opt.which_epoch) for i in range(len(self.netD1s))]
-                [self.load_network(netD2s[i], 'D2_%d' % i, label, opt.which_epoch) for i in range(len(self.netD2s))]
+                [self.load_network(self.netD1s[i], 'D1_%d' % i, label, opt.which_epoch) for i in range(len(self.netD1s))]
+                [self.load_network(self.netD2s[i], 'D2_%d' % i, label, opt.which_epoch) for i in range(len(self.netD2s))]
 
         if self.isTrain:
-            # Image pool not doing anything in this model because size is set to zero, just
-            # returns input as Variable
-            self.fake_AB_pool = ImagePool(opt.pool_size)
             # define loss functions
             self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
             self.criterionL2 = torch.nn.MSELoss(size_average=True)
