@@ -115,6 +115,7 @@ class Pix2PixGeoModel(BaseModel):
             #                               # n_linear=int((512*256)/70))
 
         if not self.isTrain or opt.continue_train:
+            print("Loading networks from epoch " + str(opt.which_epoch))
             self.load_network(self.netG, 'G', opt.which_epoch)
             self.load_network(self.netG_DIV, 'G_DIV', opt.which_epoch)
             self.load_network(self.netG_DIV, 'G_Vx', opt.which_epoch)
