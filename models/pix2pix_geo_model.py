@@ -358,7 +358,8 @@ class Pix2PixGeoModel(BaseModel):
         real_loss = self.criterionGAN(net_D(real_AB), True)
         # self.loss_D2_real = self.criterionGAN(pred_real, True)
 
-        grad_pen = Variable(torch.zeros(1), requires_grad=False)
+        grad_pen = torch.zeros(1), requires_grad=False
+        grad_pen = Variable(grad_pen.cuda()) if len(self.gpu_ids) > 0 else Variable(grad_pen)
 
         if self.opt.which_model_netD == 'wgan-gp':
             grad_pen = self.calc_gradient_penalty(net_D, real_AB.data, fake_AB.data)
