@@ -25,7 +25,7 @@ source $HOME/$VIRTUALENV_NAME/bin/activate
 
 python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
-python train.py --dataroot $DATAROOT --name geo_pix2pix_patchgan_weighted_ce \
+python train.py --dataroot $DATAROOT --name geo_pix2pix_patchgan_weighted_ce_by_class \
 	--model pix2pix_geo --which_model_netG unet_256 --which_direction BtoA \
 	--high_iter 1 --low_iter 1 \
 	--num_discrims 1 --which_model_netD basic --input_nc 3 --output_nc 3 \
