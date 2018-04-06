@@ -463,7 +463,10 @@ class Pix2PixGeoModel(BaseModel):
         self.real_B_classes_ROI = self.real_B_classes.masked_select(loss_mask.squeeze()).view(
                 self.batch_size, *im_dims)
 
-        ce_fun = self.criterionCE(weight=torch.Tensor([1, 0, 1]))
+        weights = torch.Tensor([1, 0, 1])
+        weights = weights.cuda() if len(self.gpu_ids) > 0 else weights
+
+        ce_fun = self.criterionCE(weight=weights)
 
         # print(fake_B_discrete_masked)
         # print(real_B_classes_masked)
