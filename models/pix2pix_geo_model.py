@@ -88,6 +88,25 @@ class Pix2PixGeoModel(BaseModel):
             self.netG_Vx.cuda(self.gpu_ids[0])
             self.netG_Vy.cuda(self.gpu_ids[0])
 
+
+        def get_discriminator_factory():
+            def create_WGAN_GP():
+                return DiscriminatorWGANGP(opt.input_nc + 1 + opt.output_nc, (256, 512), opt.ndf)
+
+            def create_PatchGAN():
+                return networks.define_D(opt.input_nc + 3, opt.ndf,
+                                          opt.which_model_netD,
+                                          'wgan',
+                                          opt.n_layers_D, 'none', use_sigmoid, opt.init_type, self.gpu_ids,
+            #                               n_linear=1860)
+                                          n_linear=int((512*256)/70))
+            
+            if self.opt.which_model_netD == 'wgan-gp':
+                return create_WGAN_GP
+            else:
+                return create_PatchGAN
+
+
         if self.isTrain:
             # Inputs: 3 channels of one-hot input (with chunk missing) + mask + discrete output data
             self.netD1s = [DiscriminatorWGANGP(opt.input_nc + 1 + opt.output_nc, (256, 512), opt.ndf)
