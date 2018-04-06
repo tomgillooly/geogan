@@ -471,7 +471,11 @@ class Pix2PixGeoModel(BaseModel):
         plate_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 1, :, :], dim=1), dim=1) / total_pixels
         subduction_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 2, :, :], dim=1), dim=1) / total_pixels
         
-        weights = torch.cat((ridge_weight, plate_weight, subduction_weight), dim=1)
+        weights = torch.cat((
+            ridge_weight.expand(1, -1),
+            plate_weight.expand(1, -1),
+            subduction_weight.expand(1, -1)
+            ), dim=1)
         ce_fun = self.criterionCE(weight=weights)
 
         # print(fake_B_discrete_masked)
