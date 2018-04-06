@@ -460,23 +460,10 @@ class Pix2PixGeoModel(BaseModel):
 
         self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(
                 self.batch_size, 3, *im_dims)
-        self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(
-                self.batch_size, 3, *im_dims)
         self.real_B_classes_ROI = self.real_B_classes.masked_select(loss_mask.squeeze()).view(
                 self.batch_size, *im_dims)
 
-        total_pixels = 1.0 * im_dims[0] * im_dims[1]
-        
-        ridge_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 0, :, :], dim=1), dim=1) / total_pixels
-        plate_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 1, :, :], dim=1), dim=1) / total_pixels
-        subduction_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 2, :, :], dim=1), dim=1) / total_pixels
-        
-        weights = torch.cat((
-            ridge_weight.expand(1, -1),
-            plate_weight.expand(1, -1),
-            subduction_weight.expand(1, -1)
-            ), dim=1)
-        ce_fun = self.criterionCE(weight=weights)
+        ce_fun = self.criterionCE(weight=torch.Tensor([1, 0, 1]))
 
         # print(fake_B_discrete_masked)
         # print(real_B_classes_masked)
