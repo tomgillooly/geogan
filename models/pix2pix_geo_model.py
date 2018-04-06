@@ -89,32 +89,29 @@ class Pix2PixGeoModel(BaseModel):
             self.netG_Vy.cuda(self.gpu_ids[0])
 
 
-        def get_discriminator_factory():
-            def create_WGAN_GP():
+        def get_discriminator():
+            # def create_WGAN_GP():
+            if self.opt.which_model_netD == 'wgan-gp':
                 return DiscriminatorWGANGP(opt.input_nc + 1 + opt.output_nc, (256, 512), opt.ndf)
 
-            def create_PatchGAN():
-                return networks.define_D(opt.input_nc + 3, opt.ndf,
-                                          opt.which_model_netD,
-                                          'wgan',
-                                          opt.n_layers_D, 'none', use_sigmoid, opt.init_type, self.gpu_ids,
-            #                               n_linear=1860)
-                                          n_linear=int((512*256)/70))
-            
-            if self.opt.which_model_netD == 'wgan-gp':
-                return create_WGAN_GP
             else:
-                return create_PatchGAN
+            # def create_PatchGAN():
+                use_sigmoid = opt.no_lsgan
+                return networks.define_D(opt.input_nc + 1 + opt.output_nc, opt.ndf,
+                                          opt.which_model_netD,
+                                          opt.n_layers_D, opt.norm,
+                                          use_sigmoid, opt.init_type, self.gpu_ids)
+            
+                # return create_WGAN_GP
+                # return create_PatchGAN
 
 
         if self.isTrain:
             # Inputs: 3 channels of one-hot input (with chunk missing) + mask + discrete output data
-            self.netD1s = [DiscriminatorWGANGP(opt.input_nc + 1 + opt.output_nc, (256, 512), opt.ndf)
-                            for _ in range(self.opt.num_discrims)]
+            self.netD1s = [get_discriminator() for _ in range(self.opt.num_discrims)]
 
             # 3 channels of one-hot input (with chunk missing) + mask + DIV, Vx, Vy
-            self.netD2s = [DiscriminatorWGANGP(opt.input_nc + 1 + 3, (256, 512), opt.ndf)
-                            for _ in range(self.opt.num_discrims)]
+            self.netD2s = [get_discriminator() for _ in range(self.opt.num_discrims)]
 
 
             # Apply is in-place, we don't need to return into anything
@@ -144,7 +141,15 @@ class Pix2PixGeoModel(BaseModel):
 
         if self.isTrain:
             # define loss functions
-            self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
+
+            if opt.which_model_netD == 'wgan-gp':
+                def batch_mean(data, data_is_real):
+                    return data.mean(dim=0) * -1 if data_is_real else 1
+                self.criterionGAN = batch_mean
+            else:
+                self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan,
+                    tensor=self.Tensor)
+
             self.criterionL2 = torch.nn.MSELoss(size_average=True)
             self.criterionCE = torch.nn.NLLLoss2d
 
@@ -344,20 +349,20 @@ class Pix2PixGeoModel(BaseModel):
         # In this case real_A, the input, is our conditional vector
         fake_AB = torch.cat((cond_data, fake_data), dim=1)
         # Mean across batch
-        fake_loss = net_D(fake_AB.detach()).mean(dim=0)
+        fake_loss = self.criterionGAN(net_D(fake_AB.detach()), False)
         # self.loss_D2_fake = self.criterionGAN(pred_fake, False)
 
         # Real
         real_AB = torch.cat((cond_data, real_data), dim=1)
         # Mean across batch
-        real_loss = net_D(real_AB).mean(dim=0)
+        real_loss = self.criterionGAN(net_D(real_AB), True)
         # self.loss_D2_real = self.criterionGAN(pred_real, True)
 
         grad_pen = self.calc_gradient_penalty(net_D, real_AB.data, fake_AB.data)
 
         # Combined loss
         # self.loss_D2 = (self.loss_D2_fake + self.loss_D2_real) * 0.5
-        loss = fake_loss - real_loss + grad_pen * self.opt.lambda_C
+        loss = fake_loss + real_loss + grad_pen * self.opt.lambda_C
 
         loss.backward()
 
@@ -397,13 +402,13 @@ class Pix2PixGeoModel(BaseModel):
         # Remember self.fake_B_discrete is the generator output
         fake_AB = torch.cat((self.real_A_discrete, self.mask.float(), self.fake_B_discrete), dim=1)
         # Mean across batch, then across discriminators
-        pred_fake1 = torch.cat([netD1(fake_AB).mean() for netD1 in self.netD1s]).mean()
+        pred_fake1 = torch.cat([self.criterionGAN(netD1(fake_AB), True) for netD1 in self.netD1s]).mean()
         
         # Conditional data (input with chunk missing + mask) + fake DIV, Vx and Vy data
         fake_AB = torch.cat((self.real_A_discrete, self.mask.float(),
             self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
         # Mean across batch, then across discriminators
-        pred_fake2 = torch.cat([netD2(fake_AB).mean() for netD2 in self.netD2s]).mean()
+        pred_fake2 = torch.cat([self.criterionGAN(netD2(fake_AB), True) for netD2 in self.netD2s]).mean()
 
         # We only optimise with respect to the fake prediction because
         # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
@@ -411,8 +416,8 @@ class Pix2PixGeoModel(BaseModel):
         # self.loss_G_GAN2 = self.criterionGAN(pred_fake2, True)
 
         # Trying to incentivise making this big, so it's mistaken for real
-        self.loss_G_GAN1 = -pred_fake1
-        self.loss_G_GAN2 = -pred_fake2
+        self.loss_G_GAN1 = pred_fake1
+        self.loss_G_GAN2 = pred_fake2
 
         self.loss_G_GAN = self.loss_G_GAN1 + self.loss_G_GAN2
 
