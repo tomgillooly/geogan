@@ -358,7 +358,10 @@ class Pix2PixGeoModel(BaseModel):
         real_loss = self.criterionGAN(net_D(real_AB), True)
         # self.loss_D2_real = self.criterionGAN(pred_real, True)
 
-        grad_pen = self.calc_gradient_penalty(net_D, real_AB.data, fake_AB.data)
+        grad_pen = Variable(torch.zeros(1), requires_grad=False)
+
+        if self.opt.which_model_netD == 'wgan-gp':
+            grad_pen = self.calc_gradient_penalty(net_D, real_AB.data, fake_AB.data)
 
         # Combined loss
         # self.loss_D2 = (self.loss_D2_fake + self.loss_D2_real) * 0.5
@@ -476,7 +479,7 @@ class Pix2PixGeoModel(BaseModel):
         # target and generated data in object
         self.forward()
 
-        for _ in range(5 if kwargs['step_no'] >= 25 else 25):
+        for _ in range(self.opt.low_iter if kwargs['step_no'] >= 25 else self.opt.high_iter):
             self.loss_D1, self.loss_D1_real, self.loss_D1_fake, self.loss_D1_grad_pen = self.backward_D(self.netD1s, self.optimizer_D1s,
                 torch.cat((self.real_A_discrete, self.mask.float()), dim=1),       # Conditional data
                 self.real_B_discrete, self.fake_B_discrete)
