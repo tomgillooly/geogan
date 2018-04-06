@@ -463,7 +463,7 @@ class Pix2PixGeoModel(BaseModel):
         self.real_B_classes_ROI = self.real_B_classes.masked_select(loss_mask.squeeze()).view(
                 self.batch_size, *im_dims)
 
-        total_pixels = 1.0*self.mask_size_x*self.mask_size_y
+        total_pixels = self.mask_size_x.float()*self.mask_size_y.float()
         
         ridge_weight = 1.0 - torch.sum(torch.sum(self.real_B_classes_ROI[:, 0, :, :], dim=1), dim=2) / total_pixels
         plate_weight = 1.0 - torch.sum(torch.sum(self.real_B_classes_ROI[:, 1, :, :], dim=1), dim=2) / total_pixels
