@@ -85,8 +85,8 @@ with open(results_file_name, 'a') as results_file:
             results.append(str(value))
 
         results_file.write(', '.join(results))
-
-        visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio)
+        
+        visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, row_lengths=[4, 3, 3])
 
         if text:
             webpage.add_text(text)

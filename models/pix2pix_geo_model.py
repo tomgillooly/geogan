@@ -574,7 +574,7 @@ class Pix2PixGeoModel(BaseModel):
 
             return (num_true_pos, num_true_neg, num_false_pos, num_false_neg)
 
-        mask_coords = np.where(self.mask.numpy().squeeze())
+        mask_coords = np.where(self.mask.data.numpy().squeeze())
         mask_tl =(mask_coords[0][0], mask_coords[1][0])
         mask_br =(mask_coords[0][-1], mask_coords[1][-1])
 
