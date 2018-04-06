@@ -121,8 +121,8 @@ class Pix2PixGeoModel(BaseModel):
             self.load_network(self.netG_DIV, 'G_Vx', opt.which_epoch)
             self.load_network(self.netG_DIV, 'G_Vy', opt.which_epoch)
             if self.isTrain:
-                [self.load_network(self.netD1s[i], 'D1_%d' % i, label, opt.which_epoch) for i in range(len(self.netD1s))]
-                [self.load_network(self.netD2s[i], 'D2_%d' % i, label, opt.which_epoch) for i in range(len(self.netD2s))]
+                [self.load_network(self.netD1s[i], 'D1_%d' % i, opt.which_epoch) for i in range(len(self.netD1s))]
+                [self.load_network(self.netD2s[i], 'D2_%d' % i, opt.which_epoch) for i in range(len(self.netD2s))]
 
         if self.isTrain:
             # define loss functions
