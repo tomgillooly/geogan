@@ -144,7 +144,7 @@ class Pix2PixGeoModel(BaseModel):
 
             if opt.which_model_netD == 'wgan-gp':
                 def batch_mean(data, data_is_real):
-                    return data.mean(dim=0) * -1 if data_is_real else 1
+                    return data.mean(dim=0) * (-1 if data_is_real else 1)
                 self.criterionGAN = batch_mean
             else:
                 self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan,
