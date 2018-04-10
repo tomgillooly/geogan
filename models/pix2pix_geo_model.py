@@ -373,7 +373,9 @@ class Pix2PixGeoModel(BaseModel):
 
         # We could use view, but it looks like it just causes memory overflow
         # return torch.cat((loss, real_loss, fake_loss), dim=0).view(-1, 3, 1)
-        output = torch.cat((loss, real_loss, fake_loss, grad_pen), dim=0).unsqueeze(0).unsqueeze(-1)
+        output = torch.cat((loss, real_loss, fake_loss, grad_pen), dim=0)
+        output = output.unsqueeze(0)
+        output = output.unsqueeze(-1)
 
         return output
 
