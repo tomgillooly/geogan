@@ -34,5 +34,6 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--high_iter', type=int, default=25, help='Number of critic iterations at beginning of training')
         self.parser.add_argument('--low_iter', type=int, default=5, help='Number of critic iterations after initial phase')
         self.parser.add_argument('--weighted_ce', action='store_true', help='Weight cross entropy according to number of pixels in each class')
+        self.parser.add_argument('--discrete_only', action='store_true', help="Disregard continuous data (divergence and vector fields)")
 
         self.isTrain = True
