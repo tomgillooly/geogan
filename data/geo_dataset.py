@@ -128,7 +128,11 @@ class GeoDataset(BaseDataset):
         # and ends up looking about the same
         def read_geo_file(path):
             with open(path) as file:
-                data = list(map(float, file.read().split()))
+                try:
+                    data = list(map(float, file.read().split()))
+                except ValueError as ex:
+                    print(path)
+                    raise ex
 
                 if len(data) > rows*cols*depth:
                     assert(len(data) == rows*cols*3)
