@@ -1,10 +1,12 @@
 import os
 from options.test_options import TestOptions
 from data.data_loader import CreateDataLoader
+from metrics.hausdorff import get_hausdorff
 from models.models import create_model
 from util.visualizer import Visualizer
 from util import html
 
+import matplotlib.pyplot as plt
 import numpy as np
 import skimage.io as io
 
@@ -40,6 +42,22 @@ for i, data in enumerate(dataset):
     visuals = model.get_current_visuals()
     img_path = model.get_image_paths()
 
+    if opt.visualise_hausdorff:
+        mask = data["mask"]
+
+        actual_inpaint_region = data["A"].masked_select(
+            mask.repeat(1, 3, 1, 1)).numpy().reshape(3, 100, 100).transpose(1, 2, 0)
+
+        test_inpaint_region = model.fake_B_classes.data.masked_select(
+            mask).numpy().reshape(100, 100)
+
+
+        for c in [0, 2]:
+            _, _, _, i_recall, i_precision = get_hausdorff(test_inpaint_region == c, actual_inpaint_region[:, :, c], True)
+
+            visuals['hausdorff_recall_class_%d' % c] = (i_recall*255).astype(np.uint8)
+            visuals['hausdorff_precision_class_%d' % c] = (i_precision*255).astype(np.uint8)
+
     # for key, value in model.get_current_metrics().items():
     #     print(key,"=",value)
 
@@ -74,6 +92,7 @@ with open(results_file_name, 'a') as results_file:
 
 
     for (visuals, img_path), metrics in zip(img_data, metric_data):
+
         text = []
 
         results = []
@@ -86,7 +105,7 @@ with open(results_file_name, 'a') as results_file:
 
         results_file.write(', '.join(results))
         
-        visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, row_lengths=[4, 3, 3])
+        visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, row_lengths=[4, 3, 3, 3, 2, 2])
 
         if text:
             webpage.add_text(text)
