@@ -1,6 +1,11 @@
 #!/bin/env python
 
-dataroot = '/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW/train'
+import glob
+import numpy as np
+import os
+import re
+
+dataroot = '/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT/train'
 
 DIV_paths = glob.glob(os.path.join(dataroot, '*_DIV.dat'))
 Vx_paths = glob.glob(os.path.join(dataroot, '*_Vx.dat'))
@@ -12,6 +17,10 @@ Vy_paths = sorted(Vy_paths)
 
 A_paths = list(zip(DIV_paths, Vx_paths, Vy_paths))
 
+rows = 256
+cols = 512
+depth = 1
+
 for A_path in A_paths:
 	DIV_path, Vx_path, Vy_path = A_path
 
@@ -21,7 +30,7 @@ for A_path in A_paths:
 
 	# It is possible to do an interpolation here, but it's really slow
 	# and ends up looking about the same
-	def read_geo_file(path):
+	for path in A_path:
 	    with open(path) as file:
 	        try:
 	            data = list(map(float, file.read().split()))
@@ -34,8 +43,10 @@ for A_path in A_paths:
 
 	            x = np.array([data[i] for i in range(0, len(data), 3)])
 	            y = np.array([data[i] for i in range(1, len(data), 3)])
-	            data = np.array([data[i] for i in range(2, len(data), 3)]).reshape((rows, cols), order='C')
+	            data = [data[i] for i in range(2, len(data), 3)]
 
-	            return x, y, data
+	            #return x, y, data
 
-	        return np.array(data).reshape((rows, cols), order='C')
+	        np.array(data).reshape((rows, cols), order='C')
+
+		print(series_number + " ok")
