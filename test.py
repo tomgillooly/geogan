@@ -55,6 +55,15 @@ for i, data in enumerate(dataset):
         for c in [0, 2]:
             _, _, _, i_recall, i_precision = get_hausdorff(test_inpaint_region == c, actual_inpaint_region[:, :, c], True)
 
+
+            gt = np.zeros((actual_inpaint_region.shape[0], actual_inpaint_region.shape[1], 3), dtype=np.uint8)
+            gt[:, :, c] = actual_inpaint_region[:, :, c]*255
+
+            inpainted = np.zeros((actual_inpaint_region.shape[0], actual_inpaint_region.shape[1], 3), dtype=np.uint8)
+            inpainted[:, :, c] = (test_inpaint_region == c)*255
+
+            visuals['ground_truth_class_%d' % c] = gt
+            visuals['inpainted_class_%d' % c] = inpainted
             visuals['hausdorff_recall_class_%d' % c] = (i_recall*255).astype(np.uint8)
             visuals['hausdorff_precision_class_%d' % c] = (i_precision*255).astype(np.uint8)
 
@@ -105,7 +114,7 @@ with open(results_file_name, 'a') as results_file:
 
         results_file.write(', '.join(results))
         
-        visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, row_lengths=[4, 3, 3, 3, 2, 2])
+        visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, row_lengths=[4, 3, 3, 3, 4, 4])
 
         if text:
             webpage.add_text(text)
