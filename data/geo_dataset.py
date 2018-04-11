@@ -40,7 +40,6 @@ class GeoDataset(BaseDataset):
         self.root = opt.dataroot
         self.dir_A = os.path.join(opt.dataroot, opt.phase)
         self.A_paths = []
-        self.process = opt.process
 
         # for root, dirs, files in os.walk(self.dir_A):
         #     self.A_paths += [os.path.join(root, file) for file in files]
@@ -305,7 +304,7 @@ class GeoDataset(BaseDataset):
             B[np.where(mask)] = [0, 1, 0]
             
         mask = np.expand_dims(mask, 2)
-        mask = torch.ByteTensor(mask.transpose(2, 0, 1))
+        mask = torch.ByteTensor(mask.transpose(2, 0, 1)).clone()
 
         A_DIV = np.interp(A_DIV, [np.min(A_DIV), np.max(A_DIV)], [-1, 1])
         A_Vx = np.interp(A_Vx, [np.min(A_Vx), np.max(A_Vx)], [-1, 1])
