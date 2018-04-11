@@ -524,14 +524,19 @@ class Pix2PixGeoModel(BaseModel):
         # target and generated data in object
         self.forward()
 
+        cond_data = self.real_A_discrete
+
+        if not self.opt.no_mask_to_critic:
+            cond_data = torch.cat((cond_data, self.mask.float()), dim=1)
+
         for _ in range(self.opt.low_iter if kwargs['step_no'] >= 25 else self.opt.high_iter):
             self.loss_D1, self.loss_D1_real, self.loss_D1_fake, self.loss_D1_grad_pen = self.backward_D(self.netD1s, self.optimizer_D1s,
-                torch.cat((self.real_A_discrete, self.mask.float()), dim=1),       # Conditional data
+                cond_data,
                 self.real_B_discrete, self.fake_B_discrete)
 
             if not self.opt.discrete_only:
                 self.loss_D2, self.loss_D2_real, self.loss_D2_fake, self.loss_D2_grad_pen = self.backward_D(self.netD2s, self.optimizer_D2s,
-                    torch.cat((self.real_A_discrete, self.mask.float()), dim=1),       # Conditional data
+                    cond_data,
                     torch.cat((self.real_B_DIV, self.real_B_Vx, self.real_B_Vy), dim=1), 
                     torch.cat((self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1))
 
