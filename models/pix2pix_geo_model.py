@@ -92,13 +92,20 @@ class Pix2PixGeoModel(BaseModel):
 
         def get_discriminator():
             # def create_WGAN_GP():
+            # Inputs: 3 channels of one-hot input (with chunk missing) + discrete output data
+            discrim_input_channels = opt.input_nc + opt.output_nc
+
+            # Add extra channel for mask if we need it
+            if self.opt.no_mask_to_critic:
+                discrim_input_channels += 1
+
             if self.opt.which_model_netD == 'wgan-gp':
-                return DiscriminatorWGANGP(opt.input_nc + 1 + opt.output_nc, (256, 512), opt.ndf)
+                return DiscriminatorWGANGP(discrim_input_channels, (256, 512), opt.ndf)
 
             else:
             # def create_PatchGAN():
                 use_sigmoid = opt.no_lsgan
-                return networks.define_D(opt.input_nc + 1 + opt.output_nc, opt.ndf,
+                return networks.define_D(discrim_input_channels, opt.ndf,
                                           opt.which_model_netD,
                                           opt.n_layers_D, opt.norm,
                                           use_sigmoid, opt.init_type, self.gpu_ids)
@@ -108,7 +115,6 @@ class Pix2PixGeoModel(BaseModel):
 
 
         if self.isTrain:
-            # Inputs: 3 channels of one-hot input (with chunk missing) + mask + discrete output data
             self.netD1s = [get_discriminator() for _ in range(self.opt.num_discrims)]
 
             # Apply is in-place, we don't need to return into anything
