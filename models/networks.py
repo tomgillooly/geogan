@@ -4,6 +4,9 @@ from torch.nn import init
 import functools
 from torch.autograd import Variable
 from torch.optim import lr_scheduler
+
+from .non_local import NONLocalBlock2D
+
 ###############################################################################
 # Functions
 ###############################################################################
@@ -119,6 +122,10 @@ def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch', use_dropo
         netG = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout, gpu_ids=gpu_ids)
     elif which_model_netG == 'unet_256':
         netG = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout, gpu_ids=gpu_ids)
+    elif which_model_netG == 'unet_128_non_local':
+        netG = UnetGeneratorNonLocal(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout, gpu_ids=gpu_ids)
+    elif which_model_netG == 'unet_256_non_local':
+        netG = UnetGeneratorNonLocal(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout, gpu_ids=gpu_ids)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % which_model_netG)
     if len(gpu_ids) > 0:
@@ -334,13 +341,41 @@ class UnetGenerator(nn.Module):
         else:
             return self.model(input)
 
+# Defines the Unet generator with non-local blocks.
+# |num_downs|: number of downsamplings in UNet. For example,
+# if |num_downs| == 7, image of size 128x128 will become of size 1x1
+# at the bottleneck
+class UnetGeneratorNonLocal(nn.Module):
+    def __init__(self, input_nc, output_nc, num_downs, ngf=64,
+                 norm_layer=nn.BatchNorm2d, use_dropout=False, gpu_ids=[]):
+        super(UnetGeneratorNonLocal, self).__init__()
+        self.gpu_ids = gpu_ids
+
+        # construct unet structure
+        unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
+        for i in range(num_downs - 5):
+            unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout, non_local_block=(not (i < num_downs-6)))
+        unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, non_local_block=True)
+        unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer, non_local_block=True)
+        unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+        unet_block = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)
+
+        self.model = unet_block
+
+    def forward(self, input):
+        if self.gpu_ids and isinstance(input.data, torch.cuda.FloatTensor):
+            return nn.parallel.data_parallel(self.model, input, self.gpu_ids)
+        else:
+            return self.model(input)
+
 
 # Defines the submodule with skip connection.
 # X -------------------identity---------------------- X
 #   |-- downsampling -- |submodule| -- upsampling --|
 class UnetSkipConnectionBlock(nn.Module):
     def __init__(self, outer_nc, inner_nc, input_nc=None,
-                 submodule=None, outermost=False, innermost=False, norm_layer=nn.BatchNorm2d, use_dropout=False):
+                 submodule=None, outermost=False, innermost=False, norm_layer=nn.BatchNorm2d, use_dropout=False,
+                 non_local_block=False):
         super(UnetSkipConnectionBlock, self).__init__()
         self.outermost = outermost
         if type(norm_layer) == functools.partial:
@@ -375,6 +410,10 @@ class UnetSkipConnectionBlock(nn.Module):
                                         kernel_size=4, stride=2,
                                         padding=1, bias=use_bias)
             down = [downrelu, downconv, downnorm]
+
+            if non_local_block:
+                down += [NONLocalBlock2D(inner_nc)]
+
             up = [uprelu, upconv, upnorm]
 
             if use_dropout:
