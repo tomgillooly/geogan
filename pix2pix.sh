@@ -1,5 +1,7 @@
 #!/bin/bash
 
+git checkout $GITBRANCH
+
 if [ "$HOSTNAME" == "tomoplata-OptiPlex-790" ]; then
 	VIRTUALENV_NAME=pytorch3
 	DATAROOT=~/data/geology
@@ -20,8 +22,6 @@ fi
 if [ "$HOSTNAME" == "marky" ]; then
 	VIRTUALENV_NAME=pytorch3_cuda8
 fi
-
-git checkout $GITBRANCH
 
 source $HOME/$VIRTUALENV_NAME/bin/activate
 
