@@ -21,6 +21,8 @@ if [ "$HOSTNAME" == "marky" ]; then
 	VIRTUALENV_NAME=pytorch3_cuda8
 fi
 
+git checkout $1
+
 source $HOME/$VIRTUALENV_NAME/bin/activate
 
 python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
