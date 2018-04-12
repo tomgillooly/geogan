@@ -641,7 +641,7 @@ class Pix2PixGeoModel(BaseModel):
             fake_B_Vy[mask_edge_coords] = np.max(fake_B_Vy)
             visuals.append(('output_Vy', fake_B_Vy))
 
-        return OrderedDict([visuals])
+        return OrderedDict(visuals)
 
 
     def get_current_metrics(self):
