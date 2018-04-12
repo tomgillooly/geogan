@@ -442,7 +442,7 @@ class Pix2PixGeoModel(BaseModel):
         # Trying to incentivise making this big, so it's mistaken for real
         self.loss_G_GAN = self.loss_G_GAN1
     
-        if not self.opt.no_continuous:
+        if not self.opt.discrete_only:
             # Conditional data (input with chunk missing + mask) + fake DIV, Vx and Vy data
             fake_AB = torch.cat((self.real_A_discrete, self.mask.float(),
                 self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
@@ -652,7 +652,7 @@ class Pix2PixGeoModel(BaseModel):
             fake_B_Vy[mask_edge_coords] = np.max(fake_B_Vy)
             visuals.append(('output_Vy', fake_B_Vy))
 
-        return OrderedDict([visuals])
+        return OrderedDict(visuals)
 
 
     def get_current_metrics(self):
@@ -743,12 +743,12 @@ class Pix2PixGeoModel(BaseModel):
     def save(self, label):
         self.save_network(self.netG, 'G', label, self.gpu_ids)
 
-        if not self.opt.no_continuous:
+        if not self.opt.discrete_only:
             self.save_network(self.netG_DIV, 'G_DIV', label, self.gpu_ids)
             self.save_network(self.netG_Vx, 'G_Vx', label, self.gpu_ids)
             self.save_network(self.netG_Vy, 'G_Vy', label, self.gpu_ids)
 
         for i in range(len(self.netD1s)):
             self.save_network(self.netD1s[i], 'D1_%d' % i, label, self.gpu_ids)
-            if not self.opt.no_continuous:
+            if not self.opt.discrete_only:
                 self.save_network(self.netD2s[i], 'D2_%d' % i, label, self.gpu_ids)
