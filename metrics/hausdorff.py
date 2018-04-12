@@ -1,0 +1,53 @@
+import numpy as np
+
+from scipy.spatial.distance import directed_hausdorff
+
+
+def get_hausdorff(im1, im2, visualise=False):
+    im1_coords = np.array(np.where(im1)).T
+    im2_coords = np.array(np.where(im2)).T
+
+    max_value = np.sqrt(im1.shape[0]**2 + im1.shape[1]**2)
+
+    d_h_2to1, d_h_1to2, d_h_s = 0.0, 0.0, 0.0
+
+    im1 = np.expand_dims(im1, 2)
+    im2 = np.expand_dims(im2, 2)
+
+    im1_stack = np.concatenate((im1, np.zeros((im1.shape[0], im1.shape[1], 2))), axis=2)
+    im2_stack = np.concatenate((np.zeros((im2.shape[0], im2.shape[1], 2)), im2), axis=2)
+
+    combined = im1_stack + im2_stack
+    combined_1to2 = combined.copy()
+    combined_2to1 = combined.copy()
+
+    if not im1.any() or not im2.any():
+        d_h_1to2 = max_value
+        d_h_2to1 = max_value
+        d_h_s = max_value
+    elif im1.any() and im2.any():
+        d_h_1to2, i1_1to2, i2_1to2 = directed_hausdorff(im1_coords, im2_coords)
+        d_h_2to1, i2_2to1, i1_2to1 = directed_hausdorff(im2_coords, im1_coords)
+
+        # print(im1_coords[i1_1to2])
+        # print(im2_coords[i2_1to2])
+
+        # print(im1_coords[i1_2to1])
+        # print(im2_coords[i2_2to1])
+
+        combined_1to2[im1_coords[i1_1to2][0], im1_coords[i1_1to2][1], :] = [0.5, 1, 0.5] + 0.5 * combined_1to2[im1_coords[i1_1to2][0], im1_coords[i1_1to2][1], :]
+        combined_1to2[im2_coords[i2_1to2][0], im2_coords[i2_1to2][1], :] = [0.5, 1, 0.5] + 0.5 * combined_1to2[im2_coords[i2_1to2][0], im2_coords[i2_1to2][1], :]
+
+        combined_2to1[im1_coords[i1_2to1][0], im1_coords[i1_2to1][1], :] = [0.5, 1, 0.5] + 0.5 * combined_2to1[im1_coords[i1_2to1][0], im1_coords[i1_2to1][1], :]
+        combined_2to1[im2_coords[i2_2to1][0], im2_coords[i2_2to1][1], :] = [0.5, 1, 0.5] + 0.5 * combined_2to1[im2_coords[i2_2to1][0], im2_coords[i2_2to1][1], :]
+        # combined_1to2[0, 1, 2][im2_coords[i2_1to2]] = [1, 1, 1]
+        
+        # combined_2to1[0, 1, 2][im1_coords[i1_2to1]] = [1, 1, 1]
+        # combined_2to1[0, 1, 2][im2_coords[i2_2to1]] = [1, 1, 1]
+
+        d_h_s = max(d_h_1to2, d_h_2to1)
+ 
+    if visualise:
+        return d_h_2to1, d_h_1to2, d_h_s, combined_2to1, combined_1to2
+    else:
+        return d_h_2to1, d_h_1to2, d_h_s

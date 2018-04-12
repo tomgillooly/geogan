@@ -11,4 +11,5 @@ class TestOptions(BaseOptions):
         self.parser.add_argument('--which_epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
         self.parser.add_argument('--how_many', type=int, default=50, help='how many test images to run')
         self.parser.add_argument('--metrics', type=str, default="", help='Which metrics to apply to output images')
+        self.parser.add_argument('--visualise_hausdorff', action='store_true', help='Show related pixels used to calculate Hausdorff distance')
         self.isTrain = False

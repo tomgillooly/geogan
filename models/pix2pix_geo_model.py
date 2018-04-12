@@ -17,6 +17,8 @@ import skimage.io as io
 from scipy.spatial.distance import directed_hausdorff, euclidean
 from skimage.filters import roberts
 
+from metrics.hausdorff import get_hausdorff
+
 import sys
 
 # Weight init procedure taken from  https://github.com/pytorch/examples/blob/master/dcgan/main.py#L131
@@ -677,13 +679,13 @@ class Pix2PixGeoModel(BaseModel):
 
             return (num_true_pos, num_true_neg, num_false_pos, num_false_neg)
 
-        mask_coords = np.where(self.mask.numpy().squeeze())
+        mask_coords = np.where(self.mask.data.numpy().squeeze())
         mask_tl =(mask_coords[0][0], mask_coords[1][0])
         mask_br =(mask_coords[0][-1], mask_coords[1][-1])
 
         d_h_recall = 0.0
         d_h_precision = 0.0
-        d_h_s = 0.0
+        d_h_symmetric = 0.0
 
         for c in np.unique(self.real_B_classes.data.numpy()):
             fake_channel = self.fake_B_one_hot.numpy().squeeze()[c]
@@ -692,26 +694,29 @@ class Pix2PixGeoModel(BaseModel):
             fake_channel = fake_channel[mask_tl[0]:mask_br[0], mask_tl[1]:mask_br[1]]
             real_channel = real_channel[mask_tl[0]:mask_br[0], mask_tl[1]:mask_br[1]]
 
-            fake_coords = np.array(np.where(fake_channel)).T
-            real_coords = np.array(np.where(real_channel)).T
+            # fake_coords = np.array(np.where(fake_channel)).T
+            # real_coords = np.array(np.where(real_channel)).T
 
-            if not fake_coords.any() or not real_coords.any():
-                mask_diagonal = euclidean(mask_br, mask_tl)
-                d_h_fr = mask_diagonal
-                d_h_rf = mask_diagonal
-                d_h_s = mask_diagonal
-            elif fake_coords.any() and real_coords.any():
-                d_h_fr, i1_fr, i2_fr = directed_hausdorff(fake_coords, real_coords)
-                d_h_rf, i1_rf, i2_rf = directed_hausdorff(real_coords, fake_coords)
+            # if not fake_coords.any() or not real_coords.any():
+            #     mask_diagonal = euclidean(mask_br, mask_tl)
+            #     d_h_fr = mask_diagonal
+            #     d_h_rf = mask_diagonal
+            #     d_h_s = mask_diagonal
+            # elif fake_coords.any() and real_coords.any():
+            #     d_h_fr, i1_fr, i2_fr = directed_hausdorff(fake_coords, real_coords)
+            #     d_h_rf, i1_rf, i2_rf = directed_hausdorff(real_coords, fake_coords)
 
-                d_h_s = max(d_h_s, max(d_h_fr, d_h_rf))
+                # d_h_s = max(d_h_s, max(d_h_fr, d_h_rf))
 
-            d_h_recall = max(d_h_recall, d_h_rf)
-            d_h_precision = max(d_h_precision, d_h_fr)
+            d_h_r, d_h_p, d_h_s = get_hausdorff(fake_channel, real_channel)
+
+            d_h_recall = max(d_h_recall, d_h_r)
+            d_h_precision = max(d_h_precision, d_h_p)
+            d_h_symmetric = max(d_h_symmetric, d_h_s)
  
         metrics.append(('Hausdorff distance (R)', d_h_recall))
         metrics.append(('Hausdorff distance (P)', d_h_precision))
-        metrics.append(('Hausdorff distance (S)', d_h_s))
+        metrics.append(('Hausdorff distance (S)', d_h_symmetric))
 
         # metrics.append(('Average precision', np.mean(precisions)))
         # metrics.append(('Average recall', np.mean(recalls)))
