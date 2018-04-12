@@ -21,7 +21,7 @@ if [ "$HOSTNAME" == "marky" ]; then
 	VIRTUALENV_NAME=pytorch3_cuda8
 fi
 
-git checkout $1
+git checkout $GITBRANCH
 
 source $HOME/$VIRTUALENV_NAME/bin/activate
 
