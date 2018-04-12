@@ -4,15 +4,11 @@ from data.data_loader import CreateDataLoader
 from models.models import create_model
 from util.visualizer import Visualizer
 
-import subprocess
-
 opt = TrainOptions().parse()
 data_loader = CreateDataLoader(opt)
 dataset = data_loader.load_data()
 dataset_size = len(data_loader)
 print('#training images = %d' % dataset_size)
-
-opt.git_version = subprocess.check_output('git rev-parse HEAD'.split()).strip()
 
 
 model = create_model(opt)

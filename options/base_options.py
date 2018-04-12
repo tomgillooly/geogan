@@ -1,6 +1,8 @@
 import argparse
 import os
 from util import util
+import subprocess
+
 import torch
 
 
@@ -53,6 +55,8 @@ class BaseOptions():
         self.opt = self.parser.parse_args()
         self.opt.isTrain = self.isTrain   # train or test
         self.opt.inpaint_file_dir = self.opt.inpaint_file_dir if self.opt.inpaint_file_dir else self.opt.dataroot
+
+        self.opt.git_version = subprocess.check_output('git rev-parse HEAD'.split()).strip()
 
         str_ids = self.opt.gpu_ids.split(',')
         self.opt.gpu_ids = []
