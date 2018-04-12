@@ -46,6 +46,7 @@ class BaseOptions():
         self.parser.add_argument('--init_type', type=str, default='normal', help='network initialization [normal|xavier|kaiming|orthogonal]')
         self.parser.add_argument('--div_threshold', type=float, default=1000, help='network initialization [normal|xavier|kaiming|orthogonal]')
         self.parser.add_argument('--inpaint_single_class', action='store_true', help='If specified, only remove one class from inpainted region')
+        self.parser.add_argument('--no_continuous', action='store_true', help='Only use discrete data to train model')
 
         self.initialized = True
 
