@@ -96,7 +96,7 @@ class Pix2PixGeoModel(BaseModel):
             discrim_input_channels = opt.input_nc + opt.output_nc
 
             # Add extra channel for mask if we need it
-            if self.opt.no_mask_to_critic:
+            if not self.opt.no_mask_to_critic:
                 discrim_input_channels += 1
 
             if self.opt.which_model_netD == 'wgan-gp':
