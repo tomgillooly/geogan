@@ -731,10 +731,13 @@ class Pix2PixGeoModel(BaseModel):
 
     def save(self, label):
         self.save_network(self.netG, 'G', label, self.gpu_ids)
-        self.save_network(self.netG_DIV, 'G_DIV', label, self.gpu_ids)
-        self.save_network(self.netG_Vx, 'G_Vx', label, self.gpu_ids)
-        self.save_network(self.netG_Vy, 'G_Vy', label, self.gpu_ids)
+
+        if not self.opt.no_continuous:
+            self.save_network(self.netG_DIV, 'G_DIV', label, self.gpu_ids)
+            self.save_network(self.netG_Vx, 'G_Vx', label, self.gpu_ids)
+            self.save_network(self.netG_Vy, 'G_Vy', label, self.gpu_ids)
 
         for i in range(len(self.netD1s)):
             self.save_network(self.netD1s[i], 'D1_%d' % i, label, self.gpu_ids)
-            self.save_network(self.netD2s[i], 'D2_%d' % i, label, self.gpu_ids)
+            if not self.opt.no_continuous:
+                self.save_network(self.netD2s[i], 'D2_%d' % i, label, self.gpu_ids)
