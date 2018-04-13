@@ -18,6 +18,7 @@ from scipy.spatial.distance import directed_hausdorff, euclidean
 from skimage.filters import roberts
 
 from metrics.hausdorff import get_hausdorff
+from metrics.ot import get_em_distance
 
 import sys
 
@@ -687,6 +688,7 @@ class Pix2PixGeoModel(BaseModel):
         d_h_precision = 0.0
         d_h_symmetric = 0.0
 
+
         for c in np.unique(self.real_B_classes.data.numpy()):
             fake_channel = self.fake_B_one_hot.numpy().squeeze()[c]
             real_channel = self.real_B_discrete.data.numpy().squeeze()[c]
@@ -713,6 +715,8 @@ class Pix2PixGeoModel(BaseModel):
             d_h_recall = max(d_h_recall, d_h_r)
             d_h_precision = max(d_h_precision, d_h_p)
             d_h_symmetric = max(d_h_symmetric, d_h_s)
+
+            metrics.append(('EMD class %d' % c, get_em_distance(fake_channel, real_channel)))
  
         metrics.append(('Hausdorff distance (R)', d_h_recall))
         metrics.append(('Hausdorff distance (P)', d_h_precision))
@@ -732,16 +736,24 @@ class Pix2PixGeoModel(BaseModel):
         d_h_precision = []
         d_h_s = []
 
+        ot_r = []
+        ot_s = []
+
         for metric in metrics:
             d_h_recall.append(metric['Hausdorff distance (R)'])
             d_h_precision.append(metric['Hausdorff distance (P)'])
             d_h_s.append(metric['Hausdorff distance (S)'])
+            
+            ot_r.append(metric['EMD class 0'])
+            ot_s.append(metric['EMD class 2'])
 
 
         return OrderedDict([
             ('Hausdorff distance (R)', np.mean(d_h_recall)),
             ('Hausdorff distance (P)', np.mean(d_h_precision)),
             ('Hausdorff distance (S)', np.mean(d_h_s)),
+            ('EMD class 0', np.mean(ot_r)),
+            ('EMD class 2', np.mean(ot_s)),
             ])
 
 
