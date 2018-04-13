@@ -1,6 +1,9 @@
 import numpy as np
 
-from scipy.spatial.distance import directed_hausdorff
+from scipy.spatial.distance import directed_hausdorff, cdist
+
+import matplotlib.pyplot as plt
+import skimage.io as io
 
 
 def get_hausdorff(im1, im2, visualise=False):
@@ -26,8 +29,15 @@ def get_hausdorff(im1, im2, visualise=False):
         d_h_2to1 = max_value
         d_h_s = max_value
     elif im1.any() and im2.any():
-        d_h_1to2, i1_1to2, i2_1to2 = directed_hausdorff(im1_coords, im2_coords)
-        d_h_2to1, i2_2to1, i1_2to1 = directed_hausdorff(im2_coords, im1_coords)
+        D = cdist(im1_coords, im2_coords)
+
+        closest_1to2_idx = np.argmin(D, axis=1)
+        closest_2to1_idx = np.argmin(D, axis=0)
+
+        d_h_1to2 = np.mean(np.min(D, axis=1))
+        d_h_2to1 = np.mean(np.min(D, axis=0))
+        # d_h_1to2, i1_1to2, i2_1to2 = directed_hausdorff(im1_coords, im2_coords)
+        # d_h_2to1, i2_2to1, i1_2to1 = directed_hausdorff(im2_coords, im1_coords)
 
         # print(im1_coords[i1_1to2])
         # print(im2_coords[i2_1to2])
@@ -35,19 +45,44 @@ def get_hausdorff(im1, im2, visualise=False):
         # print(im1_coords[i1_2to1])
         # print(im2_coords[i2_2to1])
 
-        combined_1to2[im1_coords[i1_1to2][0], im1_coords[i1_1to2][1], :] = [0.5, 1, 0.5] + 0.5 * combined_1to2[im1_coords[i1_1to2][0], im1_coords[i1_1to2][1], :]
-        combined_1to2[im2_coords[i2_1to2][0], im2_coords[i2_1to2][1], :] = [0.5, 1, 0.5] + 0.5 * combined_1to2[im2_coords[i2_1to2][0], im2_coords[i2_1to2][1], :]
+        # combined_1to2[im1_coords[i1_1to2][0], im1_coords[i1_1to2][1], :] = [0.5, 1, 0.5] + 0.5 * combined_1to2[im1_coords[i1_1to2][0], im1_coords[i1_1to2][1], :]
+        # combined_1to2[im2_coords[i2_1to2][0], im2_coords[i2_1to2][1], :] = [0.5, 1, 0.5] + 0.5 * combined_1to2[im2_coords[i2_1to2][0], im2_coords[i2_1to2][1], :]
 
-        combined_2to1[im1_coords[i1_2to1][0], im1_coords[i1_2to1][1], :] = [0.5, 1, 0.5] + 0.5 * combined_2to1[im1_coords[i1_2to1][0], im1_coords[i1_2to1][1], :]
-        combined_2to1[im2_coords[i2_2to1][0], im2_coords[i2_2to1][1], :] = [0.5, 1, 0.5] + 0.5 * combined_2to1[im2_coords[i2_2to1][0], im2_coords[i2_2to1][1], :]
+        # combined_2to1[im1_coords[i1_2to1][0], im1_coords[i1_2to1][1], :] = [0.5, 1, 0.5] + 0.5 * combined_2to1[im1_coords[i1_2to1][0], im1_coords[i1_2to1][1], :]
+        # combined_2to1[im2_coords[i2_2to1][0], im2_coords[i2_2to1][1], :] = [0.5, 1, 0.5] + 0.5 * combined_2to1[im2_coords[i2_2to1][0], im2_coords[i2_2to1][1], :]
         # combined_1to2[0, 1, 2][im2_coords[i2_1to2]] = [1, 1, 1]
         
         # combined_2to1[0, 1, 2][im1_coords[i1_2to1]] = [1, 1, 1]
         # combined_2to1[0, 1, 2][im2_coords[i2_2to1]] = [1, 1, 1]
 
         d_h_s = max(d_h_1to2, d_h_2to1)
+
  
     if visualise:
+        fig = plt.figure(1)
+        plt.plot(im1_coords[:, 1], im1.shape[0] - im1_coords[:, 0], 'rx')
+        plt.plot(im2_coords[:, 1], im2.shape[0] - im2_coords[:, 0], 'b+')
+
+        for i, (y, x) in enumerate(im1_coords):
+            closest = im2_coords[closest_1to2_idx[i]]
+            plt.plot([x, closest[1]], [im1.shape[0] - p for p in [y, closest[0]]], color=[0, 1, 0])
+
+        plt.savefig('/tmp/tmpimg.png')
+        combined_1to2 = io.imread('/tmp/tmpimg.png')
+        plt.close(1)
+
+        plt.plot(im1_coords[:, 1], im1.shape[0] - im1_coords[:, 0], 'rx')
+        plt.plot(im2_coords[:, 1], im2.shape[0] - im2_coords[:, 0], 'b+')
+
+        for i, (y, x) in enumerate(im2_coords):
+            closest = im1_coords[closest_2to1_idx[i]]
+            plt.plot([x, closest[1]], [im1.shape[0] - p for p in [y, closest[0]]], color=[0, 1, 0])
+
+        plt.savefig('/tmp/tmpimg.png')
+        combined_2to1 = io.imread('/tmp/tmpimg.png')
+        plt.close(1)
+
+
         return d_h_2to1, d_h_1to2, d_h_s, combined_2to1, combined_1to2
     else:
         return d_h_2to1, d_h_1to2, d_h_s
