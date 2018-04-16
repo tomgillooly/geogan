@@ -386,7 +386,8 @@ class GeoDataset(BaseDataset):
                 'mask_x1': mask_x1, 'mask_x2': mask_x2,
                 'mask_y1': mask_y1, 'mask_y2': mask_y2,
                 'A_paths': DIV_path,
-                'B_paths': os.path.splitext(DIV_path)[0] + '_out' + os.path.splitext(DIV_path)[1]
+                'B_paths': os.path.splitext(DIV_path)[0] + '_out' + os.path.splitext(DIV_path)[1],
+                'series_number': int(series_number)
                 }
 
     def __len__(self):
