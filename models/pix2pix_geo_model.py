@@ -710,13 +710,13 @@ class Pix2PixGeoModel(BaseModel):
 
                 # d_h_s = max(d_h_s, max(d_h_fr, d_h_rf))
 
-            d_h_r, d_h_p, d_h_s = get_hausdorff(fake_channel, real_channel)
+            d_h_p, d_h_r, d_h_s = get_hausdorff(fake_channel, real_channel)
 
             d_h_recall = max(d_h_recall, d_h_r)
             d_h_precision = max(d_h_precision, d_h_p)
             d_h_symmetric = max(d_h_symmetric, d_h_s)
 
-            metrics.append(('EMD class %d' % c, get_em_distance(fake_channel, real_channel)))
+            # metrics.append(('EMD class %d' % c, get_em_distance(fake_channel, real_channel)))
  
         metrics.append(('Hausdorff distance (R)', d_h_recall))
         metrics.append(('Hausdorff distance (P)', d_h_precision))

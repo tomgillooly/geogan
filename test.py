@@ -35,6 +35,8 @@ if os.path.exists(results_file_name):
 img_data = []
 metric_data = []
 
+class_labels = ['Ridge', 'Plate', 'Subduction']
+
 for i, data in enumerate(dataset):
     if i >= opt.how_many:
         break
@@ -54,8 +56,7 @@ for i, data in enumerate(dataset):
 
 
         for c in [0, 2]:
-            _, _, _, i_recall, i_precision = get_hausdorff(test_inpaint_region == c, actual_inpaint_region[:, :, c], True)
-
+            _, _, _, i_precision, i_recall = get_hausdorff(test_inpaint_region == c, actual_inpaint_region[:, :, c], True)
 
             gt = np.zeros((actual_inpaint_region.shape[0], actual_inpaint_region.shape[1], 3), dtype=np.uint8)
             gt[:, :, c] = actual_inpaint_region[:, :, c]*255
@@ -63,10 +64,10 @@ for i, data in enumerate(dataset):
             inpainted = np.zeros((actual_inpaint_region.shape[0], actual_inpaint_region.shape[1], 3), dtype=np.uint8)
             inpainted[:, :, c] = (test_inpaint_region == c)*255
 
-            visuals['ground_truth_class_%d' % c] = gt
-            visuals['inpainted_class_%d' % c] = inpainted
-            visuals['hausdorff_recall_class_%d' % c] = (i_recall*255).astype(np.uint8)
-            visuals['hausdorff_precision_class_%d' % c] = (i_precision*255).astype(np.uint8)
+            # visuals['ground_truth_class_%d' % c] = gt
+            # visuals['inpainted_class_%d' % c] = inpainted
+            visuals['hausdorff_recall_class_%d' % c] = i_recall
+            visuals['hausdorff_precision_class_%d' % c] = i_precision
 
 
     if opt.visualise_ot:
@@ -131,7 +132,17 @@ with open(results_file_name, 'a') as results_file:
 
         results_file.write(', '.join(results))
         
-        visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, row_lengths=[4, 3, 3, 3, 4, 4, 2])
+        row_lengths = []
+        row_lengths.append(4)   # Discrete input, GT, softmax, one-hot output
+        row_lengths.append(3)   # Divergence input, output, G
+        row_lengths.append(3)   # Velocity x input, output, G
+        row_lengths.append(3)   # Velocity y input, output, G
+        row_lengths.append(2)   # Class 0 Haussdorf recall, precision
+        row_lengths.append(2)   # Class 2 Haussdorf recall, precision
+        # row_lengths.append(2)   # Class 0 and 2 EM distance
+
+
+        visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, row_lengths=row_lengths)
 
         if text:
             webpage.add_text(text)
