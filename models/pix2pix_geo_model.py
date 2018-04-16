@@ -147,9 +147,12 @@ class Pix2PixGeoModel(BaseModel):
             self.load_network(self.netG, 'G', opt.which_epoch)
 
             if not self.opt.discrete_only:
-                self.load_network(self.netG_DIV, 'G_DIV', opt.which_epoch)
-                self.load_network(self.netG_DIV, 'G_Vx', opt.which_epoch)
-                self.load_network(self.netG_DIV, 'G_Vy', opt.which_epoch)
+                try:
+                    self.load_network(self.netG_DIV, 'G_DIV', opt.which_epoch)
+                    self.load_network(self.netG_DIV, 'G_Vx', opt.which_epoch)
+                    self.load_network(self.netG_DIV, 'G_Vy', opt.which_epoch)
+                except FileNotFoundError:
+                    self.opt.discrete_only = True
             
             if self.isTrain:
                 [self.load_network(self.netD1s[i], 'D1_%d' % i, opt.which_epoch) for i in range(len(self.netD1s))]
