@@ -747,16 +747,16 @@ class Pix2PixGeoModel(BaseModel):
             d_h_precision.append(metric['Hausdorff distance (P)'])
             d_h_s.append(metric['Hausdorff distance (S)'])
             
-            ot_r.append(metric['EMD class 0'])
-            ot_s.append(metric['EMD class 2'])
+            # ot_r.append(metric['EMD class 0'])
+            # ot_s.append(metric['EMD class 2'])
 
 
         return OrderedDict([
             ('Hausdorff distance (R)', np.mean(d_h_recall)),
             ('Hausdorff distance (P)', np.mean(d_h_precision)),
             ('Hausdorff distance (S)', np.mean(d_h_s)),
-            ('EMD class 0', np.mean(ot_r)),
-            ('EMD class 2', np.mean(ot_s)),
+            # ('EMD class 0', np.mean(ot_r)),
+            # ('EMD class 2', np.mean(ot_s)),
             ])
 
 
