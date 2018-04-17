@@ -1,10 +1,12 @@
+import glob
 import os
 import pytest
+import shutil
 import torch
 import tempfile
 
 from collections import namedtuple
-from data.geo_dataset import GeoDataset
+from data.geo_dataset import GeoDataset, get_dat_files
 
 @pytest.fixture
 def dataset():
@@ -161,4 +163,56 @@ def test_continuous_data_is_normalised(dataset):
 	assert(torch.max(Vy) <= 1)
 	assert(torch.min(Vy) >= -1)
 
+def test_directory_name_is_prepended_in_image_path(dataset):
+	dataroot = dataset.opt.dataroot
 
+	# Create a temporary directory to test
+	temp_data_parent = tempfile.mkdtemp(dir='/tmp')
+
+	temp_data_dir_1 = os.path.join(temp_data_parent, '01')
+	temp_data_dir_2 = os.path.join(temp_data_parent, '02')
+	temp_data_dir_3 = os.path.join(temp_data_parent, '03')
+	temp_data_dir_4 = os.path.join(temp_data_parent, '04')
+
+	os.mkdir(temp_data_dir_1)
+	os.mkdir(temp_data_dir_2)
+	os.mkdir(temp_data_dir_3)
+	os.mkdir(temp_data_dir_4)
+
+	[shutil.copy(file, temp_data_dir_1) for file in glob.glob(dataroot + '/test/serie100001_project_*.dat')]
+	[shutil.copy(file, temp_data_dir_2) for file in glob.glob(dataroot + '/test/serie100002_project_*.dat')]
+	[shutil.copy(file, temp_data_dir_3) for file in glob.glob(dataroot + '/test/serie100003_project_*.dat')]
+	[shutil.copy(file, temp_data_dir_4) for file in glob.glob(dataroot + '/test/serie100004_project_*.dat')]
+	[shutil.copy(file, temp_data_parent) for file in glob.glob(dataroot + '/test/serie100004_project_*.dat')]
+
+	# Check they're in the target directory
+	glob.glob(os.path.join(temp_data_parent, '*.dat'))[0]
+	glob.glob(os.path.join(temp_data_dir_1, '*.dat'))[0]
+	glob.glob(os.path.join(temp_data_dir_2, '*.dat'))[0]
+	glob.glob(os.path.join(temp_data_dir_3, '*.dat'))[0]
+	glob.glob(os.path.join(temp_data_dir_4, '*.dat'))[0]
+
+	div_files, vx_files, vy_files = get_dat_files(temp_data_parent)
+
+	assert(len(div_files) == 5)
+	assert(len(vx_files) == 5)
+	assert(len(vy_files) == 5)
+
+	# Now build a second dataset using this dummy directory
+	options_dict = dict(dataroot=temp_data_parent, phase='',
+		inpaint_file_dir=temp_data_parent, resize_or_crop='resize_and_crop',
+	    loadSize=256, fineSize=256, which_direction='AtoB',
+	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False)
+	Options = namedtuple('Options', options_dict.keys())
+	opt = Options(*options_dict.values())
+
+	geo = GeoDataset()
+	geo.initialize(opt)
+
+	# print(geo[0]['A_paths'])
+	# Folders get flattened out
+	assert(geo[0]['A_paths'] == os.path.join(temp_data_parent, 'serie_01_100001'))
+	assert(geo[1]['A_paths'] == os.path.join(temp_data_parent, 'serie_02_100002'))
+	assert(geo[2]['A_paths'] == os.path.join(temp_data_parent, 'serie_03_100003'))
+	assert(geo[3]['A_paths'] == os.path.join(temp_data_parent, 'serie_04_100004'))
+	assert(geo[4]['A_paths'] == os.path.join(temp_data_parent, 'serie_100004'))

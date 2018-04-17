@@ -1,5 +1,5 @@
 import glob
-import os.path
+import os
 import random
 import re
 import torchvision.transforms as transforms
@@ -33,6 +33,36 @@ MODEL_SURFACE_VELOCITY = 700
 
 #     return img
 
+def get_dat_files(topdir):
+    # DIV_paths = glob.glob(os.path.join(topdir, '*_DIV.dat'))
+    # Vx_paths = glob.glob(os.path.join(topdir, '*_Vx.dat'))
+    # Vy_paths = glob.glob(os.path.join(topdir, '*_Vy.dat'))
+
+    # DIV_paths = sorted(DIV_paths)
+    # Vx_paths = sorted(Vx_paths)
+    # Vy_paths = sorted(Vy_paths)
+
+    DIV_paths = []
+    Vx_paths = []
+    Vy_paths = []
+
+    for root, dirs, _ in os.walk(topdir):
+        DIV_paths += glob.glob(os.path.join(root, '*_DIV.dat'))
+        Vx_paths += glob.glob(os.path.join(root, '*_Vx.dat'))
+        Vy_paths += glob.glob(os.path.join(root, '*_Vy.dat'))
+        
+        # for directory in dirs:
+        #     DIV_paths += glob.glob(os.path.join(root, directory, '*_DIV.dat'))
+        #     Vx_paths += glob.glob(os.path.join(root, directory, '*_Vx.dat'))
+        #     Vy_paths += glob.glob(os.path.join(root, directory, '*_Vy.dat'))
+
+
+    DIV_paths = sorted(DIV_paths)
+    Vx_paths = sorted(Vx_paths)
+    Vy_paths = sorted(Vy_paths)
+
+    return DIV_paths, Vx_paths, Vy_paths
+
 
 class GeoDataset(BaseDataset):
     def initialize(self, opt):
@@ -46,15 +76,7 @@ class GeoDataset(BaseDataset):
 
         # self.A_paths = [path for path in self.A_paths if path.endswith(".dat")]
 
-        DIV_paths = glob.glob(os.path.join(self.dir_A, '*_DIV.dat'))
-        Vx_paths = glob.glob(os.path.join(self.dir_A, '*_Vx.dat'))
-        Vy_paths = glob.glob(os.path.join(self.dir_A, '*_Vy.dat'))
-
-        DIV_paths = sorted(DIV_paths)
-        Vx_paths = sorted(Vx_paths)
-        Vy_paths = sorted(Vy_paths)
-
-        # self.A_paths = sorted(self.A_paths)
+        DIV_paths, Vx_paths, Vy_paths = get_dat_files(self.dir_A)
 
         self.A_paths = list(zip(DIV_paths, Vx_paths, Vy_paths))
         
@@ -97,6 +119,13 @@ class GeoDataset(BaseDataset):
             DIV_path, Vx_path, Vy_path = self.A_paths[index]
 
         series_number = re.search('serie(\d+)', DIV_path).group(1)
+
+        match = re.search('(/\d+)?/serie(\d+)', DIV_path)
+        
+        dir_tag = '_' + match.group(1)[1:] + '_' if match.group(1) else '_'
+
+        series = 'serie' + dir_tag + match.group(2)
+
 
         # imgnames=get_img_names(inputdir, max=0)
 
@@ -385,8 +414,8 @@ class GeoDataset(BaseDataset):
                 'mask': mask,
                 'mask_x1': mask_x1, 'mask_x2': mask_x2,
                 'mask_y1': mask_y1, 'mask_y2': mask_y2,
-                'A_paths': DIV_path,
-                'B_paths': os.path.splitext(DIV_path)[0] + '_out' + os.path.splitext(DIV_path)[1],
+                'A_paths': os.path.join(self.dir_A, series),
+                'B_paths': os.path.join(self.dir_A, series + '_inpainted'),
                 'series_number': int(series_number)
                 }
 
