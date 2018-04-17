@@ -20,7 +20,8 @@ def dataset():
 		# inpaint_file_dir=os.path.expanduser('~/data/geology/'), resize_or_crop='resize_and_crop',
 		inpaint_file_dir=inpaint_file_parent, resize_or_crop='resize_and_crop',
 	    loadSize=256, fineSize=256, which_direction='AtoB',
-	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False)
+	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False,
+	    continent_data=False)
 	Options = namedtuple('Options', options_dict.keys())
 	opt = Options(*options_dict.values())
 
@@ -192,7 +193,7 @@ def test_directory_name_is_prepended_in_image_path(dataset):
 	glob.glob(os.path.join(temp_data_dir_3, '*.dat'))[0]
 	glob.glob(os.path.join(temp_data_dir_4, '*.dat'))[0]
 
-	div_files, vx_files, vy_files = get_dat_files(temp_data_parent)
+	div_files, vx_files, vy_files, _ = get_dat_files(temp_data_parent)
 
 	assert(len(div_files) == 5)
 	assert(len(vx_files) == 5)
@@ -202,7 +203,8 @@ def test_directory_name_is_prepended_in_image_path(dataset):
 	options_dict = dict(dataroot=temp_data_parent, phase='',
 		inpaint_file_dir=temp_data_parent, resize_or_crop='resize_and_crop',
 	    loadSize=256, fineSize=256, which_direction='AtoB',
-	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False)
+	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False,
+	    continent_data=False)
 	Options = namedtuple('Options', options_dict.keys())
 	opt = Options(*options_dict.values())
 
@@ -216,3 +218,53 @@ def test_directory_name_is_prepended_in_image_path(dataset):
 	assert(geo[2]['A_paths'] == os.path.join(temp_data_parent, 'serie_03_100003'))
 	assert(geo[3]['A_paths'] == os.path.join(temp_data_parent, 'serie_04_100004'))
 	assert(geo[4]['A_paths'] == os.path.join(temp_data_parent, 'serie_100004'))
+
+
+def test_no_continent_data_by_default(dataset):
+	data = dataset[0]
+	assert(not 'continents' in data.keys())
+
+
+@pytest.fixture
+def new_dataset():
+	options_dict = dict(dataroot='test_data/with_continents', phase='',
+		inpaint_file_dir='test_data/with_continents', resize_or_crop='resize_and_crop',
+		# inpaint_file_dir=tempfile.mkdtemp(dir='/tmp'), resize_or_crop='resize_and_crop',
+	    loadSize=256, fineSize=256, which_direction='AtoB',
+	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False,
+	    continent_data=True)
+	Options = namedtuple('Options', options_dict.keys())
+	opt = Options(*options_dict.values())
+
+	geo = GeoDataset()
+	geo.initialize(opt)
+
+	return geo
+
+
+def test_handles_different_resolutions(new_dataset):
+	for i in range(22):
+		assert(new_dataset[i] != None)
+
+
+# def test_load_continent_data(new_dataset):
+# 	import skimage.io as io
+# 	# options_dict = dict(dataroot='test_data', phase='',
+# 	# 	inpaint_file_dir='test_data', resize_or_crop='resize_and_crop',
+# 	# 	# inpaint_file_dir=tempfile.mkdtemp(dir='/tmp'), resize_or_crop='resize_and_crop',
+# 	#     loadSize=256, fineSize=256, which_direction='AtoB',
+# 	#     input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False,
+# 	#     continent_data=True)
+# 	# Options = namedtuple('Options', options_dict.keys())
+# 	# opt = Options(*options_dict.values())
+
+# 	# geo = GeoDataset()
+# 	# geo.initialize(opt)
+	
+# 	# data = geo[0]
+# 	for data in new_dataset:
+
+# 		continents = data['continents']
+		
+# 		io.imshow(data['continents'].numpy().squeeze())
+# 		io.show()
