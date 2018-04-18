@@ -306,7 +306,7 @@ class Pix2PixGeoModel(BaseModel):
         self.G_input = torch.cat((self.real_A_discrete, self.mask.float()), dim=1)
 
         if self.opt.continent_data:
-            self.G_input = torch.cat((G_input, self.continents), dim=1)
+            self.G_input = torch.cat((self.G_input, self.continents.float()), dim=1)
 
 
         self.fake_B_discrete = self.netG(self.G_input)
