@@ -73,7 +73,12 @@ class Pix2PixGeoModel(BaseModel):
 
         # load/define networks
         # Input channels = 3 channels for input one-hot map + mask
-        self.netG = networks.define_G(opt.input_nc + 1, opt.output_nc, opt.ngf,
+        input_channels = opt.input_nc + 1
+
+        if self.opt.continent_data:
+            input_channels += 1
+
+        self.netG = networks.define_G(input_channels, opt.output_nc, opt.ngf,
                                       opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
 
         if not self.opt.discrete_only:
@@ -100,6 +105,9 @@ class Pix2PixGeoModel(BaseModel):
 
             # Add extra channel for mask if we need it
             if not self.opt.no_mask_to_critic:
+                discrim_input_channels += 1
+
+            if self.opt.continent_data:
                 discrim_input_channels += 1
 
             if self.opt.which_model_netD == 'wgan-gp':
@@ -227,6 +235,9 @@ class Pix2PixGeoModel(BaseModel):
         input_A_Vy  = input['A_Vy' if AtoB else 'B_Vy']
         input_B_Vy  = input['B_Vy' if AtoB else 'A_Vy']
         mask        = input['mask']
+
+        if self.opt.continent_data:
+            continents = input['continents']
         
         if len(self.gpu_ids) > 0:
             input_A     = input_A.cuda(self.gpu_ids[0], async=True)
@@ -238,6 +249,9 @@ class Pix2PixGeoModel(BaseModel):
             input_A_Vy  = input_A_Vy.cuda(self.gpu_ids[0], async=True)
             input_B_Vy  = input_B_Vy.cuda(self.gpu_ids[0], async=True)
             mask        = mask.cuda(self.gpu_ids[0], async=True)
+            
+            if self.opt.continent_data:
+                continents = continents.cuda(self.gpu_ids[0], async=True)
         
         self.input_A        = input_A
         self.input_B        = input_B
@@ -248,6 +262,10 @@ class Pix2PixGeoModel(BaseModel):
         self.input_A_Vy     = input_A_Vy
         self.input_B_Vy     = input_B_Vy
         self.mask           = mask
+            
+        if self.opt.continent_data:
+            self.continent_img = continents
+        
         self.image_paths    = input['A_paths' if AtoB else 'B_paths']
 
         mask_x1 = input['mask_x1']
@@ -280,10 +298,19 @@ class Pix2PixGeoModel(BaseModel):
 
         # Mask of inpainted region
         self.mask = Variable(self.mask)
+
+        if self.opt.continent_data:
+            self.continents = Variable(self.continent_img)
         
         # Produces three channel output with class probability assignments
         # Input is one-hot image with chunk missing, conditional data is mask
-        self.fake_B_discrete = self.netG(torch.cat((self.real_A_discrete, self.mask.float()), dim=1))
+        self.G_input = torch.cat((self.real_A_discrete, self.mask.float()), dim=1)
+
+        if self.opt.continent_data:
+            self.G_input = torch.cat((G_input, self.continents), dim=1)
+
+
+        self.fake_B_discrete = self.netG(self.G_input)
         
         if not self.opt.discrete_only:
             # Create continuous divergence field from class probabilities
@@ -322,7 +349,12 @@ class Pix2PixGeoModel(BaseModel):
         self.mask = Variable(self.mask)
         
         # mask_var = Variable(self.mask.float(), volatile=True)
-        self.fake_B_discrete = self.netG(torch.cat((self.real_A_discrete, self.mask.float()), dim=1))
+        self.G_input = torch.cat((self.real_A_discrete, self.mask.float()), dim=1)
+
+        if self.opt.continent_data:
+            self.G_input = torch.cat((G_input, self.continents), dim=1)
+        
+        self.fake_B_discrete = self.netG(self.G_input)
 
         if not self.opt.discrete_only:
             self.fake_B_DIV = self.netG_DIV(self.fake_B_discrete)
@@ -437,7 +469,12 @@ class Pix2PixGeoModel(BaseModel):
 
         # Conditional data (input with chunk missing + mask) + fake data
         # Remember self.fake_B_discrete is the generator output
-        fake_AB = torch.cat((self.real_A_discrete, self.mask.float(), self.fake_B_discrete), dim=1)
+        fake_AB = torch.cat((self.real_A_discrete, self.mask.float()), dim=1)
+
+        if self.opt.continent_data:
+            fake_AB = torch.cat((fake_AB, self.continents), dim=1)
+        
+        fake_AB = torch.cat((fake_AB, self.fake_B_discrete), dim=1)
         # Mean across batch, then across discriminators
         # We only optimise with respect to the fake prediction because
         # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
@@ -542,6 +579,10 @@ class Pix2PixGeoModel(BaseModel):
 
         if not self.opt.no_mask_to_critic:
             cond_data = torch.cat((cond_data, self.mask.float()), dim=1)
+
+        if self.opt.continent_data:
+            cond_data = torch.cat((cond_data, self.continents), dim=1)
+
 
         for _ in range(self.opt.low_iter if kwargs['step_no'] >= 25 else self.opt.high_iter):
             self.loss_D1, self.loss_D1_real, self.loss_D1_fake, self.loss_D1_grad_pen = self.backward_D(self.netD1s, self.optimizer_D1s,
