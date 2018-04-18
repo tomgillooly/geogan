@@ -437,7 +437,12 @@ class Pix2PixGeoModel(BaseModel):
 
         # Conditional data (input with chunk missing + mask) + fake data
         # Remember self.fake_B_discrete is the generator output
-        fake_AB = torch.cat((self.real_A_discrete, self.mask.float(), self.fake_B_discrete), dim=1)
+        fake_AB = self.real_A_discrete
+
+        if not self.opt.no_mask_to_critic:
+            fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
+
+        fake_AB = torch.cat((fake_AB, self.fake_B_discrete), dim=1)
         # Mean across batch, then across discriminators
         # We only optimise with respect to the fake prediction because
         # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
@@ -450,8 +455,13 @@ class Pix2PixGeoModel(BaseModel):
     
         if not self.opt.discrete_only:
             # Conditional data (input with chunk missing + mask) + fake DIV, Vx and Vy data
-            fake_AB = torch.cat((self.real_A_discrete, self.mask.float(),
-                self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
+            fake_AB = self.real_A_discrete
+
+            if not self.opt.no_mask_to_critic:
+                fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1),
+
+            fake_AB = torch.cat((fake_AB, self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
+
             # Mean across batch, then across discriminators
             pred_fake2 = torch.cat([self.criterionGAN(netD2(fake_AB), True) for netD2 in self.netD2s]).mean()
 
