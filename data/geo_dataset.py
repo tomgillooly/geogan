@@ -199,22 +199,17 @@ class GeoDataset(BaseDataset):
 
     def __getitem__(self, index):
         A_paths = self.A_paths[index]
-        print(A_paths)
+
         match = re.search('(/\d+)?/serie(\d+)', A_paths[0])
 
         dir_tag = '_' + match.group(1)[1:] + '_' if match.group(1) else '_'
         series_number = int(match.group(2))
 
-        def get_series_number(path):
-            match = re.search('serie1?_?(\d+)_?', path)            
-
-            return int(match.group(1))
-
         # Check that all files are of the same series number, as glob doesn't always
         # return the files in the correct order
         
         s_no = series_number - 100000
-        
+
         assert(all([get_series_number(path) == s_no for path in A_paths[1:]]))
 
         series = 'serie' + dir_tag + str(series_number)
