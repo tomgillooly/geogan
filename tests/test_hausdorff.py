@@ -79,6 +79,28 @@ def test_unmatched_point():
 
 	assert(pairs == [(0, 0)])
 
+
+def test_exclusive_h_d(images):
+	X, Y = images
+
+	X[50, 0] = 1
+	Y[50, 25] = 1
+
+	d1, d2, d3 = get_hausdorff_exc(X, Y)
+
+	assert(d1 == 17.5)
+	assert(d2 == d1)
+
+def test_exclusive_h_d_assymetric(images):
+	X, Y = images
+
+	Y[50, 25] = 1
+
+	d1, d2, d3 = get_hausdorff_exc(X, Y)
+
+	assert(d1 == 5)
+	assert(d2 == (5+np.sqrt(100**2+100**2))/2)
+
 # def test_problem_image():
 # 	mask_w = 386
 # 	mask_h = 75

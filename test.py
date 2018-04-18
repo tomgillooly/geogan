@@ -1,7 +1,7 @@
 import os
 from options.test_options import TestOptions
 from data.data_loader import CreateDataLoader
-from metrics.hausdorff import get_hausdorff
+from metrics.hausdorff import get_hausdorff, get_hausdorff_exc
 from metrics.ot import get_em_distance
 from models.models import create_model
 from util.visualizer import Visualizer
@@ -57,7 +57,6 @@ for i, data in enumerate(dataset):
 
         for c in [0, 2]:
             _, _, _, i_precision, i_recall = get_hausdorff(test_inpaint_region == c, actual_inpaint_region[:, :, c], True)
-
             gt = np.zeros((actual_inpaint_region.shape[0], actual_inpaint_region.shape[1], 3), dtype=np.uint8)
             gt[:, :, c] = actual_inpaint_region[:, :, c]*255
 
@@ -68,6 +67,11 @@ for i, data in enumerate(dataset):
             # visuals['inpainted_class_%d' % c] = inpainted
             visuals['hausdorff_recall_class_%d' % c] = i_recall
             visuals['hausdorff_precision_class_%d' % c] = i_precision
+            
+            _, _, _, i_precision, i_recall = get_hausdorff_exc(test_inpaint_region == c, actual_inpaint_region[:, :, c], True)
+            visuals['hausdorff_recall_exc_class_%d' % c] = i_recall
+            visuals['hausdorff_precision_exc_class_%d' % c] = i_precision
+            
 
 
     if opt.visualise_ot:
@@ -139,6 +143,8 @@ with open(results_file_name, 'a') as results_file:
         row_lengths.append(3)   # Velocity y input, output, G
         row_lengths.append(2)   # Class 0 Haussdorf recall, precision
         row_lengths.append(2)   # Class 2 Haussdorf recall, precision
+        row_lengths.append(2)   # Class 0 Haussdorf exclusive recall, precision
+        row_lengths.append(2)   # Class 2 Haussdorf exclusive recall, precision
         # row_lengths.append(2)   # Class 0 and 2 EM distance
 
 
