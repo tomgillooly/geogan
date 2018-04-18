@@ -76,9 +76,11 @@ def get_hausdorff(im1, im2, visualise=False, im1_label='Predicted', im2_label='A
                 plt.plot([x, closest[1]], [im1.shape[0] - p for p in [y, closest[0]]], color=[0, 1, 0])
 
             plt.title('Average distance: {:.02f}'.format(d_h_1to2))
-            plt.axis('equal')
+            # plt.axis('equal')
             plt.xlim([0, 100])
             plt.ylim([0, 100])
+            plt.axes().set_aspect('equal')
+            plt.grid()
             
             fig = plt.figure(2)
 
@@ -87,9 +89,11 @@ def get_hausdorff(im1, im2, visualise=False, im1_label='Predicted', im2_label='A
                 plt.plot([x, closest[1]], [im1.shape[0] - p for p in [y, closest[0]]], color=[0, 1, 0])
 
             plt.title('Average distance: {:.02f}'.format(d_h_2to1))
-            plt.axis('equal')
+            # plt.axis('equal')
             plt.xlim([0, 100])
             plt.ylim([0, 100])
+            plt.axes().set_aspect('equal')
+            plt.grid()
             
 
     if visualise:
