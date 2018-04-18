@@ -474,7 +474,7 @@ class Pix2PixGeoModel(BaseModel):
             fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
 
         if self.opt.continent_data:
-            fake_AB = torch.cat((fake_AB, self.continents), dim=1)
+            fake_AB = torch.cat((fake_AB, self.continents.float()), dim=1)
         fake_AB = torch.cat((fake_AB, self.fake_B_discrete), dim=1)
         # Mean across batch, then across discriminators
         # We only optimise with respect to the fake prediction because
@@ -587,7 +587,7 @@ class Pix2PixGeoModel(BaseModel):
             cond_data = torch.cat((cond_data, self.mask.float()), dim=1)
 
         if self.opt.continent_data:
-            cond_data = torch.cat((cond_data, self.continents), dim=1)
+            cond_data = torch.cat((cond_data, self.continents.float()), dim=1)
 
 
         for _ in range(self.opt.low_iter if kwargs['step_no'] >= 25 else self.opt.high_iter):
