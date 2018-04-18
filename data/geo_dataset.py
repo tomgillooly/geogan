@@ -34,6 +34,13 @@ MODEL_SURFACE_VELOCITY = 700
 
 #     return img
 
+
+def get_series_number(path):
+    match = re.search('serie1?_?(\d+)_?', path)            
+
+    return int(match.group(1))
+
+
 def get_dat_files(topdir):
     # DIV_paths = glob.glob(os.path.join(topdir, '*_DIV.dat'))
     # Vx_paths = glob.glob(os.path.join(topdir, '*_Vx.dat'))
@@ -60,10 +67,10 @@ def get_dat_files(topdir):
         #     Vy_paths += glob.glob(os.path.join(root, directory, '*_Vy.dat'))
 
 
-    DIV_paths = sorted(DIV_paths)
-    Vx_paths = sorted(Vx_paths)
-    Vy_paths = sorted(Vy_paths)
-    cont_paths = sorted(cont_paths)
+    DIV_paths = sorted(DIV_paths, key=get_series_number)
+    Vx_paths = sorted(Vx_paths, key=get_series_number)
+    Vy_paths = sorted(Vy_paths, key=get_series_number)
+    cont_paths = sorted(cont_paths, key=get_series_number)
 
     return DIV_paths, Vx_paths, Vy_paths, cont_paths
 
