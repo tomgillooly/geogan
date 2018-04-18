@@ -95,8 +95,9 @@ def get_hausdorff(im1, im2, visualise=False, im1_label='Predicted', im2_label='A
         return d_h_1to2, d_h_2to1, d_h_s
 
 
-def get_pairs(p1, p2):
-    d = cdist(p1, p2)
+def get_pairs(p1, p2, d=[]):
+    if d == []:
+        d = cdist(p1, p2)
 
     pairs_p1 = []
     pairs_p2 = []
@@ -160,8 +161,8 @@ def get_hausdorff_exc(im1, im2, visualise=False, im1_label='Predicted', im2_labe
     elif im1.any() and im2.any():
         D = cdist(im1_coords, im2_coords)
 
-        pairs1 = get_pairs(im1_coords, im2_coords)
-        pairs2 = get_pairs(im2_coords, im1_coords)
+        pairs1 = get_pairs(im1_coords, im2_coords, D.copy())
+        pairs2 = get_pairs(im2_coords, im1_coords, D.T.copy())
 
         pairs1_order, pairs1 = zip(*sorted(enumerate(pairs1), key=lambda x: x[1][0]))
         pairs2_order, pairs2 = zip(*sorted(enumerate(pairs2), key=lambda x: x[1][0]))
@@ -174,7 +175,7 @@ def get_hausdorff_exc(im1, im2, visualise=False, im1_label='Predicted', im2_labe
 
         d_h_s = max(d_h_1to2, d_h_2to1)
 
- 
+
         if visualise:
             fig = plt.figure(1)
             
@@ -182,7 +183,8 @@ def get_hausdorff_exc(im1, im2, visualise=False, im1_label='Predicted', im2_labe
                 y, x = im1_coords[i]
                 closest = im2_coords[closest_idx]
                 plt.plot([x, closest[1]], [im1.shape[0] - p for p in [y, closest[0]]], color=[0, 1, 0])
-                plt.text(x, im1.shape[0] - y, str(pairs1_order[i]))
+                if pairs1_order[i] < 6:
+                    plt.text(x, im1.shape[0] - y, str(pairs1_order[i]))
 
             plt.title('Average distance: {:.02f}'.format(d_h_1to2))
             # plt.axis('equal')
@@ -197,7 +199,8 @@ def get_hausdorff_exc(im1, im2, visualise=False, im1_label='Predicted', im2_labe
                 y, x = im2_coords[i]
                 closest = im1_coords[closest_idx]
                 plt.plot([x, closest[1]], [im1.shape[0] - p for p in [y, closest[0]]], color=[0, 1, 0])
-                plt.text(x, im1.shape[0] - y, str(pairs2_order[i]))
+                if pairs2_order[i] < 6:
+                    plt.text(x, im1.shape[0] - y, str(pairs2_order[i]))
 
             plt.title('Average distance: {:.02f}'.format(d_h_2to1))
             # plt.axis('equal')
@@ -211,12 +214,12 @@ def get_hausdorff_exc(im1, im2, visualise=False, im1_label='Predicted', im2_labe
         fig = plt.figure(1)
         plt.savefig('/tmp/tmpimg.png')
         combined_1to2 = io.imread('/tmp/tmpimg.png')
-        # plt.close(1)
+        plt.close(1)
 
         fig = plt.figure(2)
         plt.savefig('/tmp/tmpimg.png')
         combined_2to1 = io.imread('/tmp/tmpimg.png')
-        # plt.close(2)
+        plt.close(2)
 
 
         return d_h_1to2, d_h_2to1, d_h_s, combined_1to2, combined_2to1
