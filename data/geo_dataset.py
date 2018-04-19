@@ -191,7 +191,7 @@ class GeoDataset(BaseDataset):
                     break
 
             if i == 99:
-                raise RuntimeError("Couldn't choose mask region in file " + self.A_paths[index])
+                raise RuntimeError("Couldn't choose mask region in file " + self.A_paths[index][0])
 
             self.update_inpaint_regions_file()
 
@@ -215,7 +215,7 @@ class GeoDataset(BaseDataset):
 
         series = 'serie' + dir_tag + str(series_number)
 
-        data = {get_file_tag(path): read_geo_file(path) for path in A_paths}
+        data = OrderedDict([(get_file_tag(path), read_geo_file(path)) for path in A_paths])
 
         rows = len(np.unique(data['Vx']['y']))
         cols = len(np.unique(data['Vx']['x']))

@@ -249,7 +249,7 @@ def new_dataset():
 
 
 def test_handles_different_resolutions(new_dataset):
-	assert(len(new_dataset) == 18)
+	assert(len(new_dataset) == 17)
 	for i in range(len(new_dataset)):
 		assert(new_dataset[i] != None)
 
