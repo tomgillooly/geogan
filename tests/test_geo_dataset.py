@@ -183,6 +183,7 @@ def test_directory_name_is_prepended_in_image_path(dataset):
 	[shutil.copy(file, temp_data_dir_1) for file in glob.glob(dataroot + '/test/serie100001_project_*.dat')]
 	[shutil.copy(file, temp_data_dir_2) for file in glob.glob(dataroot + '/test/serie100002_project_*.dat')]
 	[shutil.copy(file, temp_data_dir_3) for file in glob.glob(dataroot + '/test/serie100003_project_*.dat')]
+	[shutil.copy(file, temp_data_dir_3) for file in glob.glob(dataroot + '/test/serie100004_project_*.dat')]
 	[shutil.copy(file, temp_data_dir_4) for file in glob.glob(dataroot + '/test/serie100004_project_*.dat')]
 	[shutil.copy(file, temp_data_parent) for file in glob.glob(dataroot + '/test/serie100004_project_*.dat')]
 
@@ -195,9 +196,9 @@ def test_directory_name_is_prepended_in_image_path(dataset):
 
 	div_files, vx_files, vy_files, _ = get_dat_files(temp_data_parent)
 
-	assert(len(div_files) == 5)
-	assert(len(vx_files) == 5)
-	assert(len(vy_files) == 5)
+	assert(len(div_files) == 6)
+	assert(len(vx_files) == 6)
+	assert(len(vy_files) == 6)
 
 	# Now build a second dataset using this dummy directory
 	options_dict = dict(dataroot=temp_data_parent, phase='',
@@ -216,8 +217,11 @@ def test_directory_name_is_prepended_in_image_path(dataset):
 	assert(geo[0]['A_paths'] == os.path.join(temp_data_parent, 'serie_01_100001'))
 	assert(geo[1]['A_paths'] == os.path.join(temp_data_parent, 'serie_02_100002'))
 	assert(geo[2]['A_paths'] == os.path.join(temp_data_parent, 'serie_03_100003'))
-	assert(geo[3]['A_paths'] == os.path.join(temp_data_parent, 'serie_04_100004'))
-	assert(geo[4]['A_paths'] == os.path.join(temp_data_parent, 'serie_100004'))
+
+	### Sorted by directory, THEN by series number!
+	assert(geo[3]['A_paths'] == os.path.join(temp_data_parent, 'serie_100004'))
+	assert(geo[4]['A_paths'] == os.path.join(temp_data_parent, 'serie_03_100004'))
+	assert(geo[5]['A_paths'] == os.path.join(temp_data_parent, 'serie_04_100004'))
 
 
 def test_no_continent_data_by_default(dataset):
@@ -243,7 +247,8 @@ def new_dataset():
 
 
 def test_handles_different_resolutions(new_dataset):
-	for i in range(22):
+	assert(len(new_dataset) == 18)
+	for i in range(len(new_dataset)):
 		assert(new_dataset[i] != None)
 
 
