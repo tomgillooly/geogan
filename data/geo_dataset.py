@@ -365,7 +365,7 @@ class GeoDataset(BaseDataset):
                 'mask_y1': mask_y1, 'mask_y2': mask_y2,
                 'A_paths': os.path.join(self.dir_A, series),
                 'B_paths': os.path.join(self.dir_A, series + '_inpainted'),
-                'series_number': int(dir_tag[1:-1]) + series_number
+                'series_number': int(dir_tag[1:-1] + str(series_number))
                 }
 
         if self.opt.continent_data:
