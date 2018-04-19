@@ -77,15 +77,15 @@ def test_mask_x_y_locations(dataset):
 
 
 # Code seems to do this if there's a problem
-def test_mask_not_at_0_0(dataset):
-	for i in range(10):
-		x1 = dataset[i]['mask_x1'][0]
-		x2 = dataset[i]['mask_x2'][0]
-		y1 = dataset[i]['mask_y1'][0]
-		y2 = dataset[i]['mask_y2'][0]
+# def test_mask_not_at_0_0(dataset):
+# 	for i in range(10):
+# 		x1 = dataset[i]['mask_x1'][0]
+# 		x2 = dataset[i]['mask_x2'][0]
+# 		y1 = dataset[i]['mask_y1'][0]
+# 		y2 = dataset[i]['mask_y2'][0]
 	
-		assert(x1 != 0)
-		assert(y1 != 0)
+# 		assert(x1 != 0)
+# 		assert(y1 != 0)
 
 
 def test_B_is_A_with_region_replaced_discrete(dataset):
