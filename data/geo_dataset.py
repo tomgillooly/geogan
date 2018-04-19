@@ -34,6 +34,11 @@ MODEL_SURFACE_VELOCITY = 700
 
 #     return img
 
+class DataGenException(Exception):
+    def __init__(self, error_msg, img):
+        super().__init__(error_msg)
+        self.img = img
+
 
 def get_series_number(path):
     match = re.search('serie1?_?(\d+)_?', path)            
@@ -191,7 +196,7 @@ class GeoDataset(BaseDataset):
                     break
 
             if i == 99:
-                raise RuntimeError("Couldn't choose mask region in file " + self.A_paths[index][0])
+                raise DataGenException("Couldn't choose mask region in file " + self.A_paths[index][0], A)
 
             self.update_inpaint_regions_file()
 

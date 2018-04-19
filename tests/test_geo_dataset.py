@@ -2,11 +2,12 @@ import glob
 import os
 import pytest
 import shutil
+import skimage.io as io
 import torch
 import tempfile
 
 from collections import namedtuple
-from data.geo_dataset import GeoDataset, get_dat_files
+from data.geo_dataset import GeoDataset, get_dat_files, DataGenException
 
 @pytest.fixture(scope='module')
 def dataset(pytestconfig):
@@ -249,7 +250,8 @@ def new_dataset():
 
 
 def test_handles_different_resolutions(new_dataset):
-	assert(len(new_dataset) == 17)
+	assert(len(new_dataset) == 16)
+
 	for i in range(len(new_dataset)):
 		assert(new_dataset[i] != None)
 
