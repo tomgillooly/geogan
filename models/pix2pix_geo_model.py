@@ -497,6 +497,7 @@ class Pix2PixGeoModel(BaseModel):
                 print(fake_AB.data.type())
                 print(self.mask.float().data.type())
                 fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1),
+                print(fake_AB.data.type())
 
             fake_AB = torch.cat((fake_AB, self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
 
