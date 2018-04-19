@@ -490,9 +490,10 @@ class Pix2PixGeoModel(BaseModel):
             # Conditional data (input with chunk missing + mask) + fake DIV, Vx and Vy data
             fake_AB = self.real_A_discrete
 
+            print(fake_AB)
             if not self.opt.no_mask_to_critic:
                 fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1),
-            print(fake_AB.shape)
+            print(fake_AB)
             fake_AB = torch.cat((fake_AB, self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
 
             # Mean across batch, then across discriminators
