@@ -468,7 +468,7 @@ class Pix2PixGeoModel(BaseModel):
 
         # Conditional data (input with chunk missing + mask) + fake data
         # Remember self.fake_B_discrete is the generator output
-        fake_AB = self.real_A_discrete
+        fake_AB = torch.cat((self.real_A_discrete,), dim=1)
 
         if not self.opt.no_mask_to_critic:
             fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
@@ -491,7 +491,7 @@ class Pix2PixGeoModel(BaseModel):
             fake_AB = self.real_A_discrete
 
             if not self.opt.no_mask_to_critic:
-                fake_AB = torch.cat((fake_AB, self.float.mask()), dim=1),
+                fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1),
 
             fake_AB = torch.cat((*fake_AB, self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
 
