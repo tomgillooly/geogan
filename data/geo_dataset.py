@@ -67,7 +67,7 @@ def get_dat_files(topdir):
         cont_paths += sorted(glob.glob(os.path.join(root, '*_cont.dat')), key=get_series_number)
 
         # Make sure they're in numerical order before we recurse into them
-        dirs.sort()
+        dirs.sort(key=int)
 
         # for directory in dirs:
         #     DIV_paths += glob.glob(os.path.join(root, directory, '*_DIV.dat'))
