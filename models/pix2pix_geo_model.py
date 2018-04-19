@@ -471,8 +471,6 @@ class Pix2PixGeoModel(BaseModel):
         fake_AB = torch.cat((self.real_A_discrete,), dim=1)
 
         if not self.opt.no_mask_to_critic:
-            print(fake_AB.data.type())
-            print(self.mask.float().data.type())
             fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
 
         if self.opt.continent_data:
@@ -494,10 +492,7 @@ class Pix2PixGeoModel(BaseModel):
             fake_AB2 = torch.cat((self.real_A_discrete,), dim=1)
 
             if not self.opt.no_mask_to_critic:
-                print(fake_AB2.data.type())
-                print(self.mask.float().data.type())
-                fake_AB2 = torch.cat((fake_AB2, self.mask.float()), dim=1),
-                print(fake_AB2.data.type())
+                fake_AB2 = torch.cat((fake_AB2, self.mask.float()), dim=1)
 
             fake_AB2 = torch.cat((fake_AB2, self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
 
