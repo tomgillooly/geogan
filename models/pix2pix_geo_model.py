@@ -471,10 +471,13 @@ class Pix2PixGeoModel(BaseModel):
         fake_AB = torch.cat((self.real_A_discrete,), dim=1)
 
         if not self.opt.no_mask_to_critic:
+            print(fake_AB.type())
+            print(self.mask.float().type())
             fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
 
         if self.opt.continent_data:
             fake_AB = torch.cat((fake_AB, self.continents.float()), dim=1)
+
         fake_AB = torch.cat((fake_AB, self.fake_B_discrete), dim=1)
         # Mean across batch, then across discriminators
         # We only optimise with respect to the fake prediction because
@@ -491,6 +494,8 @@ class Pix2PixGeoModel(BaseModel):
             fake_AB = torch.cat((self.real_A_discrete,), dim=1)
 
             if not self.opt.no_mask_to_critic:
+                print(fake_AB.type())
+                print(self.mask.float().type())
                 fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1),
 
             fake_AB = torch.cat((fake_AB, self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
