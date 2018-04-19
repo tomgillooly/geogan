@@ -216,7 +216,7 @@ class GeoDataset(BaseDataset):
         
         s_no = series_number - 100000
 
-        assert(all([get_series_number(path) == s_no for path in A_paths[1:]]))
+        assert(all([get_series_number(path) == s_no for path in A_paths[1:]]), A_paths)
 
         series = 'serie' + dir_tag + str(series_number)
 
