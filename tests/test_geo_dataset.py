@@ -214,12 +214,14 @@ def test_directory_name_is_prepended_in_image_path(dataset):
 
 	# print(geo[0]['A_paths'])
 	# Folders get flattened out
-	assert(geo[0]['A_paths'] == os.path.join(temp_data_parent, 'serie_01_100001'))
-	assert(geo[1]['A_paths'] == os.path.join(temp_data_parent, 'serie_02_100002'))
-	assert(geo[2]['A_paths'] == os.path.join(temp_data_parent, 'serie_03_100003'))
+	# Sorted by directory, THEN by series number!
 
-	### Sorted by directory, THEN by series number!
-	assert(geo[3]['A_paths'] == os.path.join(temp_data_parent, 'serie_100004'))
+	assert(geo[0]['A_paths'] == os.path.join(temp_data_parent, 'serie_100004'))
+	assert(geo[1]['A_paths'] == os.path.join(temp_data_parent, 'serie_01_100001'))
+	assert(geo[2]['A_paths'] == os.path.join(temp_data_parent, 'serie_02_100002'))
+	assert(geo[3]['A_paths'] == os.path.join(temp_data_parent, 'serie_03_100003'))
+
+	# Sorted by directory, THEN by series number!
 	assert(geo[4]['A_paths'] == os.path.join(temp_data_parent, 'serie_03_100004'))
 	assert(geo[5]['A_paths'] == os.path.join(temp_data_parent, 'serie_04_100004'))
 

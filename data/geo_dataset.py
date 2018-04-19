@@ -56,21 +56,19 @@ def get_dat_files(topdir):
     cont_paths = []
 
     for root, dirs, _ in os.walk(topdir):
-        DIV_paths += glob.glob(os.path.join(root, '*_DIV.dat'))
-        Vx_paths += glob.glob(os.path.join(root, '*_Vx.dat'))
-        Vy_paths += glob.glob(os.path.join(root, '*_Vy.dat'))
-        cont_paths += glob.glob(os.path.join(root, '*_cont.dat'))
-        
+        DIV_paths += sorted(glob.glob(os.path.join(root, '*_DIV.dat')), key=get_series_number)
+        Vx_paths += sorted(glob.glob(os.path.join(root, '*_Vx.dat')), key=get_series_number)
+        Vy_paths += sorted(glob.glob(os.path.join(root, '*_Vy.dat')), key=get_series_number)
+        cont_paths += sorted(glob.glob(os.path.join(root, '*_cont.dat')), key=get_series_number)
+
+        # Make sure they're in numerical order before we recurse into them
+        dirs.sort()
+
         # for directory in dirs:
         #     DIV_paths += glob.glob(os.path.join(root, directory, '*_DIV.dat'))
         #     Vx_paths += glob.glob(os.path.join(root, directory, '*_Vx.dat'))
         #     Vy_paths += glob.glob(os.path.join(root, directory, '*_Vy.dat'))
 
-
-    DIV_paths = sorted(DIV_paths, key=get_series_number)
-    Vx_paths = sorted(Vx_paths, key=get_series_number)
-    Vy_paths = sorted(Vy_paths, key=get_series_number)
-    cont_paths = sorted(cont_paths, key=get_series_number)
 
     return DIV_paths, Vx_paths, Vy_paths, cont_paths
 
