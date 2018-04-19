@@ -709,6 +709,11 @@ class Pix2PixGeoModel(BaseModel):
             fake_B_Vy[mask_edge_coords] = np.max(fake_B_Vy)
             visuals.append(('output_Vy', fake_B_Vy))
 
+        if self.opt.continent_data:
+            continents = util.tensor2im(self.continents.data)
+            continents[mask_edge_coords] = np.max(continents)
+            visuals.append(('continents', continents))
+
         return OrderedDict(visuals)
 
 
