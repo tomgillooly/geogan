@@ -187,8 +187,8 @@ class GeoDataset(BaseDataset):
 
                 if np.sum(A[h_offset:h_offset+100, w_offset:w_offset+100, layer]) > 0 and np.sum(A[h_offset:h_offset+100, w_offset:w_offset+100, 2-layer]) > 0:
                     self.inpaint_regions[index] = (w_offset, h_offset, layer)
-                    
-                    break
+
+                    raise RuntimeError("Couldn't choose mask region in file " + self.A_paths[index])
 
             self.update_inpaint_regions_file()
 
