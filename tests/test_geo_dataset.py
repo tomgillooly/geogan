@@ -8,15 +8,15 @@ import tempfile
 from collections import namedtuple
 from data.geo_dataset import GeoDataset, get_dat_files
 
-@pytest.fixture
-def dataset():
+@pytest.fixture(scope='module')
+def dataset(pytestconfig):
 	# put together basic options class to pass to dataset builder
 	inpaint_file_parent = tempfile.mkdtemp(dir='/tmp')
 	inpaint_file_dir = os.path.join(inpaint_file_parent, 'test')
 
 	os.mkdir(inpaint_file_dir)
 
-	options_dict = dict(dataroot=os.path.expanduser('~/data/geology/'), phase='test',
+	options_dict = dict(dataroot=os.path.expanduser(pytestconfig.option.dataroot), phase='test',
 		# inpaint_file_dir=os.path.expanduser('~/data/geology/'), resize_or_crop='resize_and_crop',
 		inpaint_file_dir=inpaint_file_parent, resize_or_crop='resize_and_crop',
 	    loadSize=256, fineSize=256, which_direction='AtoB',
