@@ -491,7 +491,7 @@ class Pix2PixGeoModel(BaseModel):
             fake_AB = self.real_A_discrete
 
             if not self.opt.no_mask_to_critic:
-                fake_AB = torch.cat((fake_AB, float_mask), dim=1),
+                fake_AB = torch.cat((fake_AB, self.float.mask()), dim=1),
 
             fake_AB = torch.cat((*fake_AB, self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
 
