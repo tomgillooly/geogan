@@ -242,7 +242,7 @@ class GeoDataset(BaseDataset):
         A = create_one_hot(data['DIV']['values'], self.opt.div_threshold)
         
         # We're done with x/y data now, so discard
-        A_data = [item['values'] for _, item in data.items()]
+        A_data = [data[key]['values'] for key in data.keys() if key != 'cont']
         # Normalise
         A_data = [np.interp(item, [np.min(item), np.max(item)], [-1, 1]) for item in A_data]
 
@@ -311,18 +311,11 @@ class GeoDataset(BaseDataset):
 
             return A, B
 
+        A_DIV, A_Vx, A_Vy = A_data
+        B_DIV, B_Vx, B_Vy = B_data
 
         if self.opt.continent_data:
-            assert(len(A_data) == 4)
-            A_DIV, A_Vx, A_Vy, continents = A_data
-            B_DIV, B_Vx, B_Vy, _ = B_data
-        elif not self.opt.continent_data and len(A_data) == 4:
-            A_DIV, A_Vx, A_Vy, _ = A_data
-            B_DIV, B_Vx, B_Vy, _ = B_data
-        else:
-            A_DIV, A_Vx, A_Vy = A_data
-            B_DIV, B_Vx, B_Vy = B_data
-
+            continents = data['cont']['values']
 
         A, B = process_image(A, B, discrete=True)
         A_DIV, B_DIV = process_image(A_DIV, B_DIV)
