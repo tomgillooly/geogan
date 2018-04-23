@@ -2,7 +2,7 @@ import os
 from options.test_options import TestOptions
 from data.data_loader import CreateDataLoader
 from metrics.hausdorff import get_hausdorff
-from metrics.ot import get_em_distance
+# from metrics.ot import get_em_distance
 from models.models import create_model
 from util.visualizer import Visualizer
 from util import html

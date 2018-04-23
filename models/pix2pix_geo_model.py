@@ -204,9 +204,10 @@ class Pix2PixGeoModel(BaseModel):
 
         print('---------- Networks initialized -------------')
         networks.print_network(self.netG)
-        if self.isTrain and self.opt.num_discrims > 0:
-            networks.print_network(self.netD1s[0])
-        print("#discriminators", len(self.netD1s))
+        if self.isTrain:
+            if self.opt.num_discrims > 0:
+                networks.print_network(self.netD1s[0])
+            print("#discriminators", len(self.netD1s))
         print('-----------------------------------------------')
 
     def set_input(self, input):
