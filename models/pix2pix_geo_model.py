@@ -204,9 +204,9 @@ class Pix2PixGeoModel(BaseModel):
 
         print('---------- Networks initialized -------------')
         networks.print_network(self.netG)
-        if self.isTrain:
+        if self.isTrain and self.opt.num_discrims > 0:
             networks.print_network(self.netD1s[0])
-            print("#discriminators", len(self.netD1s))
+        print("#discriminators", len(self.netD1s))
         print('-----------------------------------------------')
 
     def set_input(self, input):
@@ -435,30 +435,33 @@ class Pix2PixGeoModel(BaseModel):
         # Note that we don't detach here because we DO want to backpropagate
         # to the generator this time
 
-        # Conditional data (input with chunk missing + mask) + fake data
-        # Remember self.fake_B_discrete is the generator output
-        fake_AB = torch.cat((self.real_A_discrete, self.mask.float(), self.fake_B_discrete), dim=1)
-        # Mean across batch, then across discriminators
-        # We only optimise with respect to the fake prediction because
-        # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
-        pred_fake1 = torch.cat([self.criterionGAN(netD1(fake_AB), True) for netD1 in self.netD1s]).mean()
-        
-        self.loss_G_GAN1 = pred_fake1
+        self.loss_G_GAN = 0
 
-        # Trying to incentivise making this big, so it's mistaken for real
-        self.loss_G_GAN = self.loss_G_GAN1
-    
-        if not self.opt.discrete_only:
-            # Conditional data (input with chunk missing + mask) + fake DIV, Vx and Vy data
-            fake_AB = torch.cat((self.real_A_discrete, self.mask.float(),
-                self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
+        if self.opt.num_discrims > 0:
+            # Conditional data (input with chunk missing + mask) + fake data
+            # Remember self.fake_B_discrete is the generator output
+            fake_AB = torch.cat((self.real_A_discrete, self.mask.float(), self.fake_B_discrete), dim=1)
             # Mean across batch, then across discriminators
-            pred_fake2 = torch.cat([self.criterionGAN(netD2(fake_AB), True) for netD2 in self.netD2s]).mean()
+            # We only optimise with respect to the fake prediction because
+            # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
+            pred_fake1 = torch.cat([self.criterionGAN(netD1(fake_AB), True) for netD1 in self.netD1s]).mean()
+            
+            self.loss_G_GAN1 = pred_fake1
 
-            self.loss_G_GAN2 = pred_fake2
-
-            self.loss_G_GAN += self.loss_G_GAN2
+            # Trying to incentivise making this big, so it's mistaken for real
+            self.loss_G_GAN = self.loss_G_GAN1
         
+            if not self.opt.discrete_only:
+                # Conditional data (input with chunk missing + mask) + fake DIV, Vx and Vy data
+                fake_AB = torch.cat((self.real_A_discrete, self.mask.float(),
+                    self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
+                # Mean across batch, then across discriminators
+                pred_fake2 = torch.cat([self.criterionGAN(netD2(fake_AB), True) for netD2 in self.netD2s]).mean()
+
+                self.loss_G_GAN2 = pred_fake2
+
+                self.loss_G_GAN += self.loss_G_GAN2
+            
 
         # if we aren't taking local loss, use entire image
         loss_mask = torch.ones(self.mask.shape).byte()
@@ -538,21 +541,22 @@ class Pix2PixGeoModel(BaseModel):
         # target and generated data in object
         self.forward()
 
-        cond_data = self.real_A_discrete
+        if self.opt.num_discrims > 0:
+            cond_data = self.real_A_discrete
 
-        if not self.opt.no_mask_to_critic:
-            cond_data = torch.cat((cond_data, self.mask.float()), dim=1)
+            if not self.opt.no_mask_to_critic:
+                cond_data = torch.cat((cond_data, self.mask.float()), dim=1)
 
-        for _ in range(self.opt.low_iter if kwargs['step_no'] >= 25 else self.opt.high_iter):
-            self.loss_D1, self.loss_D1_real, self.loss_D1_fake, self.loss_D1_grad_pen = self.backward_D(self.netD1s, self.optimizer_D1s,
-                cond_data,
-                self.real_B_discrete, self.fake_B_discrete)
-
-            if not self.opt.discrete_only:
-                self.loss_D2, self.loss_D2_real, self.loss_D2_fake, self.loss_D2_grad_pen = self.backward_D(self.netD2s, self.optimizer_D2s,
+            for _ in range(self.opt.low_iter if kwargs['step_no'] >= 25 else self.opt.high_iter):
+                self.loss_D1, self.loss_D1_real, self.loss_D1_fake, self.loss_D1_grad_pen = self.backward_D(self.netD1s, self.optimizer_D1s,
                     cond_data,
-                    torch.cat((self.real_B_DIV, self.real_B_Vx, self.real_B_Vy), dim=1), 
-                    torch.cat((self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1))
+                    self.real_B_discrete, self.fake_B_discrete)
+
+                if not self.opt.discrete_only:
+                    self.loss_D2, self.loss_D2_real, self.loss_D2_fake, self.loss_D2_grad_pen = self.backward_D(self.netD2s, self.optimizer_D2s,
+                        cond_data,
+                        torch.cat((self.real_B_DIV, self.real_B_Vx, self.real_B_Vy), dim=1), 
+                        torch.cat((self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1))
 
 
 
@@ -576,21 +580,29 @@ class Pix2PixGeoModel(BaseModel):
     def get_current_errors(self):
         errors = [
             ('G', self.loss_G.data[0]),
-            ('G_GAN_D1', self.loss_G_GAN1.data[0]),
             ('G_CE', self.loss_G_CE.data[0]),
-            ('D1_real', self.loss_D1_real.data[0]),
-            ('D1_fake', self.loss_D1_fake.data[0]),
-            ('D1_grad_pen', self.loss_D1_grad_pen.data[0])
         ]
+
+        if self.opt.num_discrims > 0:
+            errors += [
+                ('G_GAN_D1', self.loss_G_GAN1.data[0]),
+                ('D1_real', self.loss_D1_real.data[0]),
+                ('D1_fake', self.loss_D1_fake.data[0]),
+                ('D1_grad_pen', self.loss_D1_grad_pen.data[0])
+            ]
 
         if not self.opt.discrete_only:
             errors += [
-                ('G_GAN_D2', self.loss_G_GAN2.data[0]),
                 ('G_L2', self.loss_G_L2.data[0]),
-                ('D2_real', self.loss_D2_real.data[0]),
-                ('D2_fake', self.loss_D2_fake.data[0]),
-                ('D2_grad_pen', self.loss_D2_grad_pen.data[0])
             ]
+
+            if self.opt.num_discrims > 0:
+                errors += [
+                    ('G_GAN_D2', self.loss_G_GAN2.data[0]),
+                    ('D2_real', self.loss_D2_real.data[0]),
+                    ('D2_fake', self.loss_D2_fake.data[0]),
+                    ('D2_grad_pen', self.loss_D2_grad_pen.data[0])
+                ]
 
         return OrderedDict(errors)
 
