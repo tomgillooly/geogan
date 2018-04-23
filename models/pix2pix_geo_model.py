@@ -18,7 +18,7 @@ from scipy.spatial.distance import directed_hausdorff, euclidean
 from skimage.filters import roberts
 
 from metrics.hausdorff import get_hausdorff
-from metrics.ot import get_em_distance
+# from metrics.ot import get_em_distance
 
 import sys
 
