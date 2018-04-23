@@ -244,7 +244,20 @@ class GeoDataset(BaseDataset):
         # We're done with x/y data now, so discard
         A_data = [data[key]['values'] for key in data.keys() if key != 'cont']
         # Normalise
-        A_data = [np.interp(item, [np.min(item), np.max(item)], [-1, 1]) for item in A_data]
+        A_DIV, A_Vx, A_Vy = A_data
+
+        folder_dir = os.path.dirname(A_paths[0])
+
+        def get_norm_data(tag):
+            with open(os.path.join(folder_dir, tag + '_norm.dat')) as file:
+                dmin, dmax = [float(x) for x in file.read().split()]
+
+                return dmin, dmax
+
+
+        A_DIV = np.interp(A_DIV, get_norm_data('DIV'), [-1, 1])
+        A_Vx = np.interp(A_Vx, get_norm_data('Vx'), [-1, 1])
+        A_Vy = np.interp(A_Vy, get_norm_data('Vy'), [-1, 1])
 
         # if self.opt.continent_data
 
@@ -274,7 +287,7 @@ class GeoDataset(BaseDataset):
         # B_Vy = A_Vy.copy()
         # B_Vy[mask_y1:mask_y2, mask_x1:mask_x2] = 0
 
-        B_data = [mask_out_inpaint_region(data, mask) for data in A_data]
+        B_data = [mask_out_inpaint_region(data, mask) for data in [A_DIV, A_Vx, A_Vy]]
         
         B = A.copy()
 
@@ -311,11 +324,13 @@ class GeoDataset(BaseDataset):
 
             return A, B
 
-        A_DIV, A_Vx, A_Vy = A_data
         B_DIV, B_Vx, B_Vy = B_data
 
         if self.opt.continent_data:
-            continents = data['cont']['values']
+            if 'cont' in data.keys():
+                continents = data['cont']['values']
+            else:
+                continents = np.zeros((rows, cols))
 
         A, B = process_image(A, B, discrete=True)
         A_DIV, B_DIV = process_image(A_DIV, B_DIV)

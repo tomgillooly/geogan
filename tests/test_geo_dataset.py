@@ -188,6 +188,11 @@ def test_directory_name_is_prepended_in_image_path(dataset):
 	[shutil.copy(file, temp_data_dir_4) for file in glob.glob(dataroot + '/test/serie100004_project_*.dat')]
 	[shutil.copy(file, temp_data_parent) for file in glob.glob(dataroot + '/test/serie100004_project_*.dat')]
 
+	for folder in [temp_data_parent, temp_data_dir_1, temp_data_dir_2, temp_data_dir_3, temp_data_dir_4]:
+		for tag in ['DIV', 'Vx', 'Vy']:
+			with open(os.path.join(folder, tag + '_norm.dat'), 'w') as file:
+				file.write('-10000 10000')
+
 	# Check they're in the target directory
 	glob.glob(os.path.join(temp_data_parent, '*.dat'))[0]
 	glob.glob(os.path.join(temp_data_dir_1, '*.dat'))[0]
@@ -232,7 +237,7 @@ def test_no_continent_data_by_default(dataset):
 	assert(not 'continents' in data.keys())
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def new_dataset():
 	options_dict = dict(dataroot='test_data/with_continents', phase='',
 		inpaint_file_dir='test_data/with_continents', resize_or_crop='resize_and_crop',
@@ -249,11 +254,53 @@ def new_dataset():
 	return geo
 
 
+def test_default_continent_map_is_blank():
+	options_dict = dict(dataroot='test_data/no_continents', phase='',
+		inpaint_file_dir='test_data/no_continents', resize_or_crop='resize_and_crop',
+		# inpaint_file_dir=tempfile.mkdtemp(dir='/tmp'), resize_or_crop='resize_and_crop',
+	    loadSize=256, fineSize=256, which_direction='AtoB',
+	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False,
+	    continent_data=True)
+	Options = namedtuple('Options', options_dict.keys())
+	opt = Options(*options_dict.values())
+
+	geo = GeoDataset()
+	geo.initialize(opt)
+
+	data = geo[0]
+	assert(torch.sum(data['continents']) == 0)
+
+
 def test_handles_different_resolutions(new_dataset):
 	assert(len(new_dataset) == 16)
 
 	for i in range(len(new_dataset)):
 		assert(new_dataset[i] != None)
+
+
+def test_normalise_by_folder(new_dataset):
+	with open('test_data/with_continents/6/DIV_norm.dat', 'w') as file:
+		file.write('-5000 5000')
+
+	data = new_dataset[0]
+
+	
+	old_min = torch.min(data['A_DIV'].view(1, -1))
+	old_max = torch.max(data['A_DIV'].view(1, -1))
+
+	old_data = data['A_DIV'][0][0][0]
+
+	with open('test_data/with_continents/6/DIV_norm.dat', 'w') as file:
+		file.write('-10000 10000')
+
+	# Get data with new norm
+	data = new_dataset[0]
+
+	new_data = data['A_DIV'][0][0][0]
+
+	new_min = torch.min(data['A_DIV'].view(1, -1))
+	assert(new_data == old_data / 2)
+	
 
 
 # def test_load_continent_data(new_dataset):
