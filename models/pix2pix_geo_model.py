@@ -17,8 +17,8 @@ import skimage.io as io
 from scipy.spatial.distance import directed_hausdorff, euclidean
 from skimage.filters import roberts
 
-from metrics.hausdorff import get_hausdorff
-# from metrics.ot import get_em_distance
+from metrics.hausdorff import get_hausdorff, get_hausdorff_exc
+from metrics.ot import get_em_distance
 
 import sys
 
@@ -437,11 +437,35 @@ class Pix2PixGeoModel(BaseModel):
         # to the generator this time
 
         self.loss_G_GAN = 0
-
+            
         if self.opt.num_discrims > 0:
             # Conditional data (input with chunk missing + mask) + fake data
             # Remember self.fake_B_discrete is the generator output
-            fake_AB = torch.cat((self.real_A_discrete, self.mask.float(), self.fake_B_discrete), dim=1)
+            fake_AB = self.real_A_discrete
+            
+            if not self.opt.no_mask_to_critic:
+                fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
+            
+            fake_AB = torch.cat((fake_AB, self.fake_B_discrete), dim=1)
+            # Mean across batch, then across discriminators
+            # We only optimise with respect to the fake prediction because
+            # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
+            pred_fake1 = torch.cat([self.criterionGAN(netD1(fake_AB), True) for netD1 in self.netD1s]).mean()
+            
+            self.loss_G_GAN1 = pred_fake1
+            
+            # Trying to incentivise making this big, so it's mistaken for real
+            self.loss_G_GAN = self.loss_G_GAN1
+        
+            if not self.opt.discrete_only:
+                # Conditional data (input with chunk missing + mask) + fake DIV, Vx and Vy data
+                fake_AB = self.real_A_discrete
+            
+                if not self.opt.no_mask_to_critic:
+                    fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1),
+            
+                fake_AB = torch.cat((fake_AB, self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
+
             # Mean across batch, then across discriminators
             # We only optimise with respect to the fake prediction because
             # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
@@ -704,8 +728,13 @@ class Pix2PixGeoModel(BaseModel):
         d_h_precision = 0.0
         d_h_symmetric = 0.0
 
+        d_h_recall_exc = 0.0
+        d_h_precision_exc = 0.0
+        d_h_symmetric_exc = 0.0
 
-        for c in np.unique(self.real_B_classes.data.numpy()):
+
+        # for c in np.unique(self.real_B_classes.data.numpy()):
+        for c in [0, 2]:
             fake_channel = self.fake_B_one_hot.numpy().squeeze()[c]
             real_channel = self.real_B_discrete.data.numpy().squeeze()[c]
            
@@ -727,16 +756,26 @@ class Pix2PixGeoModel(BaseModel):
                 # d_h_s = max(d_h_s, max(d_h_fr, d_h_rf))
 
             d_h_p, d_h_r, d_h_s = get_hausdorff(fake_channel, real_channel)
+            
+            d_h_p_exc, d_h_r_exc, d_h_s_exc = get_hausdorff_exc(fake_channel, real_channel)
 
             d_h_recall = max(d_h_recall, d_h_r)
             d_h_precision = max(d_h_precision, d_h_p)
             d_h_symmetric = max(d_h_symmetric, d_h_s)
+
+            d_h_recall_exc = max(d_h_recall_exc, d_h_r_exc)
+            d_h_precision_exc = max(d_h_precision_exc, d_h_p_exc)
+            d_h_symmetric_exc = max(d_h_symmetric_exc, d_h_s_exc)
 
             # metrics.append(('EMD class %d' % c, get_em_distance(fake_channel, real_channel)))
  
         metrics.append(('Hausdorff distance (R)', d_h_recall))
         metrics.append(('Hausdorff distance (P)', d_h_precision))
         metrics.append(('Hausdorff distance (S)', d_h_symmetric))
+
+        metrics.append(('Hausdorff distance (R - exc)', d_h_recall_exc))
+        metrics.append(('Hausdorff distance (P - exc)', d_h_precision_exc))
+        metrics.append(('Hausdorff distance (S - exc)', d_h_symmetric_exc))
 
         # metrics.append(('Average precision', np.mean(precisions)))
         # metrics.append(('Average recall', np.mean(recalls)))
@@ -751,6 +790,10 @@ class Pix2PixGeoModel(BaseModel):
         d_h_recall = []
         d_h_precision = []
         d_h_s = []
+        
+        d_h_recall_exc = []
+        d_h_precision_exc = []
+        d_h_s_exc = []
 
         ot_r = []
         ot_s = []
@@ -760,6 +803,10 @@ class Pix2PixGeoModel(BaseModel):
             d_h_precision.append(metric['Hausdorff distance (P)'])
             d_h_s.append(metric['Hausdorff distance (S)'])
             
+            d_h_recall_exc.append(metric['Hausdorff distance (R - exc)'])
+            d_h_precision_exc.append(metric['Hausdorff distance (P - exc)'])
+            d_h_s_exc.append(metric['Hausdorff distance (S - exc)'])
+            
             # ot_r.append(metric['EMD class 0'])
             # ot_s.append(metric['EMD class 2'])
 
@@ -768,6 +815,10 @@ class Pix2PixGeoModel(BaseModel):
             ('Hausdorff distance (R)', np.mean(d_h_recall)),
             ('Hausdorff distance (P)', np.mean(d_h_precision)),
             ('Hausdorff distance (S)', np.mean(d_h_s)),
+            
+            ('Hausdorff distance (R - exc)', np.mean(d_h_recall_exc)),
+            ('Hausdorff distance (P - exc)', np.mean(d_h_precision_exc)),
+            ('Hausdorff distance (S - exc)', np.mean(d_h_s_exc)),
             # ('EMD class 0', np.mean(ot_r)),
             # ('EMD class 2', np.mean(ot_s)),
             ])
