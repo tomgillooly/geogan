@@ -2,13 +2,11 @@ import torch
 import torchvision.transforms as transforms
 import torch.autograd as autograd
 from collections import OrderedDict
-from torch.autograd import Variable
 import util.util as util
 from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
 
-import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
@@ -36,26 +34,26 @@ def weights_init(m):
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0.0)
 
-class DiscriminatorWGANGP(nn.Module):
+class DiscriminatorWGANGP(torch.nn.Module):
 
     def __init__(self, in_dim, image_dims, dim=64):
         super(DiscriminatorWGANGP, self).__init__()
 
         def conv_ln_lrelu(in_dim, out_dim):
-            return nn.Sequential(
-                nn.Conv2d(in_dim, out_dim, 5, 2, 2),
+            return torch.nn.Sequential(
+                torch.nn.Conv2d(in_dim, out_dim, 5, 2, 2),
                 # Since there is no effective implementation of LayerNorm,
                 # we use InstanceNorm2d instead of LayerNorm here.
                 # Gulrajanis code uses TensorFlow batch normalisation
-                nn.InstanceNorm2d(out_dim, affine=True),
-                nn.LeakyReLU(0.2))
+                torch.nn.InstanceNorm2d(out_dim, affine=True),
+                torch.nn.LeakyReLU(0.2))
 
-        self.ls = nn.Sequential(
-            nn.Conv2d(in_dim, dim, 5, 2, 2), nn.LeakyReLU(0.2),         # (b, c, x, y) -> (b, dim, x/2, y/2)
+        self.ls = torch.nn.Sequential(
+            torch.nn.Conv2d(in_dim, dim, 5, 2, 2), torch.nn.LeakyReLU(0.2),         # (b, c, x, y) -> (b, dim, x/2, y/2)
             conv_ln_lrelu(dim, dim * 2),                                # (b, dim, x/2, y/2) -> (b, dim*2, x/4, y/4)
             conv_ln_lrelu(dim * 2, dim * 4),                            # (b, dim*2, x/4, y/4) -> (b, dim*4, x/8, y/8)
             conv_ln_lrelu(dim * 4, dim * 8),                            # (b, dim*4, x/8, y/8) -> (b, dim*8, x/16, y/16)
-            nn.Conv2d(dim * 8, 1, 
+            torch.nn.Conv2d(dim * 8, 1, 
                 (int(image_dims[0]/16 + 0.5), int(image_dims[1]/16 + 0.5)))) # (b, dim*8, x/16, y/16) -> (b, 1, 1, 1)
 
     def forward(self, x):
@@ -77,14 +75,14 @@ class Pix2PixGeoModel(BaseModel):
                                       opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
 
         if not self.opt.discrete_only:
-            self.netG_DIV = nn.Sequential(
-                nn.Conv2d(in_channels=opt.output_nc, out_channels=1, kernel_size=1),
+            self.netG_DIV = torch.nn.Sequential(
+                torch.nn.Conv2d(in_channels=opt.output_nc, out_channels=1, kernel_size=1),
                 )
-            self.netG_Vx = nn.Sequential(
-                nn.Conv2d(in_channels=opt.output_nc, out_channels=1, kernel_size=1),
+            self.netG_Vx = torch.nn.Sequential(
+                torch.nn.Conv2d(in_channels=opt.output_nc, out_channels=1, kernel_size=1),
                 )
-            self.netG_Vy = nn.Sequential(
-                nn.Conv2d(in_channels=opt.output_nc, out_channels=1, kernel_size=1),
+            self.netG_Vy = torch.nn.Sequential(
+                torch.nn.Conv2d(in_channels=opt.output_nc, out_channels=1, kernel_size=1),
                 )
 
             if len(self.gpu_ids) > 0:
@@ -171,8 +169,8 @@ class Pix2PixGeoModel(BaseModel):
                 self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan,
                     tensor=self.Tensor)
 
-            self.criterionL2 = torch.nn.MSELoss(size_average=True)
-            self.criterionCE = torch.nn.NLLLoss2d
+            self.criterionL2 = torch.torch.nn.MSELoss(size_average=True)
+            self.criterionCE = torch.torch.nn.NLLLoss2d
 
             # initialize optimizers
             self.schedulers = []
@@ -263,24 +261,24 @@ class Pix2PixGeoModel(BaseModel):
 
     def forward(self):
         # Thresholded, one-hot divergence map with chunk missing
-        self.real_A_discrete = Variable(self.input_A)
+        self.real_A_discrete = torch.autograd.Variable(self.input_A)
         # Complete thresholded, one-hot divergence map
-        self.real_B_discrete = Variable(self.input_B)
+        self.real_B_discrete = torch.autograd.Variable(self.input_B)
 
         if not self.opt.discrete_only:
             # Continuous divergence map with chunk missing
-            self.real_A_DIV = Variable(self.input_A_DIV)
+            self.real_A_DIV = torch.autograd.Variable(self.input_A_DIV)
             # Vector fields with chunk missing
-            self.real_A_Vx = Variable(self.input_A_Vx)
-            self.real_A_Vy = Variable(self.input_A_Vy)
+            self.real_A_Vx = torch.autograd.Variable(self.input_A_Vx)
+            self.real_A_Vy = torch.autograd.Variable(self.input_A_Vy)
             # Complete continuous divergence map
-            self.real_B_DIV = Variable(self.input_B_DIV)
+            self.real_B_DIV = torch.autograd.Variable(self.input_B_DIV)
             # Complete vector field
-            self.real_B_Vx = Variable(self.input_B_Vx)
-            self.real_B_Vy = Variable(self.input_B_Vy)
+            self.real_B_Vx = torch.autograd.Variable(self.input_B_Vx)
+            self.real_B_Vy = torch.autograd.Variable(self.input_B_Vy)
 
         # Mask of inpainted region
-        self.mask = Variable(self.mask)
+        self.mask = torch.autograd.Variable(self.mask)
         
         # Produces three channel output with class probability assignments
         # Input is one-hot image with chunk missing, conditional data is mask
@@ -309,20 +307,20 @@ class Pix2PixGeoModel(BaseModel):
 
     # no backprop gradients
     def test(self):
-        self.real_A_discrete = Variable(self.input_A, volatile=True)
-        self.real_B_discrete = Variable(self.input_B, volatile=True)
+        self.real_A_discrete = torch.autograd.Variable(self.input_A, volatile=True)
+        self.real_B_discrete = torch.autograd.Variable(self.input_B, volatile=True)
 
         if not self.opt.discrete_only:
-            self.real_A_DIV = Variable(self.input_A_DIV)
-            self.real_A_Vx = Variable(self.input_A_Vx)
-            self.real_A_Vy = Variable(self.input_A_Vy)
-            self.real_B_DIV = Variable(self.input_B_DIV)
-            self.real_B_Vx = Variable(self.input_B_Vx)
-            self.real_B_Vy = Variable(self.input_B_Vy)
+            self.real_A_DIV = torch.autograd.Variable(self.input_A_DIV)
+            self.real_A_Vx = torch.autograd.Variable(self.input_A_Vx)
+            self.real_A_Vy = torch.autograd.Variable(self.input_A_Vy)
+            self.real_B_DIV = torch.autograd.Variable(self.input_B_DIV)
+            self.real_B_Vx = torch.autograd.Variable(self.input_B_Vx)
+            self.real_B_Vy = torch.autograd.Variable(self.input_B_Vy)
         
-        self.mask = Variable(self.mask)
+        self.mask = torch.autograd.Variable(self.mask)
         
-        # mask_var = Variable(self.mask.float(), volatile=True)
+        # mask_var = torch.autograd.Variable(self.mask.float(), volatile=True)
         self.fake_B_discrete = self.netG(torch.cat((self.real_A_discrete, self.mask.float()), dim=1))
 
         if not self.opt.discrete_only:
@@ -391,7 +389,7 @@ class Pix2PixGeoModel(BaseModel):
 
         grad_pen = torch.zeros((1))
         grad_pen = grad_pen.cuda() if len(self.gpu_ids) > 0 else grad_pen
-        grad_pen = Variable(grad_pen, requires_grad=False)
+        grad_pen = torch.autograd.Variable(grad_pen, requires_grad=False)
 
         if self.opt.which_model_netD == 'wgan-gp':
             grad_pen = self.calc_gradient_penalty(net_D, real_AB.data, fake_AB.data)
@@ -491,7 +489,7 @@ class Pix2PixGeoModel(BaseModel):
         # if we aren't taking local loss, use entire image
         loss_mask = torch.ones(self.mask.shape).byte()
         loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
-        loss_mask = Variable(loss_mask)
+        loss_mask = torch.autograd.Variable(loss_mask)
 
         im_dims = self.mask.shape[2:]
 
