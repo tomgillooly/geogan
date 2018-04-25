@@ -5,6 +5,11 @@ except ImportError:
 
 
 class VariableMock(mock.MagicMock):
+	def set_name(self, name):
+		self.name = name
+
+		return self
+
 	def float(self):
 		self.name += '_float'
 
@@ -12,15 +17,17 @@ class VariableMock(mock.MagicMock):
 
 
 def softmax_stub(mock, dim):
-	mock.name += '_softmax'
+	m = mock.copy()
+	m.name += '_softmax'
 
-	return mock
+	return m
 
 
 def max_stub(mock, dim, keepdim):
-	mock.name += '_max'
+	m = mock.copy()
+	m.name += '_max'
 
-	return mock
+	return m
 
 
 class DatasetMock(dict):
@@ -45,7 +52,6 @@ def cat_stub(mocks, dim):
 
 
 def variable_stub(mock):
-	v = VariableMock()
-	v.name = mock.name
+	v = VariableMock().set_name(mock.name)
 
 	return v
