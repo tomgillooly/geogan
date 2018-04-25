@@ -78,8 +78,8 @@ def test_generator(basic_gan):
 	gan.set_input(fake_dataset)
 	gan.forward()
 
-	assert(MockGenerator.call_args[0][0] == (['A', 'mask_float']))
 	print(MockGenerator.call_args)
+	assert(MockGenerator.call_args[0][0].name == (['A', 'mask_float']))
 
 
 def test_generator_discriminator(basic_gan):
@@ -98,7 +98,7 @@ def test_generator_discriminator(basic_gan):
 	gan.set_input(fake_dataset)
 	gan.forward()
 
-	assert(MockGenerator.call_args[0][0] == (['A', 'mask_float']))
+	assert(MockGenerator.call_args[0][0].name == (['A', 'mask_float']))
 	
 
 	for netD1 in gan.netD1s:
@@ -106,8 +106,11 @@ def test_generator_discriminator(basic_gan):
 
 	for netD2 in gan.netD1s:
 		assert(not netD1.called)
-		# assert(netD1.call_args[0][0] == )
 
+	opt.low_iter = 1
+	opt.high_iter = 1
+
+	# gan.optimize_parameters(step_no=1)
 
 
 
@@ -132,7 +135,7 @@ def test_generator_w_continuous(basic_gan):
 
 	# call args structure is ((list of args as tuple), {list of keyword args})
 	# So [0][0] accesses first non-keyword arg
-	assert(gan.netG.call_args[0][0] == ['A', 'mask_float'])
+	assert(gan.netG.call_args[0][0].name == ['A', 'mask_float'])
 	assert(gan.netG_DIV.call_args[0][0].name == 'fake_discrete_output')
 	assert(gan.netG_Vx.call_args[0][0].name == 'fake_discrete_output')
 	assert(gan.netG_Vy.call_args[0][0].name == 'fake_discrete_output')

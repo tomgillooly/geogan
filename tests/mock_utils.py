@@ -48,7 +48,16 @@ def zeros_stub(shape):
 
 
 def cat_stub(mocks, dim):
-	return [mock.name for mock in mocks]
+	name_list = []
+	for mock in mocks:
+		if type(mock.name) == list:
+			name_list += mock.name
+		else:
+			name_list.append(mock.name)
+	v = VariableMock()
+	v.name = name_list
+
+	return v
 
 
 def variable_stub(mock):
