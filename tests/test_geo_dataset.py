@@ -2,25 +2,27 @@ import glob
 import os
 import pytest
 import shutil
+import skimage.io as io
 import torch
 import tempfile
 
 from collections import namedtuple
-from data.geo_dataset import GeoDataset, get_dat_files
+from data.geo_dataset import GeoDataset, get_dat_files, DataGenException
 
-@pytest.fixture
-def dataset():
+@pytest.fixture(scope='module')
+def dataset(pytestconfig):
 	# put together basic options class to pass to dataset builder
 	inpaint_file_parent = tempfile.mkdtemp(dir='/tmp')
 	inpaint_file_dir = os.path.join(inpaint_file_parent, 'test')
 
 	os.mkdir(inpaint_file_dir)
 
-	options_dict = dict(dataroot=os.path.expanduser('~/data/geology/'), phase='test',
+	options_dict = dict(dataroot=os.path.expanduser(pytestconfig.option.dataroot), phase='test',
 		# inpaint_file_dir=os.path.expanduser('~/data/geology/'), resize_or_crop='resize_and_crop',
 		inpaint_file_dir=inpaint_file_parent, resize_or_crop='resize_and_crop',
 	    loadSize=256, fineSize=256, which_direction='AtoB',
-	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False)
+	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False,
+	    continent_data=False)
 	Options = namedtuple('Options', options_dict.keys())
 	opt = Options(*options_dict.values())
 
@@ -75,15 +77,15 @@ def test_mask_x_y_locations(dataset):
 
 
 # Code seems to do this if there's a problem
-def test_mask_not_at_0_0(dataset):
-	for i in range(10):
-		x1 = dataset[i]['mask_x1'][0]
-		x2 = dataset[i]['mask_x2'][0]
-		y1 = dataset[i]['mask_y1'][0]
-		y2 = dataset[i]['mask_y2'][0]
+# def test_mask_not_at_0_0(dataset):
+# 	for i in range(10):
+# 		x1 = dataset[i]['mask_x1'][0]
+# 		x2 = dataset[i]['mask_x2'][0]
+# 		y1 = dataset[i]['mask_y1'][0]
+# 		y2 = dataset[i]['mask_y2'][0]
 	
-		assert(x1 != 0)
-		assert(y1 != 0)
+# 		assert(x1 != 0)
+# 		assert(y1 != 0)
 
 
 def test_B_is_A_with_region_replaced_discrete(dataset):
@@ -182,8 +184,14 @@ def test_directory_name_is_prepended_in_image_path(dataset):
 	[shutil.copy(file, temp_data_dir_1) for file in glob.glob(dataroot + '/test/serie100001_project_*.dat')]
 	[shutil.copy(file, temp_data_dir_2) for file in glob.glob(dataroot + '/test/serie100002_project_*.dat')]
 	[shutil.copy(file, temp_data_dir_3) for file in glob.glob(dataroot + '/test/serie100003_project_*.dat')]
+	[shutil.copy(file, temp_data_dir_3) for file in glob.glob(dataroot + '/test/serie100004_project_*.dat')]
 	[shutil.copy(file, temp_data_dir_4) for file in glob.glob(dataroot + '/test/serie100004_project_*.dat')]
 	[shutil.copy(file, temp_data_parent) for file in glob.glob(dataroot + '/test/serie100004_project_*.dat')]
+
+	for folder in [temp_data_parent, temp_data_dir_1, temp_data_dir_2, temp_data_dir_3, temp_data_dir_4]:
+		for tag in ['DIV', 'Vx', 'Vy']:
+			with open(os.path.join(folder, tag + '_norm.dat'), 'w') as file:
+				file.write('-10000 10000')
 
 	# Check they're in the target directory
 	glob.glob(os.path.join(temp_data_parent, '*.dat'))[0]
@@ -192,17 +200,18 @@ def test_directory_name_is_prepended_in_image_path(dataset):
 	glob.glob(os.path.join(temp_data_dir_3, '*.dat'))[0]
 	glob.glob(os.path.join(temp_data_dir_4, '*.dat'))[0]
 
-	div_files, vx_files, vy_files = get_dat_files(temp_data_parent)
+	div_files, vx_files, vy_files, _ = get_dat_files(temp_data_parent)
 
-	assert(len(div_files) == 5)
-	assert(len(vx_files) == 5)
-	assert(len(vy_files) == 5)
+	assert(len(div_files) == 6)
+	assert(len(vx_files) == 6)
+	assert(len(vy_files) == 6)
 
 	# Now build a second dataset using this dummy directory
 	options_dict = dict(dataroot=temp_data_parent, phase='',
 		inpaint_file_dir=temp_data_parent, resize_or_crop='resize_and_crop',
 	    loadSize=256, fineSize=256, which_direction='AtoB',
-	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False)
+	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False,
+	    continent_data=False)
 	Options = namedtuple('Options', options_dict.keys())
 	opt = Options(*options_dict.values())
 
@@ -211,8 +220,107 @@ def test_directory_name_is_prepended_in_image_path(dataset):
 
 	# print(geo[0]['A_paths'])
 	# Folders get flattened out
-	assert(geo[0]['A_paths'] == os.path.join(temp_data_parent, 'serie_01_100001'))
-	assert(geo[1]['A_paths'] == os.path.join(temp_data_parent, 'serie_02_100002'))
-	assert(geo[2]['A_paths'] == os.path.join(temp_data_parent, 'serie_03_100003'))
-	assert(geo[3]['A_paths'] == os.path.join(temp_data_parent, 'serie_04_100004'))
-	assert(geo[4]['A_paths'] == os.path.join(temp_data_parent, 'serie_100004'))
+	# Sorted by directory, THEN by series number!
+
+	assert(geo[0]['A_paths'] == os.path.join(temp_data_parent, 'serie_100004'))
+	assert(geo[1]['A_paths'] == os.path.join(temp_data_parent, 'serie_01_100001'))
+	assert(geo[2]['A_paths'] == os.path.join(temp_data_parent, 'serie_02_100002'))
+	assert(geo[3]['A_paths'] == os.path.join(temp_data_parent, 'serie_03_100003'))
+
+	# Sorted by directory, THEN by series number!
+	assert(geo[4]['A_paths'] == os.path.join(temp_data_parent, 'serie_03_100004'))
+	assert(geo[5]['A_paths'] == os.path.join(temp_data_parent, 'serie_04_100004'))
+
+
+def test_no_continent_data_by_default(dataset):
+	data = dataset[0]
+	assert(not 'continents' in data.keys())
+
+
+@pytest.fixture(scope='module')
+def new_dataset():
+	options_dict = dict(dataroot='test_data/with_continents', phase='',
+		inpaint_file_dir='test_data/with_continents', resize_or_crop='resize_and_crop',
+		# inpaint_file_dir=tempfile.mkdtemp(dir='/tmp'), resize_or_crop='resize_and_crop',
+	    loadSize=256, fineSize=256, which_direction='AtoB',
+	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False,
+	    continent_data=True)
+	Options = namedtuple('Options', options_dict.keys())
+	opt = Options(*options_dict.values())
+
+	geo = GeoDataset()
+	geo.initialize(opt)
+
+	return geo
+
+
+def test_default_continent_map_is_blank():
+	options_dict = dict(dataroot='test_data/no_continents', phase='',
+		inpaint_file_dir='test_data/no_continents', resize_or_crop='resize_and_crop',
+		# inpaint_file_dir=tempfile.mkdtemp(dir='/tmp'), resize_or_crop='resize_and_crop',
+	    loadSize=256, fineSize=256, which_direction='AtoB',
+	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False,
+	    continent_data=True)
+	Options = namedtuple('Options', options_dict.keys())
+	opt = Options(*options_dict.values())
+
+	geo = GeoDataset()
+	geo.initialize(opt)
+
+	data = geo[0]
+	assert(torch.sum(data['continents']) == 0)
+
+
+def test_handles_different_resolutions(new_dataset):
+	assert(len(new_dataset) == 16)
+
+	for i in range(len(new_dataset)):
+		assert(new_dataset[i] != None)
+
+
+def test_normalise_by_folder(new_dataset):
+	with open('test_data/with_continents/6/DIV_norm.dat', 'w') as file:
+		file.write('-5000 5000')
+
+	data = new_dataset[0]
+
+	
+	old_min = torch.min(data['A_DIV'].view(1, -1))
+	old_max = torch.max(data['A_DIV'].view(1, -1))
+
+	old_data = data['A_DIV'][0][0][0]
+
+	with open('test_data/with_continents/6/DIV_norm.dat', 'w') as file:
+		file.write('-10000 10000')
+
+	# Get data with new norm
+	data = new_dataset[0]
+
+	new_data = data['A_DIV'][0][0][0]
+
+	new_min = torch.min(data['A_DIV'].view(1, -1))
+	assert(new_data == old_data / 2)
+	
+
+
+# def test_load_continent_data(new_dataset):
+# 	import skimage.io as io
+# 	# options_dict = dict(dataroot='test_data', phase='',
+# 	# 	inpaint_file_dir='test_data', resize_or_crop='resize_and_crop',
+# 	# 	# inpaint_file_dir=tempfile.mkdtemp(dir='/tmp'), resize_or_crop='resize_and_crop',
+# 	#     loadSize=256, fineSize=256, which_direction='AtoB',
+# 	#     input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False,
+# 	#     continent_data=True)
+# 	# Options = namedtuple('Options', options_dict.keys())
+# 	# opt = Options(*options_dict.values())
+
+# 	# geo = GeoDataset()
+# 	# geo.initialize(opt)
+	
+# 	# data = geo[0]
+# 	for data in new_dataset:
+
+# 		continents = data['continents']
+		
+# 		io.imshow(data['continents'].numpy().squeeze())
+# 		io.show()

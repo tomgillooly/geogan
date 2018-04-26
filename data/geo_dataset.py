@@ -15,6 +15,7 @@ from skimage.morphology import skeletonize, label, remove_small_objects, remove_
 from skimage.measure import regionprops
 import numpy as np
 
+
 EARTH_SURFACE_VELOCITY = 3.956e-2
 MODEL_SURFACE_VELOCITY = 700
 
@@ -33,6 +34,18 @@ MODEL_SURFACE_VELOCITY = 700
 
 #     return img
 
+class DataGenException(Exception):
+    def __init__(self, error_msg, img):
+        super().__init__(error_msg)
+        self.img = img
+
+
+def get_series_number(path):
+    match = re.search('serie1?_?(\d+)_?', path)            
+
+    return int(match.group(1))
+
+
 def get_dat_files(topdir):
     # DIV_paths = glob.glob(os.path.join(topdir, '*_DIV.dat'))
     # Vx_paths = glob.glob(os.path.join(topdir, '*_Vx.dat'))
@@ -45,23 +58,65 @@ def get_dat_files(topdir):
     DIV_paths = []
     Vx_paths = []
     Vy_paths = []
+    cont_paths = []
 
     for root, dirs, _ in os.walk(topdir):
-        DIV_paths += glob.glob(os.path.join(root, '*_DIV.dat'))
-        Vx_paths += glob.glob(os.path.join(root, '*_Vx.dat'))
-        Vy_paths += glob.glob(os.path.join(root, '*_Vy.dat'))
-        
+        DIV_paths += sorted(glob.glob(os.path.join(root, '*_DIV.dat')), key=get_series_number)
+        Vx_paths += sorted(glob.glob(os.path.join(root, '*_Vx.dat')), key=get_series_number)
+        Vy_paths += sorted(glob.glob(os.path.join(root, '*_Vy.dat')), key=get_series_number)
+        cont_paths += sorted(glob.glob(os.path.join(root, '*_cont.dat')), key=get_series_number)
+
+        # Make sure they're in numerical order before we recurse into them
+        dirs.sort(key=int)
+
         # for directory in dirs:
         #     DIV_paths += glob.glob(os.path.join(root, directory, '*_DIV.dat'))
         #     Vx_paths += glob.glob(os.path.join(root, directory, '*_Vx.dat'))
         #     Vy_paths += glob.glob(os.path.join(root, directory, '*_Vy.dat'))
 
 
-    DIV_paths = sorted(DIV_paths)
-    Vx_paths = sorted(Vx_paths)
-    Vy_paths = sorted(Vy_paths)
+    return DIV_paths, Vx_paths, Vy_paths, cont_paths
 
-    return DIV_paths, Vx_paths, Vy_paths
+def read_geo_file(path):
+    data = OrderedDict()
+
+    with open(path) as file:
+        try:
+            lines = file.read().splitlines()
+
+            if len(lines[0].split()) == 1:
+                data['values'] = np.array([float(line) for line in lines])
+        
+            else:
+                data['x'] = np.array([float(line.split()[0]) for line in lines])
+                data['y'] = np.array([float(line.split()[1]) for line in lines])
+                data['values'] = np.array([float(line.split()[2]) for line in lines])
+
+        except ValueError as ex:
+            print(path)
+            raise ex
+
+    return data
+
+
+def get_file_tag(path):
+    return os.path.splitext(path)[0].split('_')[-1]
+
+
+def create_one_hot(image, threshold):
+    ridge = skeletonize(image >= threshold).astype(float)
+    subduction = skeletonize(image <= -threshold).astype(float)
+    plate = np.ones(ridge.shape, dtype=float)
+    plate[np.where(np.logical_or(ridge == 1, subduction == 1))] = 0
+
+    return np.stack((ridge, plate, subduction), axis=2)
+
+
+def mask_out_inpaint_region(im, mask):
+    im = im.copy()
+    im[np.where(mask)] = 0
+
+    return im
 
 
 class GeoDataset(BaseDataset):
@@ -71,14 +126,10 @@ class GeoDataset(BaseDataset):
         self.dir_A = os.path.join(opt.dataroot, opt.phase)
         self.A_paths = []
 
-        # for root, dirs, files in os.walk(self.dir_A):
-        #     self.A_paths += [os.path.join(root, file) for file in files]
+        data_paths = get_dat_files(self.dir_A)
 
-        # self.A_paths = [path for path in self.A_paths if path.endswith(".dat")]
-
-        DIV_paths, Vx_paths, Vy_paths = get_dat_files(self.dir_A)
-
-        self.A_paths = list(zip(DIV_paths, Vx_paths, Vy_paths))
+        # If there's no continent data, remove so we don't end up with zero paths after zip
+        self.A_paths = list(zip(*[path for path in data_paths if path]))
         
         assert(len(self.A_paths) > 0)
 
@@ -86,7 +137,6 @@ class GeoDataset(BaseDataset):
 
         self.inpaint_regions_file = os.path.join(opt.inpaint_file_dir, opt.phase, 'inpaint_regions')
         self.inpaint_regions = [None]*len(self.A_paths)
-        # self.inpaint_regions_file = os.path.join(opt.phase, 'inpaint_regions')
         
         if os.path.exists(self.inpaint_regions_file):
             with open(self.inpaint_regions_file) as file:
@@ -96,195 +146,44 @@ class GeoDataset(BaseDataset):
                     except ValueError:
                         continue
 
-    def __getitem__(self, index):
-        DIV_path, Vx_path, Vy_path = self.A_paths[index]
 
-        series_number = re.search('serie(\d+)', DIV_path).group(1)
+    def update_inpaint_regions_from_file(self):
+        with open(self.inpaint_regions_file, 'a+') as file:
+            file.seek(0)
 
-        # Check that they're all the same series number, as glob doesn't always
-        # return the files in the correct order
-        assert(series_number in Vx_path)
-        assert(series_number in Vy_path)
-
-        def format_correct(file_path):
-            with open(file_path) as file:
-                line = file.readline()
-                file.seek(0)
-
-                return len(line.split()) == 1
-
-        while not format_correct(DIV_path):
-            self.A_paths.pop(index)
-            # A_path = self.A_paths[index]
-            DIV_path, Vx_path, Vy_path = self.A_paths[index]
-
-        series_number = re.search('serie(\d+)', DIV_path).group(1)
-
-        match = re.search('(/\d+)?/serie(\d+)', DIV_path)
-        
-        dir_tag = '_' + match.group(1)[1:] + '_' if match.group(1) else '_'
-
-        series = 'serie' + dir_tag + match.group(2)
-
-
-        # imgnames=get_img_names(inputdir, max=0)
-
-        # DEBUG : only use 2 images!
-        # imgnames = [ imgnames[0], imgnames[1]]
-
-        # N=len(imgnames)
-        rows = 256
-        cols = 512
-        depth = 1
-        # print('Writing', filename)
-
-        #filename_queue = tf.train.string_input_producer(["test2.csv"])
-
-        # inputs = torch.FloatTensor(N, 1, rows, cols).zero_()
-        # targets = torch.FloatTensor(N, 1, rows, cols).zero_()
-
-            # sys.stdout.write("Reading {} ({}/{})".format(imgn,index+1, N))
-
-        # Read the image into an array
-        # A = np.empty([cols,rows], dtype=np.float32)
-        # A = np.empty([cols,rows], dtype=np.float32)
-        # A = np.empty([cols,rows], dtype=np.float32)
-            # r=0
-            # c=0
-
-        # It is possible to do an interpolation here, but it's really slow
-        # and ends up looking about the same
-        def read_geo_file(path):
-            with open(path) as file:
+            for idx, line in enumerate(file):
                 try:
-                    data = list(map(float, file.read().split()))
-                except ValueError as ex:
-                    print(path)
-                    raise ex
+                    self.inpaint_regions[idx] = tuple([int(param.lstrip()) for param in line.rstrip().split(',')])
+                except ValueError:
+                    continue
 
-                if len(data) > rows*cols*depth:
-                    assert(len(data) == rows*cols*3)
 
-                    x = np.array([data[i] for i in range(0, len(data), 3)])
-                    y = np.array([data[i] for i in range(1, len(data), 3)])
-                    data = np.array([data[i] for i in range(2, len(data), 3)]).reshape((rows, cols), order='C')
-
-                    return x, y, data
-
-                return np.array(data).reshape((rows, cols), order='C')
-
-        A_DIV_orig = read_geo_file(DIV_path)
-        x, y, A_Vx = read_geo_file(Vx_path)
-        x, y, A_Vy = read_geo_file(Vy_path)
-
-        A_Vx *= MODEL_SURFACE_VELOCITY / EARTH_SURFACE_VELOCITY
-        A_Vy *= MODEL_SURFACE_VELOCITY / EARTH_SURFACE_VELOCITY
-
-        # print(A_Vx.ravel().max())
-        # print(A_Vy.ravel().max())
-
-        # A = Image.fromarray(A.astype(np.uint8))
-        A_DIV_orig = resize(A_DIV_orig, (self.opt.fineSize, self.opt.fineSize * 2), mode='constant')
-        A_Vx = resize(A_Vx, (self.opt.fineSize, self.opt.fineSize * 2), mode='constant')
-        A_Vy = resize(A_Vy, (self.opt.fineSize, self.opt.fineSize * 2), mode='constant')
-
-        A_DIV = A_DIV_orig
-
-        # grad_y = np.flip(np.gradient(np.flip(A_Vy, axis=0), np.unique(y), axis=0, edge_order=2), axis=0)
-        grad_y = np.flip(np.gradient(np.flip(A_Vy, axis=0), 1e-2, axis=0, edge_order=2), axis=0)
-        # grad_x = np.gradient(A_Vx, np.unique(x), axis=1, edge_order=2)
-        grad_x = np.gradient(A_Vx, 1e-2, axis=1, edge_order=2)
-
-        # A_DIV = grad_x + grad_y
-
-        # plt.subplot(121)
-        # io.imshow(A)
-        # plt.subplot(122)
-        # io.imshow(test_DIV)
-        # plt.show()
-
-        # w = A.shape[1]
-        # h = A.shape[0]
-        
-        # w_offset = random.randint(0, max(0, w - self.opt.fineSize - 1))
-        # h_offset = random.randint(0, max(0, h - self.opt.fineSize - 1))
-
-        # A = A[h_offset:h_offset + self.opt.fineSize,
-        #        w_offset:w_offset + self.opt.fineSize]
-        
-        def threshold(image):
-            def threshold_pixel(pixel):
-                if pixel.shape:
-                    return np.array(list(map(threshold_pixel, pixel)))
-
-                if pixel < -self.opt.div_threshold:
-                    return -1
-                elif pixel > self.opt.div_threshold:
-                    return 1
+    def update_inpaint_regions_file(self):
+        with open(self.inpaint_regions_file, 'w') as file:
+            file.seek(0)
+            for idx, region in enumerate(self.inpaint_regions):
+                if not region:
+                    file.write("None\n")
                 else:
-                    return 0
-            
-            return np.array(list(map(threshold_pixel, image)))
+                    file.write("{0},{1},{2}\n".format(*region))
 
-        def skeleton(image):
-            pos = image > 0
-            neg = image < 0 
-
-            pos_skel = skeletonize(pos)
-            neg_skel = skeletonize(neg)
-
-            return 0.0 + pos_skel - neg_skel
+            file.truncate()
 
 
-        # def remove_small_components(image):
-        #     conn_comp = label((image*2).astype(int), neighbors=8, background=1)
-
-        #     areas = [prop.area for prop in regionprops(conn_comp, image)]
-
-        #     perc_70th = sorted(areas)[int(.7 * len(areas))]
-        #     remove_small_objects(conn_comp, perc_70th-1, connectivity=2, in_place=True)
-
-        #     image[np.where(np.invert(conn_comp.astype(bool)))] = 0.5
-
-        #     return image
-
-        # B = np.zeros(A.shape)
-        # if self.process.startswith("threshold"):
-        # elif self.process.startswith("skeleton"):
-        #     B = skeleton(A)
-
-        def create_one_hot(image):
-            ridge = skeletonize(image >= self.opt.div_threshold).astype(float)
-            subduction = skeletonize(image <= -self.opt.div_threshold).astype(float)
-            plate = np.ones(ridge.shape, dtype=float)
-            plate[np.where(np.logical_or(ridge == 1, subduction == 1))] = 0
-
-            return np.stack((ridge, plate, subduction), axis=2)
-
-        A = create_one_hot(A_DIV)
-
+    def get_inpaint_region(self, index, A, h, w):
         if not self.inpaint_regions[index]:
             # If we have a batch size > 1, we need to update our inpaint regions
             # from the other thread
             # Also, we have to do this in stages because the file.seek(0) doesnt seem
             # to work when we do it twice inside one context manager block
-            with open(self.inpaint_regions_file, 'a+') as file:
-                file.seek(0)
+            # We can do this with multiprocessing Manager lists, but that can be done later
+            self.update_inpaint_regions_from_file()
 
-                for idx, line in enumerate(file):
+            # success = False
 
-                    try:
-                        self.inpaint_regions[idx] = tuple([int(param.lstrip()) for param in line.rstrip().split(',')])
-                    except ValueError:
-                        continue
-
-
-            w = A_DIV.shape[1]
-            h = A_DIV.shape[0]
-
-            success = False
-
-            while not success:
+            # while not success:
+            # 100 tries to find mask region
+            for i in range(100):
 
                 w_offset = random.randint(0, max(0, w - 100 - 1))
                 h_offset = random.randint(0, max(0, h - 100 - 1))
@@ -293,21 +192,81 @@ class GeoDataset(BaseDataset):
 
                 if np.sum(A[h_offset:h_offset+100, w_offset:w_offset+100, layer]) > 0 and np.sum(A[h_offset:h_offset+100, w_offset:w_offset+100, 2-layer]) > 0:
                     self.inpaint_regions[index] = (w_offset, h_offset, layer)
-                    
-                    success = True
+
+                    break
+
+            if i == 99:
+                raise DataGenException("Couldn't choose mask region in file " + self.A_paths[index][0], A)
+
+            self.update_inpaint_regions_file()
+
+        return self.inpaint_regions[index]
 
 
-            with open(self.inpaint_regions_file, 'w') as file:
-                file.seek(0)
-                for idx, region in enumerate(self.inpaint_regions):
-                    if not region:
-                        file.write("None\n")
-                    else:
-                        file.write("{0},{1},{2}\n".format(*region))
+    def __getitem__(self, index):
+        A_paths = self.A_paths[index]
 
-                file.truncate()
+        match = re.search('(/\d+)?/serie(\d+)', A_paths[0])
+
+        dir_tag = '_' + match.group(1)[1:] + '_' if match.group(1) else '_'
+        series_number = int(match.group(2))
+
+        # Check that all files are of the same series number, as glob doesn't always
+        # return the files in the correct order
         
-        w_offset, h_offset, layer = self.inpaint_regions[index]
+        s_no = series_number - 100000
+
+        assert all([get_series_number(path) == s_no for path in A_paths[1:]]), A_paths
+
+        series = 'serie' + dir_tag + str(series_number)
+
+        data = OrderedDict([(get_file_tag(path), read_geo_file(path)) for path in A_paths])
+
+        rows = len(np.unique(data['Vx']['y']))
+        cols = len(np.unique(data['Vx']['x']))
+
+        # It is possible to do an interpolation here, but it's really slow
+        # and ends up looking about the same
+        for key in data.keys():
+            data[key]['values'] = data[key]['values'].reshape((rows, cols), order='C')
+            data[key]['values'] = resize(data[key]['values'], (self.opt.fineSize, self.opt.fineSize * 2), mode='constant')
+
+        rows = 256
+        cols = 512
+
+        # A_DIV = data['DIV']['values']
+        # A_Vx = data['Vx']['values']
+        # A_Vy = data['Vy']['values']
+
+        # Create discrete image before we normalise
+        A = create_one_hot(data['DIV']['values'], self.opt.div_threshold)
+        
+        # We're done with x/y data now, so discard
+        A_data = [data[key]['values'] for key in data.keys() if key != 'cont']
+        # Normalise
+        A_DIV, A_Vx, A_Vy = A_data
+
+        folder_dir = os.path.dirname(A_paths[0])
+
+        def get_norm_data(tag):
+            with open(os.path.join(folder_dir, tag + '_norm.dat')) as file:
+                dmin, dmax = [float(x) for x in file.read().split()]
+
+                return dmin, dmax
+
+
+        A_DIV = np.interp(A_DIV, get_norm_data('DIV'), [-1, 1])
+        A_Vx = np.interp(A_Vx, get_norm_data('Vx'), [-1, 1])
+        A_Vy = np.interp(A_Vy, get_norm_data('Vy'), [-1, 1])
+
+        # if self.opt.continent_data
+
+        # Don't need this, as we're just normalising anyway
+        # A_Vx *= MODEL_SURFACE_VELOCITY / EARTH_SURFACE_VELOCITY
+        # A_Vy *= MODEL_SURFACE_VELOCITY / EARTH_SURFACE_VELOCITY
+        
+        w_offset, h_offset, layer = self.get_inpaint_region(index, A, rows, cols)
+        # w_offset, h_offset, layer = self.inpaint_regions[index]
         # print(w_offset, h_offset, layer)
 
         mask_x1 = w_offset
@@ -316,17 +275,19 @@ class GeoDataset(BaseDataset):
         mask_y1 = h_offset
         mask_y2 = h_offset+100
 
-        B_DIV = A_DIV.copy()
-        B_DIV[mask_y1:mask_y2, mask_x1:mask_x2] = 0
-        
-        B_Vx = A_Vx.copy()
-        B_Vx[mask_y1:mask_y2, mask_x1:mask_x2] = 0
-        
-        B_Vy = A_Vy.copy()
-        B_Vy[mask_y1:mask_y2, mask_x1:mask_x2] = 0
-        
-        mask = np.zeros(B_DIV.shape, dtype=np.uint8)
+        mask = np.zeros((rows, cols), dtype=np.uint8)
         mask[mask_y1:mask_y2, mask_x1:mask_x2] = 1
+
+        # B_DIV = A_DIV.copy()
+        # B_DIV[mask_y1:mask_y2, mask_x1:mask_x2] = 0
+        
+        # B_Vx = A_Vx.copy()
+        # B_Vx[mask_y1:mask_y2, mask_x1:mask_x2] = 0
+        
+        # B_Vy = A_Vy.copy()
+        # B_Vy[mask_y1:mask_y2, mask_x1:mask_x2] = 0
+
+        B_data = [mask_out_inpaint_region(data, mask) for data in [A_DIV, A_Vx, A_Vy]]
         
         B = A.copy()
 
@@ -339,30 +300,16 @@ class GeoDataset(BaseDataset):
         mask = np.expand_dims(mask, 2)
         mask = torch.ByteTensor(mask.transpose(2, 0, 1)).clone()
 
-        A_DIV = np.interp(A_DIV, [np.min(A_DIV), np.max(A_DIV)], [-1, 1])
-        A_Vx = np.interp(A_Vx, [np.min(A_Vx), np.max(A_Vx)], [-1, 1])
-        A_Vy = np.interp(A_Vy, [np.min(A_Vy), np.max(A_Vy)], [-1, 1])
+        # A_DIV = np.interp(A_DIV, [np.min(A_DIV), np.max(A_DIV)], [-1, 1])
+        # A_Vx = np.interp(A_Vx, [np.min(A_Vx), np.max(A_Vx)], [-1, 1])
+        # A_Vy = np.interp(A_Vy, [np.min(A_Vy), np.max(A_Vy)], [-1, 1])
 
-        B_DIV = np.interp(B_DIV, [np.min(B_DIV), np.max(B_DIV)], [-1, 1])
-        B_Vx = np.interp(B_Vx, [np.min(B_Vx), np.max(B_Vx)], [-1, 1])
-        B_Vy = np.interp(B_Vy, [np.min(B_Vy), np.max(B_Vy)], [-1, 1])
-        # B = create_one_hot(B_DIV)
-
-        # if self.process.startswith("skeleton"):
-        #     A = skeleton(A)
-        #     B = skeleton(B)
+        # B_DIV = np.interp(B_DIV, [np.min(B_DIV), np.max(B_DIV)], [-1, 1])
+        # B_Vx = np.interp(B_Vx, [np.min(B_Vx), np.max(B_Vx)], [-1, 1])
+        # B_Vy = np.interp(B_Vy, [np.min(B_Vy), np.max(B_Vy)], [-1, 1])
 
 
         def process_image(A, B, discrete=False):
-            # if len(A.shape) < 3:
-            #     A = np.tile(A, (3, 1, 1)).transpose(1, 2, 0)
-            #     B = np.tile(B, (3, 1, 1)).transpose(1, 2, 0)
-            
-            # A = A.transpose(1, 2)
-            # B = B.transpose(1, 2, 0)
-
-            
-
             if not discrete:
                 A = np.expand_dims(A, 2)
                 B = np.expand_dims(B, 2)
@@ -377,13 +324,25 @@ class GeoDataset(BaseDataset):
 
             return A, B
 
+        B_DIV, B_Vx, B_Vy = B_data
+
+        if self.opt.continent_data:
+            if 'cont' in data.keys():
+                continents = data['cont']['values']
+            else:
+                continents = np.zeros((rows, cols))
 
         A, B = process_image(A, B, discrete=True)
         A_DIV, B_DIV = process_image(A_DIV, B_DIV)
         A_Vx, B_Vx = process_image(A_Vx, B_Vx)
         A_Vy, B_Vy = process_image(A_Vy, B_Vy)
-        # A_DIV, B_DIV = torch.LongTensor(A_DIV.numpy()), torch.LongTensor(B_DIV.numpy())
 
+        if self.opt.continent_data:
+            continents = (continents > 0).astype(np.uint8)
+            continents = np.expand_dims(continents, 2)
+            continents = continents.transpose(2, 0, 1)
+            
+            continents = torch.ByteTensor(continents).clone()
 
         if (not self.opt.no_flip) and random.random() < 0.5:
             idx = [i for i in range(A.size(2) - 1, -1, -1)]
@@ -396,6 +355,10 @@ class GeoDataset(BaseDataset):
             B_Vx = B_Vx.index_select(2, idx)
             A_Vy = A_Vy.index_select(2, idx)
             B_Vy = B_Vy.index_select(2, idx)
+
+            if self.opt.continent_data:
+                continents = continents.index_select(2, idx)
+
             mask = mask.index_select(2, idx)
 
             tmp = mask_x1
@@ -407,7 +370,7 @@ class GeoDataset(BaseDataset):
         mask_y1 = torch.LongTensor([mask_y1])
         mask_y2 = torch.LongTensor([mask_y2])
 
-        return {'A': A, 'B': B,
+        data =  {'A': A, 'B': B,
                 'A_DIV': A_DIV, 'B_DIV': B_DIV,
                 'A_Vx': A_Vx, 'B_Vx': B_Vx,
                 'A_Vy': A_Vy, 'B_Vy': B_Vy,
@@ -416,8 +379,13 @@ class GeoDataset(BaseDataset):
                 'mask_y1': mask_y1, 'mask_y2': mask_y2,
                 'A_paths': os.path.join(self.dir_A, series),
                 'B_paths': os.path.join(self.dir_A, series + '_inpainted'),
-                'series_number': int(series_number)
+                'series_number': int(dir_tag[1:-1] + str(series_number))
                 }
+
+        if self.opt.continent_data:
+            data['continents'] = continents
+
+        return data
 
     def __len__(self):
         return len(self.A_paths)
@@ -431,15 +399,29 @@ class GeoDataset(BaseDataset):
 # import skimage.io as io
 # from skimage.filters import roberts
 
-# os.chdir('..')
-# options_dict = dict(dataroot=os.path.expanduser('~/data/geology/'), phase='test', inpaint_file_dir=os.path.expanduser('~/data/geology/'), process="skeleton", resize_or_crop='resize_and_crop',
-#     loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=True, div_threshold=1000)
+# # os.chdir('..')
+# # options_dict = dict(dataroot=os.path.expanduser('~/data/geology/'), phase='test', inpaint_file_dir=os.path.expanduser('~/data/geology/'), process="skeleton", resize_or_crop='resize_and_crop',
+# options_dict = dict(dataroot='test_data/with_continents', phase='', inpaint_file_dir='test_data/with_continents', process="skeleton", resize_or_crop='resize_and_crop',
+#     loadSize=256, fineSize=256, which_direction='AtoB', input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False, continent_data=True)
 # Options = namedtuple('Options', options_dict.keys())
 # opt = Options(*options_dict.values())
 # geo = GeoDataset()
 # geo.initialize(opt)
 
-# # stuff = geo[0]
+# stuff = geo[0]
+
+# fig, ax = plt.subplots(5, 2)
+# ax = ax.ravel()
+# ax[0].imshow(stuff['A'].numpy().squeeze().transpose(1, 2, 0))
+# ax[1].imshow(stuff['A_DIV'].numpy().squeeze())
+# ax[2].imshow(stuff['A_Vx'].numpy().squeeze())
+# ax[3].imshow(stuff['A_Vy'].numpy().squeeze())
+# ax[4].imshow(stuff['B'].numpy().squeeze().transpose(1, 2, 0))
+# ax[5].imshow(stuff['B_DIV'].numpy().squeeze())
+# ax[6].imshow(stuff['B_Vx'].numpy().squeeze())
+# ax[7].imshow(stuff['B_Vy'].numpy().squeeze())
+# ax[8].imshow(stuff['mask'].numpy().squeeze())
+# plt.show()
 
 
 # dataloader = torch.utils.data.DataLoader(
@@ -487,7 +469,7 @@ class GeoDataset(BaseDataset):
 # plt.show()
 
 # plt.subplot(131)
-# io.imshow(stuff['A_cont'].numpy().squeeze())
+# io.imshow(stuff['continents'].numpy().squeeze())
 # plt.subplot(132)
 # io.imshow(stuff['B_cont'].numpy().squeeze())
 # plt.subplot(133)

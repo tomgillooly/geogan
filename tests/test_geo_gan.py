@@ -37,6 +37,7 @@ def standard_options():
 	opt.lr = 0.01
 	opt.beta1 = 0.9
 	opt.which_direction = 'AtoB'
+	opt.continent_data = False
 
 	return opt
 
@@ -162,6 +163,57 @@ def test_generator_discriminator(basic_gan, mocker):
 	for netD2 in gan.netD2s:
 		assert(netD2.call_args_list[0][0][0].name == '[A, mask_float, fake_DIV, fake_Vx, fake_Vy]_detach')
 		assert(netD2.call_args_list[1][0][0].name == ['A', 'mask_float', 'B_DIV', 'B_Vx', 'B_Vy'])
+
+		# Third call to grad penalty??
+
+
+def test_with_continents(basic_gan, mocker):
+	MockGenerator = basic_gan
+
+	gan = Pix2PixGeoModel()
+
+	opt = standard_options()
+	opt.num_discrims = 1
+	opt.low_iter = 1
+	opt.high_iter = 1
+
+	opt.lambda_A = 1
+	opt.lambda_B = 1
+	opt.lambda_C = 1
+	opt.discrete_only = False
+	opt.local_loss = False
+	opt.weighted_ce = False
+	opt.continent_data = True
+
+	gan.initialize(opt)
+
+	assert(all([netD1 != netD2 for netD1, netD2 in zip(gan.netD1s, gan.netD2s)]))
+
+	gan.netG_DIV = fake_network(mocker, 'fake_DIV')
+	gan.netG_Vx = fake_network(mocker, 'fake_Vx')
+	gan.netG_Vy = fake_network(mocker, 'fake_Vy')
+
+	fake_dataset = DatasetMock()
+
+	gan.set_input(fake_dataset)
+
+	gan.optimize_parameters(step_no=1)
+
+	assert(MockGenerator.call_args[0][0].name == (['A', 'mask_float', 'continents_float']))
+	assert(gan.netG_DIV.call_args[0][0].name == ('fake_discrete_output'))
+	assert(gan.netG_Vx.call_args[0][0].name == ('fake_discrete_output'))
+	assert(gan.netG_Vy.call_args[0][0].name == ('fake_discrete_output'))
+
+
+	for netD1 in gan.netD1s:
+		assert(netD1.call_args_list[0][0][0].name == '[A, mask_float, continents_float, fake_discrete_output]_detach')
+		assert(netD1.call_args_list[1][0][0].name == ['A', 'mask_float', 'continents_float', 'B'])
+	
+		# Third call to grad penalty??
+
+	for netD2 in gan.netD2s:
+		assert(netD2.call_args_list[0][0][0].name == '[A, mask_float, continents_float, fake_DIV, fake_Vx, fake_Vy]_detach')
+		assert(netD2.call_args_list[1][0][0].name == ['A', 'mask_float', 'continents_float', 'B_DIV', 'B_Vx', 'B_Vy'])
 
 		# Third call to grad penalty??
 
