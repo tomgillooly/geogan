@@ -169,8 +169,8 @@ class Pix2PixGeoModel(BaseModel):
                 self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan,
                     tensor=self.Tensor)
 
-            self.criterionL2 = torch.torch.nn.MSELoss(size_average=True)
-            self.criterionCE = torch.torch.nn.NLLLoss2d
+            self.criterionL2 = torch.nn.MSELoss(size_average=True)
+            self.criterionCE = torch.nn.NLLLoss2d
 
             # initialize optimizers
             self.schedulers = []
@@ -387,7 +387,7 @@ class Pix2PixGeoModel(BaseModel):
         real_loss = self.criterionGAN(net_D(real_AB), True)
         # self.loss_D2_real = self.criterionGAN(pred_real, True)
 
-        grad_pen = torch.zeros((1))
+        grad_pen = torch.zeros((1,))
         grad_pen = grad_pen.cuda() if len(self.gpu_ids) > 0 else grad_pen
         grad_pen = torch.autograd.Variable(grad_pen, requires_grad=False)
 
@@ -460,7 +460,7 @@ class Pix2PixGeoModel(BaseModel):
                 fake_AB = self.real_A_discrete
             
                 if not self.opt.no_mask_to_critic:
-                    fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1),
+                    fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
             
                 fake_AB = torch.cat((fake_AB, self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
 
@@ -528,7 +528,7 @@ class Pix2PixGeoModel(BaseModel):
                 self.batch_size, *im_dims)
 
 
-        weights = torch.ones((3)).cuda() if len(self.gpu_ids) > 0 else torch.ones((3))
+        weights = torch.ones((3,)).cuda() if len(self.gpu_ids) > 0 else torch.ones((3,))
 
         if self.opt.weighted_ce:
             total_pixels = 1.0 * im_dims[0] * im_dims[1]
