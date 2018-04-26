@@ -45,6 +45,8 @@ def get_innermost(module, block_name=None):
 
     if parent_name in child_names:
         return get_innermost(children_list[child_names.index(parent_name)])
+    elif 'Sequential' in child_names:
+        return get_innermost(children_list[child_names.index('Sequential')], parent_name)
     else:
         # Just assume the innermost block is right in the middle at this stage
         return children_list[int(len(children_list)/2)]

@@ -2,13 +2,15 @@ import io
 import pytest
 import torch
 
-from data.geo_dataset import GeoDataset, get_dat_files
 import models
 from models.pix2pix_geo_model import Pix2PixGeoModel, get_innermost
+from models.networks import UnetGenerator
 
 from options.base_options import BaseOptions
 
 from mock_utils import *
+
+from functools import reduce
 
 class NullOptions(object):
 	pass
@@ -257,3 +259,34 @@ def test_innermost_block_retrieval():
 	outer_model = torch.nn.Sequential(outer_model)
 
 	assert(get_innermost(outer_model) == m2)
+
+
+def test_splitting_unet():
+	unet = UnetGenerator(3, 3, 1)
+
+	downsample = [m.stride[0] for m in unet.modules() if repr(m).startswith('Conv2d')]
+	downsample = reduce(lambda x, y: x*y, downsample)
+
+	x = torch.randn((1, 3, 64, 64))
+
+	def extract_latent_vector(self, input, output):
+		self.latent_vector = output
+
+	inner = get_innermost(unet, 'UnetSkipConnectionBlock')
+	inner.register_forward_hook(extract_latent_vector)
+
+	y = unet(x)
+	
+	fc1 = torch.nn.Linear(2*2*64*8, 20)
+	loss_fun = torch.nn.CrossEntropyLoss()
+
+	gt = torch.LongTensor((1,))
+	gt[0] = 3
+
+	print(inner.latent_vector.shape)
+	
+	folder_vec = fc1(inner.latent_vector.view(1, -1)).expand(1, -1)
+	
+	loss = loss_fun(folder_vec, gt)
+
+	print(loss)
