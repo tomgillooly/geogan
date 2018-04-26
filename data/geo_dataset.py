@@ -46,37 +46,6 @@ def get_series_number(path):
     return int(match.group(1))
 
 
-def get_dat_files(topdir):
-    # DIV_paths = glob.glob(os.path.join(topdir, '*_DIV.dat'))
-    # Vx_paths = glob.glob(os.path.join(topdir, '*_Vx.dat'))
-    # Vy_paths = glob.glob(os.path.join(topdir, '*_Vy.dat'))
-
-    # DIV_paths = sorted(DIV_paths)
-    # Vx_paths = sorted(Vx_paths)
-    # Vy_paths = sorted(Vy_paths)
-
-    DIV_paths = []
-    Vx_paths = []
-    Vy_paths = []
-    cont_paths = []
-
-    for root, dirs, _ in os.walk(topdir):
-        DIV_paths += sorted(glob.glob(os.path.join(root, '*_DIV.dat')), key=get_series_number)
-        Vx_paths += sorted(glob.glob(os.path.join(root, '*_Vx.dat')), key=get_series_number)
-        Vy_paths += sorted(glob.glob(os.path.join(root, '*_Vy.dat')), key=get_series_number)
-        cont_paths += sorted(glob.glob(os.path.join(root, '*_cont.dat')), key=get_series_number)
-
-        # Make sure they're in numerical order before we recurse into them
-        dirs.sort(key=int)
-
-        # for directory in dirs:
-        #     DIV_paths += glob.glob(os.path.join(root, directory, '*_DIV.dat'))
-        #     Vx_paths += glob.glob(os.path.join(root, directory, '*_Vx.dat'))
-        #     Vy_paths += glob.glob(os.path.join(root, directory, '*_Vy.dat'))
-
-
-    return DIV_paths, Vx_paths, Vy_paths, cont_paths
-
 def read_geo_file(path):
     data = OrderedDict()
 
@@ -126,7 +95,7 @@ class GeoDataset(BaseDataset):
         self.dir_A = os.path.join(opt.dataroot, opt.phase)
         self.A_paths = []
 
-        data_paths = get_dat_files(self.dir_A)
+        data_paths = self.get_dat_files(self.dir_A)
 
         # If there's no continent data, remove so we don't end up with zero paths after zip
         self.A_paths = list(zip(*[path for path in data_paths if path]))
@@ -145,6 +114,42 @@ class GeoDataset(BaseDataset):
                         self.inpaint_regions[idx] = tuple([int(param.lstrip()) for param in line.rstrip().split(',')])
                     except ValueError:
                         continue
+
+
+    def get_dat_files(self, topdir):
+        # DIV_paths = glob.glob(os.path.join(topdir, '*_DIV.dat'))
+        # Vx_paths = glob.glob(os.path.join(topdir, '*_Vx.dat'))
+        # Vy_paths = glob.glob(os.path.join(topdir, '*_Vy.dat'))
+
+        # DIV_paths = sorted(DIV_paths)
+        # Vx_paths = sorted(Vx_paths)
+        # Vy_paths = sorted(Vy_paths)
+
+        DIV_paths = []
+        Vx_paths = []
+        Vy_paths = []
+        cont_paths = []
+
+        self.num_folders = 0
+
+        for root, dirs, _ in os.walk(topdir):
+            self.num_folders += 1
+
+            DIV_paths += sorted(glob.glob(os.path.join(root, '*_DIV.dat')), key=get_series_number)
+            Vx_paths += sorted(glob.glob(os.path.join(root, '*_Vx.dat')), key=get_series_number)
+            Vy_paths += sorted(glob.glob(os.path.join(root, '*_Vy.dat')), key=get_series_number)
+            cont_paths += sorted(glob.glob(os.path.join(root, '*_cont.dat')), key=get_series_number)
+
+            # Make sure they're in numerical order before we recurse into them
+            dirs.sort(key=int)
+
+            # for directory in dirs:
+            #     DIV_paths += glob.glob(os.path.join(root, directory, '*_DIV.dat'))
+            #     Vx_paths += glob.glob(os.path.join(root, directory, '*_Vx.dat'))
+            #     Vy_paths += glob.glob(os.path.join(root, directory, '*_Vy.dat'))
+
+
+        return DIV_paths, Vx_paths, Vy_paths, cont_paths
 
 
     def update_inpaint_regions_from_file(self):
@@ -207,6 +212,8 @@ class GeoDataset(BaseDataset):
         A_paths = self.A_paths[index]
 
         match = re.search('(/\d+)?/serie(\d+)', A_paths[0])
+
+        folder_id = int(match.group(1)[1:]) if match.group(1) else 0
 
         dir_tag = '_' + match.group(1)[1:] + '_' if match.group(1) else '_'
         series_number = int(match.group(2))
@@ -379,7 +386,8 @@ class GeoDataset(BaseDataset):
                 'mask_y1': mask_y1, 'mask_y2': mask_y2,
                 'A_paths': os.path.join(self.dir_A, series),
                 'B_paths': os.path.join(self.dir_A, series + '_inpainted'),
-                'series_number': int(dir_tag[1:-1] + str(series_number))
+                'series_number': int(dir_tag[1:-1] + str(series_number)),
+                'folder_id': folder_id
                 }
 
         if self.opt.continent_data:

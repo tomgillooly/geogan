@@ -7,7 +7,7 @@ import torch
 import tempfile
 
 from collections import namedtuple
-from data.geo_dataset import GeoDataset, get_dat_files, DataGenException
+from data.geo_dataset import GeoDataset, DataGenException
 
 @pytest.fixture(scope='module')
 def dataset(pytestconfig):
@@ -165,7 +165,9 @@ def test_continuous_data_is_normalised(dataset):
 	assert(torch.max(Vy) <= 1)
 	assert(torch.min(Vy) >= -1)
 
-def test_directory_name_is_prepended_in_image_path(dataset):
+
+@pytest.fixture
+def temp_dataset(dataset):
 	dataroot = dataset.opt.dataroot
 
 	# Create a temporary directory to test
@@ -200,12 +202,6 @@ def test_directory_name_is_prepended_in_image_path(dataset):
 	glob.glob(os.path.join(temp_data_dir_3, '*.dat'))[0]
 	glob.glob(os.path.join(temp_data_dir_4, '*.dat'))[0]
 
-	div_files, vx_files, vy_files, _ = get_dat_files(temp_data_parent)
-
-	assert(len(div_files) == 6)
-	assert(len(vx_files) == 6)
-	assert(len(vy_files) == 6)
-
 	# Now build a second dataset using this dummy directory
 	options_dict = dict(dataroot=temp_data_parent, phase='',
 		inpaint_file_dir=temp_data_parent, resize_or_crop='resize_and_crop',
@@ -216,20 +212,45 @@ def test_directory_name_is_prepended_in_image_path(dataset):
 	opt = Options(*options_dict.values())
 
 	geo = GeoDataset()
+
+	div_files, vx_files, vy_files, _ = geo.get_dat_files(temp_data_parent)
+
+	assert(len(div_files) == 6)
+	assert(len(vx_files) == 6)
+	assert(len(vy_files) == 6)
+
 	geo.initialize(opt)
+
+	return geo
+
+def test_directory_name_is_prepended_in_image_path(temp_dataset):
+	geo = temp_dataset
 
 	# print(geo[0]['A_paths'])
 	# Folders get flattened out
 	# Sorted by directory, THEN by series number!
 
-	assert(geo[0]['A_paths'] == os.path.join(temp_data_parent, 'serie_100004'))
-	assert(geo[1]['A_paths'] == os.path.join(temp_data_parent, 'serie_01_100001'))
-	assert(geo[2]['A_paths'] == os.path.join(temp_data_parent, 'serie_02_100002'))
-	assert(geo[3]['A_paths'] == os.path.join(temp_data_parent, 'serie_03_100003'))
+	assert(geo[0]['A_paths'] == os.path.join(geo.opt.dataroot, 'serie_100004'))
+	assert(geo[1]['A_paths'] == os.path.join(geo.opt.dataroot, 'serie_01_100001'))
+	assert(geo[2]['A_paths'] == os.path.join(geo.opt.dataroot, 'serie_02_100002'))
+	assert(geo[3]['A_paths'] == os.path.join(geo.opt.dataroot, 'serie_03_100003'))
 
 	# Sorted by directory, THEN by series number!
-	assert(geo[4]['A_paths'] == os.path.join(temp_data_parent, 'serie_03_100004'))
-	assert(geo[5]['A_paths'] == os.path.join(temp_data_parent, 'serie_04_100004'))
+	assert(geo[4]['A_paths'] == os.path.join(geo.opt.dataroot, 'serie_03_100004'))
+	assert(geo[5]['A_paths'] == os.path.join(geo.opt.dataroot, 'serie_04_100004'))
+
+
+def test_folder_id(temp_dataset):
+	geo = temp_dataset
+	
+	assert(geo[0]['folder_id'] == 0)
+	assert(geo[1]['folder_id'] == 1)
+	assert(geo[2]['folder_id'] == 2)
+	assert(geo[3]['folder_id'] == 3)
+	assert(geo[4]['folder_id'] == 3)
+	assert(geo[5]['folder_id'] == 4)
+
+	assert(geo.num_folders == 5)
 
 
 def test_no_continent_data_by_default(dataset):
