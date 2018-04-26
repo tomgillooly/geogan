@@ -9,6 +9,7 @@ from . import networks
 
 import torch.nn.functional as F
 import numpy as np
+import re
 
 import skimage.io as io
 
@@ -33,6 +34,20 @@ def weights_init(m):
     elif classname.find('BatchNorm2d') != -1:
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0.0)
+
+
+def get_innermost(module, block_name=None):
+    module_name_re = re.compile('(.*?)\(')
+    parent_name = block_name if block_name else module_name_re.match(repr(module)).group(1)
+
+    children_list = list(module.children())
+    child_names = [module_name_re.match(repr(m)).group(1) for m in children_list]
+
+    if parent_name in child_names:
+        return get_innermost(children_list[child_names.index(parent_name)])
+    else:
+        # Just assume the innermost block is right in the middle at this stage
+        return children_list[int(len(children_list)/2)]
 
 class DiscriminatorWGANGP(torch.nn.Module):
 

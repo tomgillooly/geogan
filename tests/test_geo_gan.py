@@ -4,7 +4,7 @@ import torch
 
 from data.geo_dataset import GeoDataset, get_dat_files
 import models
-from models.pix2pix_geo_model import Pix2PixGeoModel
+from models.pix2pix_geo_model import Pix2PixGeoModel, get_innermost
 
 from options.base_options import BaseOptions
 
@@ -244,3 +244,16 @@ def test_generator_w_continuous(basic_gan):
 	assert(gan.netG_DIV.call_args[0][0].name == 'fake_discrete_output')
 	assert(gan.netG_Vx.call_args[0][0].name == 'fake_discrete_output')
 	assert(gan.netG_Vy.call_args[0][0].name == 'fake_discrete_output')
+
+
+def test_innermost_block_retrieval():
+	m1 = torch.nn.Module()
+	m2 = torch.nn.Module()
+	m3 = torch.nn.Module()
+
+	inner_model = torch.nn.Sequential(m1, m2, m3)
+
+	outer_model = torch.nn.Sequential(torch.nn.Module(), inner_model, torch.nn.Module())
+	outer_model = torch.nn.Sequential(outer_model)
+
+	assert(get_innermost(outer_model) == m2)
