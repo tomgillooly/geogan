@@ -32,7 +32,7 @@ python train.py --dataroot $DATAROOT --name wgan_continents_folder_pred_base \
 	--model pix2pix_geo --which_model_netG unet_256 --which_direction BtoA \
 	--continent_data \
 	--high_iter 25 --low_iter 5 \
-	--num_discrims 1 --which_model_netD cwgan-gp --input_nc 3 --output_nc 3 \
+	--num_discrims 1 --which_model_netD wgan-gp --input_nc 3 --output_nc 3 \
 	--lambda_A 100 --lambda_B 100 --dataset_mode geo --no_lsgan --norm batch \
 	--pool_size 0 --no_html --div_threshold 1000 --batchSize 4 $OPTIONS
 
