@@ -321,6 +321,42 @@ def test_get_downsample():
 	assert(inner_vector.shape[3] == 512 / downsample)
 
 
+def test_correct_shape_for_folder_id(mocker):
+	# MockGenerator = basic_gan
+
+	mocker.patch('torch.optim')
+	mocker.patch('models.networks.get_scheduler')
+	mocker.patch('models.networks.define_D', side_effect=mocker.MagicMock())
+	mocker.patch('models.networks.define_G', return_value=UnetGenerator(3, 3, 7, 4))
+
+	gan = Pix2PixGeoModel()
+
+	opt = standard_options()
+	opt.num_discrims = 1
+	opt.low_iter = 1
+	opt.high_iter = 1
+
+	opt.which_model_netD = 'wgan-gp'
+	opt.lambda_A = 1
+	opt.lambda_B = 1
+	opt.lambda_C = 1
+	opt.discrete_only = False
+	opt.local_loss = False
+	opt.weighted_ce = False
+	opt.fineSize = 256
+	opt.ngf = 4
+	opt.num_folders = 20
+
+	gan.initialize(opt)
+
+	x = torch.rand((2, 3, 256, 512))
+
+	y = gan.netG(x)
+
+	folder = gan.folder_fc(gan.netG.inner_layer.output.view(2, -1))
+
+	assert(folder.shape == (2, 20))
+
 def test_folder_id_used_in_cross_entropy_loss(basic_gan, mocker):
 	MockGenerator = basic_gan
 	MockInnerLayer = fake_network(mocker, 'innermost')
@@ -347,7 +383,6 @@ def test_folder_id_used_in_cross_entropy_loss(basic_gan, mocker):
 
 
 	mocker.patch('torch.nn.Linear')
-	mocker.patch('torch.nn.Sequential')
 	mocker.patch('models.pix2pix_geo_model.get_downsample', return_value=32)
 	gan.initialize(opt)
 

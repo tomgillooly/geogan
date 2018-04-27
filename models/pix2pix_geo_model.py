@@ -116,7 +116,7 @@ class Pix2PixGeoModel(BaseModel):
             self.netG.inner_layer.register_forward_hook(save_output_hook)
 
             # Image size downsampled, times number of filters
-            self.folder_fc = torch.nn.Linear(int(2*opt.fineSize**2 / get_downsample(self.netG)**2 * opt.ngf*8 + opt.num_folders), int(1))
+            self.folder_fc = torch.nn.Linear(2*opt.fineSize**2 / get_downsample(self.netG)**2 * opt.ngf*8, opt.num_folders)
 
         if not self.opt.discrete_only:
             self.netG_DIV = torch.nn.Sequential(
@@ -354,7 +354,7 @@ class Pix2PixGeoModel(BaseModel):
         self.fake_B_discrete = self.netG(self.G_input)
 
         if self.opt.isTrain and self.opt.num_folders > 1:
-            self.fake_folder = self.folder_fc(self.netG.inner_layer.output)
+            self.fake_folder = self.folder_fc(self.netG.inner_layer.output.view(self.batch_size, -1))
             self.fake_folder = torch.nn.functional.log_softmax(self.fake_folder, dim=1)
         
         if not self.opt.discrete_only:
