@@ -493,7 +493,7 @@ class Pix2PixGeoModel(BaseModel):
 
         # We get back full loss, real loss and fake loss, along axis 1
         # Concatenate the results from each discriminator along axis 2
-        loss, real_loss, fake_loss, grad_pen = list(zip([self.backward_single_D(net_D, cond_data, real_data, fake_data) for net_D in net_Ds]))
+        loss, real_loss, fake_loss, grad_pen = list(zip(*[self.backward_single_D(net_D, cond_data, real_data, fake_data) for net_D in net_Ds]))
 
         for optimiser in optimisers:
             optimiser.step()
