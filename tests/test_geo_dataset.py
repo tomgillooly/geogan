@@ -9,6 +9,9 @@ import tempfile
 from collections import namedtuple
 from data.geo_dataset import GeoDataset, DataGenException
 
+class NullOptions(object):
+	pass
+
 @pytest.fixture(scope='module')
 def dataset(pytestconfig):
 	# put together basic options class to pass to dataset builder
@@ -17,14 +20,27 @@ def dataset(pytestconfig):
 
 	os.mkdir(inpaint_file_dir)
 
-	options_dict = dict(dataroot=os.path.expanduser(pytestconfig.option.dataroot), phase='test',
-		# inpaint_file_dir=os.path.expanduser('~/data/geology/'), resize_or_crop='resize_and_crop',
-		inpaint_file_dir=inpaint_file_parent, resize_or_crop='resize_and_crop',
-	    loadSize=256, fineSize=256, which_direction='AtoB',
-	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False,
-	    continent_data=False)
-	Options = namedtuple('Options', options_dict.keys())
-	opt = Options(*options_dict.values())
+	opt = NullOptions()
+	opt.dataroot=os.path.expanduser(pytestconfig.option.dataroot)
+	opt.phase='test'
+		# 
+	opt.inpaint_file_dir=os.path.expanduser('~/data/geology/')
+	opt.resize_or_crop='resize_and_crop'
+		
+	opt.inpaint_file_dir=inpaint_file_parent
+	opt.resize_or_crop='resize_and_crop'
+	    
+	opt.loadSize=256
+	opt.fineSize=256
+	opt.which_direction='AtoB'
+	    
+	opt.input_nc=1
+	opt.output_nc=1
+	opt.no_flip=True
+	opt.div_threshold=1000
+	opt.inpaint_single_class=False
+	    
+	opt.continent_data=False
 
 
 	geo = GeoDataset()
@@ -203,15 +219,27 @@ def temp_dataset(dataset):
 	glob.glob(os.path.join(temp_data_dir_4, '*.dat'))[0]
 
 	# Now build a second dataset using this dummy directory
-	options_dict = dict(dataroot=temp_data_parent, phase='',
-		inpaint_file_dir=temp_data_parent, resize_or_crop='resize_and_crop',
-	    loadSize=256, fineSize=256, which_direction='AtoB',
-	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False,
-	    continent_data=False)
-	Options = namedtuple('Options', options_dict.keys())
-	opt = Options(*options_dict.values())
-
+	opt = NullOptions()
+	opt.dataroot=temp_data_parent
+	opt.phase=''
+		
+	opt.inpaint_file_dir=temp_data_parent
+	opt.resize_or_crop='resize_and_crop'
+	    
+	opt.loadSize=256
+	opt.fineSize=256
+	opt.which_direction='AtoB'
+	    
+	opt.input_nc=1
+	opt.output_nc=1
+	opt.no_flip=True
+	opt.div_threshold=1000
+	opt.inpaint_single_class=False
+	    
+	opt.continent_data=False
+	
 	geo = GeoDataset()
+	geo.initialize(opt)
 
 	div_files, vx_files, vy_files, _ = geo.get_dat_files(temp_data_parent)
 
@@ -221,10 +249,10 @@ def temp_dataset(dataset):
 
 	geo.initialize(opt)
 
-	return geo
+	return geo, opt
 
 def test_directory_name_is_prepended_in_image_path(temp_dataset):
-	geo = temp_dataset
+	geo, opt = temp_dataset
 
 	# print(geo[0]['A_paths'])
 	# Folders get flattened out
@@ -241,7 +269,7 @@ def test_directory_name_is_prepended_in_image_path(temp_dataset):
 
 
 def test_folder_id(temp_dataset):
-	geo = temp_dataset
+	geo, opt = temp_dataset
 	
 	assert(geo[0]['folder_id'] == 0)
 	assert(geo[1]['folder_id'] == 1)
@@ -250,7 +278,8 @@ def test_folder_id(temp_dataset):
 	assert(geo[4]['folder_id'] == 3)
 	assert(geo[5]['folder_id'] == 4)
 
-	assert(geo.num_folders == 5)
+	# Test that object is modified outside of Dataset object
+	assert(opt.num_folders == 5)
 
 
 def test_no_continent_data_by_default(dataset):
@@ -260,14 +289,24 @@ def test_no_continent_data_by_default(dataset):
 
 @pytest.fixture(scope='module')
 def new_dataset():
-	options_dict = dict(dataroot='test_data/with_continents', phase='',
-		inpaint_file_dir='test_data/with_continents', resize_or_crop='resize_and_crop',
-		# inpaint_file_dir=tempfile.mkdtemp(dir='/tmp'), resize_or_crop='resize_and_crop',
-	    loadSize=256, fineSize=256, which_direction='AtoB',
-	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False,
-	    continent_data=True)
-	Options = namedtuple('Options', options_dict.keys())
-	opt = Options(*options_dict.values())
+	opt = NullOptions()
+	opt.dataroot='test_data/with_continents'
+	opt.phase=''
+		
+	opt.inpaint_file_dir='test_data/with_continents'
+	opt.resize_or_crop='resize_and_crop'
+	    
+	opt.loadSize=256
+	opt.fineSize=256
+	opt.which_direction='AtoB'
+	    
+	opt.input_nc=1
+	opt.output_nc=1
+	opt.no_flip=True,
+	opt.div_threshold=1000
+	opt.inpaint_single_class=False
+	    
+	opt.continent_data=True
 
 	geo = GeoDataset()
 	geo.initialize(opt)
@@ -276,14 +315,24 @@ def new_dataset():
 
 
 def test_default_continent_map_is_blank():
-	options_dict = dict(dataroot='test_data/no_continents', phase='',
-		inpaint_file_dir='test_data/no_continents', resize_or_crop='resize_and_crop',
-		# inpaint_file_dir=tempfile.mkdtemp(dir='/tmp'), resize_or_crop='resize_and_crop',
-	    loadSize=256, fineSize=256, which_direction='AtoB',
-	    input_nc=1, output_nc=1, no_flip=True, div_threshold=1000, inpaint_single_class=False,
-	    continent_data=True)
-	Options = namedtuple('Options', options_dict.keys())
-	opt = Options(*options_dict.values())
+	opt = NullOptions()
+	opt.dataroot='test_data/no_continents'
+	opt.phase=''
+		
+	opt.inpaint_file_dir='test_data/no_continents'
+	opt.resize_or_crop='resize_and_crop'
+	    
+	opt.loadSize=256
+	opt.fineSize=256
+	opt.which_direction='AtoB'
+	    
+	opt.input_nc=1
+	opt.output_nc=1
+	opt.no_flip=True,
+	opt.div_threshold=1000
+	opt.inpaint_single_class=False
+	    
+	opt.continent_data=True
 
 	geo = GeoDataset()
 	geo.initialize(opt)

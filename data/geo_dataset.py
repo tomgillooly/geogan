@@ -130,10 +130,10 @@ class GeoDataset(BaseDataset):
         Vy_paths = []
         cont_paths = []
 
-        self.num_folders = 0
+        self.opt.num_folders = 0
 
         for root, dirs, _ in os.walk(topdir):
-            self.num_folders += 1
+            self.opt.num_folders += 1
 
             DIV_paths += sorted(glob.glob(os.path.join(root, '*_DIV.dat')), key=get_series_number)
             Vx_paths += sorted(glob.glob(os.path.join(root, '*_Vx.dat')), key=get_series_number)

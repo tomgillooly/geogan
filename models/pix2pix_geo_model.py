@@ -10,6 +10,7 @@ from . import networks
 import torch.nn.functional as F
 import numpy as np
 import re
+from functools import reduce
 
 import skimage.io as io
 
@@ -51,6 +52,14 @@ def get_innermost(module, block_name=None):
         # Just assume the innermost block is right in the middle at this stage
         return children_list[int(len(children_list)/2)]
 
+
+def get_downsample(net):
+    downsample = [m.stride[0] for m in net.modules() if repr(m).startswith('Conv2d')]
+    downsample = reduce(lambda x, y: x*y, downsample)
+
+    return downsample
+
+
 class DiscriminatorWGANGP(torch.nn.Module):
 
     def __init__(self, in_dim, image_dims, dim=64):
@@ -73,10 +82,50 @@ class DiscriminatorWGANGP(torch.nn.Module):
             torch.nn.Conv2d(dim * 8, 1, 
                 (int(image_dims[0]/16 + 0.5), int(image_dims[1]/16 + 0.5)))) # (b, dim*8, x/16, y/16) -> (b, 1, 1, 1)
 
+
     def forward(self, x):
         y = self.ls(x)
+
         y = y.view(-1)
-        return y
+        return out
+
+class DiscriminatorConditionalWGANGP(torch.nn.Module):
+
+    def __init__(self, in_dim, image_dims, cond_dim, dim=64):
+        super(DiscriminatorConditionalWGANGP, self).__init__()
+
+        def conv_ln_lrelu(in_dim, out_dim):
+            return torch.nn.Sequential(
+                torch.nn.Conv2d(in_dim, out_dim, 5, 2, 2),
+                # Since there is no effective implementation of LayerNorm,
+                # we use InstanceNorm2d instead of LayerNorm here.
+                # Gulrajanis code uses TensorFlow batch normalisation
+                torch.nn.InstanceNorm2d(out_dim, affine=True),
+                torch.nn.LeakyReLU(0.2))
+
+        self.ls = torch.nn.Sequential(
+            torch.nn.Conv2d(in_dim, dim, 5, 2, 2), torch.nn.LeakyReLU(0.2),         # (b, c, x, y) -> (b, dim, x/2, y/2)
+            conv_ln_lrelu(dim, dim * 2),                                # (b, dim, x/2, y/2) -> (b, dim*2, x/4, y/4)
+            conv_ln_lrelu(dim * 2, dim * 4),                            # (b, dim*2, x/4, y/4) -> (b, dim*4, x/8, y/8)
+            conv_ln_lrelu(dim * 4, dim * 8),                            # (b, dim*4, x/8, y/8) -> (b, dim*8, x/16, y/16)
+            torch.nn.Conv2d(dim * 8, dim*8, 
+                (int(image_dims[0]/16 + 0.5), int(image_dims[1]/16 + 0.5)))) # (b, dim*8, x/16, y/16) -> (b, 1, 1, 1)
+
+        self.fc = torch.nn.Linear(dim*8+cond_dim, 1)
+
+    def forward(self, x, c):
+        y = self.ls(x)
+
+        y2 = torch.cat((y.view(1, -1), c.view(1, -1)), dim=1)
+
+        out = self.fc(y2)
+
+        return out
+
+
+def save_output_hook(module, input, output):
+    module.output = output
+
 
 class Pix2PixGeoModel(BaseModel):
     def name(self):
@@ -95,6 +144,15 @@ class Pix2PixGeoModel(BaseModel):
 
         self.netG = networks.define_G(input_channels, opt.output_nc, opt.ngf,
                                       opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
+
+        if opt.which_model_netD == 'cwgan-gp':
+            self.netG.inner_layer = get_innermost(self.netG, 'UnetSkipConnectionBlock')
+            self.netG.inner_layer.register_forward_hook(save_output_hook)
+
+            # Image size downsampled, times number of filters
+            self.folder_fc = torch.nn.Sequential(
+                torch.nn.Linear(2*opt.fineSize**2 / get_downsample(self.netG)**2 * opt.ngf*8 + opt.num_folders, 1),
+                torch.nn.LogSoftmax)
 
         if not self.opt.discrete_only:
             self.netG_DIV = torch.nn.Sequential(
@@ -284,6 +342,12 @@ class Pix2PixGeoModel(BaseModel):
         
         self.image_paths    = input['A_paths' if AtoB else 'B_paths']
 
+        if self.opt.which_model_netD == 'cwgan-gp':
+            self.real_folder = torch.zeros((self.opt.num_folders,))
+            self.real_folder[input['folder_id']] = 1
+        else:
+            self.real_folder = None
+
         mask_x1 = input['mask_x1']
         mask_x2 = input['mask_x2']
         mask_y1 = input['mask_y1']
@@ -327,6 +391,11 @@ class Pix2PixGeoModel(BaseModel):
 
 
         self.fake_B_discrete = self.netG(self.G_input)
+
+        if self.opt.which_model_netD == 'cwgan-gp':
+            self.fake_folder = self.folder_fc(self.netG.inner_layer.output)
+        else:
+            self.fake_folder = None
         
         if not self.opt.discrete_only:
             # Create continuous divergence field from class probabilities
@@ -392,7 +461,7 @@ class Pix2PixGeoModel(BaseModel):
         return self.image_paths
 
 
-    def calc_gradient_penalty(self, netD, real_data, fake_data):
+    def calc_gradient_penalty(self, netD, real_data, fake_data, fake_cond_vector=None, real_cond_vector=None):
         # print "real_data: ", real_data.size(), fake_data.size()
         alpha = torch.rand(real_data.shape[0], 1)
         alpha = alpha.expand(alpha.shape[0], real_data[0, ...].nelement()).contiguous().view(-1, *real_data.shape[1:])
@@ -400,17 +469,30 @@ class Pix2PixGeoModel(BaseModel):
 
         interpolates = alpha * fake_data + ((1 - alpha) * real_data)
 
-        if len(self.gpu_ids) > 0:
-            interpolates = interpolates.cuda(self.gpu_ids[0])
-        interpolates = autograd.Variable(interpolates, requires_grad=True)
+        if fake_cond_vector and real_cond_vector:
+            interpolates = (interpolates, alpha * fake_cond_vector + ((1 - alpha) * real_cond_vector))
+        else:
+            interpolates = (interpolates,)
 
-        disc_interpolates = netD(interpolates)
+        if len(self.gpu_ids) > 0:
+            interpolates = [interpolate.cuda(self.gpu_ids[0]) for interpolate in interpolates]
+        interpolates = [autograd.Variable(interpolate, requires_grad=True) for interpolate in interpolates]
+
+        disc_interpolates = netD(*interpolates)
 
         # We have the [0] at the end because grad() returns a tuple with an empty second element, for some reason
-        gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
+        # Get the gradient with respect to the image data input
+        gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates[0],
                                   grad_outputs=torch.ones(disc_interpolates.size()).cuda(self.gpu_ids[0]) if len(self.gpu_ids) > 0 else torch.ones(
                                       disc_interpolates.size()),
                                   create_graph=True, retain_graph=True, only_inputs=True)[0]
+
+        if fake_cond_vector and real_cond_vector:
+            gradients = torch.cat((gradients,
+                autograd.grad(outputs=disc_interpolates, inputs=interpolates[1],
+                                  grad_outputs=torch.ones(disc_interpolates.size()).cuda(self.gpu_ids[0]) if len(self.gpu_ids) > 0 else torch.ones(
+                                      disc_interpolates.size()),
+                                  create_graph=True, retain_graph=True, only_inputs=True)[0]), dim=1)
         
         gradients = gradients.view(gradients.size(0), -1)
         
@@ -421,19 +503,27 @@ class Pix2PixGeoModel(BaseModel):
         return gradient_penalty
 
 
-    def backward_single_D(self, net_D, cond_data, real_data, fake_data):
+    def backward_single_D(self, net_D, cond_data, real_data, fake_data, fake_cond_vector=None, real_cond_vector=None):
         # Fake
         # stop backprop to the generator by detaching fake_B
         # In this case real_A, the input, is our conditional vector
         fake_AB = torch.cat((cond_data, fake_data), dim=1)
-        # Mean across batch
-        fake_loss = self.criterionGAN(net_D(fake_AB.detach()), False)
-        # self.loss_D2_fake = self.criterionGAN(pred_fake, False)
 
-        # Real
+        if fake_cond_vector:
+            args = (fake_AB.detach(), fake_cond_vector)
+        else:
+            args = (fake_AB.detach(),)
+
+        fake_loss = self.criterionGAN(net_D(*args), False)
+
+
         real_AB = torch.cat((cond_data, real_data), dim=1)
-        # Mean across batch
-        real_loss = self.criterionGAN(net_D(real_AB), True)
+        if real_cond_vector:
+            args = (real_AB.detach(), real_cond_vector)
+        else:
+            args = (real_AB.detach(),)
+
+        real_loss = self.criterionGAN(net_D(*args), True)
         # self.loss_D2_real = self.criterionGAN(pred_real, True)
 
         grad_pen = torch.zeros((1,))
@@ -458,14 +548,15 @@ class Pix2PixGeoModel(BaseModel):
         return output
 
 
-    def backward_D(self, net_Ds, optimisers, cond_data, real_data, fake_data):
+    def backward_D(self, net_Ds, optimisers, cond_data, real_data, fake_data, fake_cond_vector=None, real_cond_vector=None):
 
         for optimiser in optimisers:
             optimiser.zero_grad()
 
         # We get back full loss, real loss and fake loss, along axis 1
         # Concatenate the results from each discriminator along axis 2
-        loss = torch.cat([self.backward_single_D(net_D, cond_data, real_data, fake_data) for net_D in net_Ds], dim=2)
+        loss = torch.cat([self.backward_single_D(net_D, cond_data, real_data, fake_data,
+            fake_cond_vector, real_cond_vector) for net_D in net_Ds], dim=2)
 
         for optimiser in optimisers:
             optimiser.step()
@@ -496,7 +587,12 @@ class Pix2PixGeoModel(BaseModel):
             if self.opt.continent_data:
                 fake_AB = torch.cat((fake_AB, self.continents.float()), dim=1)
             
+            # Append fake data
             fake_AB = torch.cat((fake_AB, self.fake_B_discrete), dim=1)
+
+            if self.opt.which_model_netD == 'cwgan-gp':
+                pass
+
         
             # Mean across batch, then across discriminators
             # We only optimise with respect to the fake prediction because
@@ -621,13 +717,15 @@ class Pix2PixGeoModel(BaseModel):
             for _ in range(self.opt.low_iter if kwargs['step_no'] >= 25 else self.opt.high_iter):
                 self.loss_D1, self.loss_D1_real, self.loss_D1_fake, self.loss_D1_grad_pen = self.backward_D(self.netD1s, self.optimizer_D1s,
                     cond_data,
-                    self.real_B_discrete, self.fake_B_discrete)
+                    self.real_B_discrete, self.fake_B_discrete,
+                    self.fake_folder, self.real_folder)
 
                 if not self.opt.discrete_only:
                     self.loss_D2, self.loss_D2_real, self.loss_D2_fake, self.loss_D2_grad_pen = self.backward_D(self.netD2s, self.optimizer_D2s,
                         cond_data,
                         torch.cat((self.real_B_DIV, self.real_B_Vx, self.real_B_Vy), dim=1), 
-                        torch.cat((self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1))
+                        torch.cat((self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1),
+                        self.fake_folder, self.real_folder)
 
 
 
