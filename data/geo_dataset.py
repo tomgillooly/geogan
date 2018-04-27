@@ -132,7 +132,11 @@ class GeoDataset(BaseDataset):
 
         self.opt.num_folders = 0
 
+        self.folder_id_lookup = {}
+
         for root, dirs, _ in os.walk(topdir):
+            self.folder_id_lookup[root[len(topdir):]] = self.opt.num_folders
+
             self.opt.num_folders += 1
 
             DIV_paths += sorted(glob.glob(os.path.join(root, '*_DIV.dat')), key=get_series_number)
@@ -213,7 +217,7 @@ class GeoDataset(BaseDataset):
 
         match = re.search('(/\d+)?/serie(\d+)', A_paths[0])
 
-        folder_id = int(match.group(1)[1:]) if match.group(1) else 0
+        folder_id = self.folder_id_lookup[match.group(1)[1:] if match.group(1) else '']
 
         dir_tag = '_' + match.group(1)[1:] + '_' if match.group(1) else '_'
         series_number = int(match.group(2))

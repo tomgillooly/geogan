@@ -183,16 +183,18 @@ def test_continuous_data_is_normalised(dataset):
 
 
 @pytest.fixture
-def temp_dataset(dataset):
+def temp_dataset(dataset, folder_nums=[1, 2, 3, 4]):
 	dataroot = dataset.opt.dataroot
 
 	# Create a temporary directory to test
 	temp_data_parent = tempfile.mkdtemp(dir='/tmp')
 
-	temp_data_dir_1 = os.path.join(temp_data_parent, '01')
-	temp_data_dir_2 = os.path.join(temp_data_parent, '02')
-	temp_data_dir_3 = os.path.join(temp_data_parent, '03')
-	temp_data_dir_4 = os.path.join(temp_data_parent, '04')
+	folder_labels = ['{:02}'.format(num) for num in folder_nums]
+
+	temp_data_dir_1 = os.path.join(temp_data_parent, folder_labels[0])
+	temp_data_dir_2 = os.path.join(temp_data_parent, folder_labels[1])
+	temp_data_dir_3 = os.path.join(temp_data_parent, folder_labels[2])
+	temp_data_dir_4 = os.path.join(temp_data_parent, folder_labels[3])
 
 	os.mkdir(temp_data_dir_1)
 	os.mkdir(temp_data_dir_2)
@@ -270,6 +272,20 @@ def test_directory_name_is_prepended_in_image_path(temp_dataset):
 
 def test_folder_id(temp_dataset):
 	geo, opt = temp_dataset
+	
+	assert(geo[0]['folder_id'] == 0)
+	assert(geo[1]['folder_id'] == 1)
+	assert(geo[2]['folder_id'] == 2)
+	assert(geo[3]['folder_id'] == 3)
+	assert(geo[4]['folder_id'] == 3)
+	assert(geo[5]['folder_id'] == 4)
+
+	# Test that object is modified outside of Dataset object
+	assert(opt.num_folders == 5)
+
+
+def test_return_sorted_folder_id(dataset):
+	geo, opt = temp_dataset(dataset, folder_nums=[3, 6, 9, 12])
 	
 	assert(geo[0]['folder_id'] == 0)
 	assert(geo[1]['folder_id'] == 1)
