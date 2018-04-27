@@ -519,9 +519,9 @@ class Pix2PixGeoModel(BaseModel):
 
         real_AB = torch.cat((cond_data, real_data), dim=1)
         if real_cond_vector:
-            args = (real_AB.detach(), real_cond_vector)
+            args = (real_AB, real_cond_vector)
         else:
-            args = (real_AB.detach(),)
+            args = (real_AB,)
 
         real_loss = self.criterionGAN(net_D(*args), True)
         # self.loss_D2_real = self.criterionGAN(pred_real, True)

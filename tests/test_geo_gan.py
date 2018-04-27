@@ -91,7 +91,6 @@ def test_generator(basic_gan):
 	gan.set_input(fake_dataset)
 	gan.forward()
 
-	print(MockGenerator.call_args)
 	assert(MockGenerator.call_args[0][0].name == (['A', 'mask_float']))
 
 
@@ -302,7 +301,7 @@ def test_wgan_with_folder_predictor_shape():
 	y= unet(x)
 
 	fc1 = torch.nn.Linear(2*2*64*8, 20)
-	folder_vec = fc1(inner.latent_vector.view(1, -1))
+	folder_vec = fc1(inner.output.view(1, -1))
 
 	D = DiscriminatorConditionalWGANGP(3, (64, 64), 20)
 
@@ -321,8 +320,7 @@ def test_get_downsample():
 	y = unet(x)
 
 	inner_vector = inner.output
-	print(inner_vector.shape)
-
+	
 	assert(inner_vector.shape[2] == 256 / downsample)
 	assert(inner_vector.shape[3] == 512 / downsample)
 	
@@ -337,8 +335,7 @@ def test_get_downsample():
 	y = unet(x)
 
 	inner_vector = inner.output
-	print(inner_vector.shape)
-
+	
 	assert(inner_vector.shape[2] == 256 / downsample)
 	assert(inner_vector.shape[3] == 512 / downsample)
 
@@ -402,7 +399,7 @@ def test_conditional_wgan_called_with_c_vector(basic_gan, mocker):
 	assert(gan.netD1s[0].call_args_list[0][0][0].name == '[A, mask_float, fake_discrete_output]_detach')
 	assert(gan.netD1s[0].call_args_list[0][0][1].name == 'fake_folder')
 	
-	assert(gan.netD1s[0].call_args_list[1][0][0].name 	== '[A, mask_float, B]_detach')
+	assert(gan.netD1s[0].call_args_list[1][0][0].name 	== ['A', 'mask_float', 'B'])
 	assert(gan.netD1s[0].call_args_list[1][0][1]		== gan.real_folder)
 	
 	assert(len(gan.netD1s[0].call_args_list)		== 3)
@@ -410,7 +407,7 @@ def test_conditional_wgan_called_with_c_vector(basic_gan, mocker):
 	assert(gan.netD2s[0].call_args_list[0][0][0].name == '[A, mask_float, fake_DIV, fake_Vx, fake_Vy]_detach')
 	assert(gan.netD2s[0].call_args_list[0][0][1].name == 'fake_folder')
 	
-	assert(gan.netD2s[0].call_args_list[1][0][0].name 	== '[A, mask_float, B_DIV, B_Vx, B_Vy]_detach')
+	assert(gan.netD2s[0].call_args_list[1][0][0].name 	== ['A', 'mask_float', 'B_DIV', 'B_Vx', 'B_Vy'])
 	assert(gan.netD2s[0].call_args_list[1][0][1]		== gan.real_folder)
 
 	assert(len(gan.netD2s[0].call_args_list)		== 3)
