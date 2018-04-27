@@ -447,7 +447,7 @@ class Pix2PixGeoModel(BaseModel):
         
         # Flattened, so we take the gradient wrt every x (each pixel in each channel)
         # Take mean across the batch
-        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean(dim=0, keedim=True)
+        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean(dim=0, keepdim=True)
 
         return gradient_penalty
 
