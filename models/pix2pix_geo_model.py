@@ -182,6 +182,8 @@ class Pix2PixGeoModel(BaseModel):
 
             if self.opt.which_model_netD == 'wgan-gp':
                 return DiscriminatorWGANGP(discrim_input_channels, (256, 512), opt.ndf)
+            elif self.opt.which_model_netD == 'cwgan-gp':
+                return DiscriminatorConditionalWGANGP(discrim_input_channels, (256, 512), opt.num_folders, opt.ndf)
 
             else:
             # def create_PatchGAN():
