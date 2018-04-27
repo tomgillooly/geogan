@@ -447,7 +447,7 @@ class Pix2PixGeoModel(BaseModel):
         
         # Flattened, so we take the gradient wrt every x (each pixel in each channel)
         # Take mean across the batch
-        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean(dim=0)
+        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean(dim=0, keedim=True)
 
         return gradient_penalty
 
@@ -503,7 +503,10 @@ class Pix2PixGeoModel(BaseModel):
         # loss[:, 0, :].backward()        
 
         # We take the different loss tyes (along axis 1) and take their average across all discriminators (axis 2 before selecting index on axis 1)
-        output = torch.mean(loss[:, 0, :], dim=1), torch.mean(loss[:, 1, :], dim=1), torch.mean(loss[:, 2, :], dim=1), torch.mean(loss[:, 3, :], dim=1)
+        output = (torch.mean(loss[:, 0, :], dim=1, keepdim=True),
+            torch.mean(loss[:, 1, :], dim=1, keepdim=True),
+            torch.mean(loss[:, 2, :], dim=1, keepdim=True),
+            torch.mean(loss[:, 3, :], dim=1, keepdim=True))
 
         return output
 
@@ -532,7 +535,7 @@ class Pix2PixGeoModel(BaseModel):
             # Mean across batch, then across discriminators
             # We only optimise with respect to the fake prediction because
             # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
-            pred_fake1 = torch.cat([self.criterionGAN(netD1(fake_AB), True) for netD1 in self.netD1s]).mean()
+            pred_fake1 = torch.cat([self.criterionGAN(netD1(fake_AB), True) for netD1 in self.netD1s]).mean(dim=0, keepdim=True)
             
             self.loss_G_GAN1 = pred_fake1
  
@@ -553,7 +556,7 @@ class Pix2PixGeoModel(BaseModel):
 
 
                 # Mean across batch, then across discriminators
-                pred_fake2 = torch.cat([self.criterionGAN(netD2(fake_AB), True) for netD2 in self.netD2s]).mean()
+                pred_fake2 = torch.cat([self.criterionGAN(netD2(fake_AB), True) for netD2 in self.netD2s]).mean(dim=0, keepdim=True)
 
                 self.loss_G_GAN2 = pred_fake2
 
@@ -611,9 +614,9 @@ class Pix2PixGeoModel(BaseModel):
             plate_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 1, :, :], dim=1), dim=1) / total_pixels
             subduction_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 2, :, :], dim=1), dim=1) / total_pixels
 
-            ridge_weight = ridge_weight.mean()
-            plate_weight = plate_weight.mean()
-            subduction_weight = subduction_weight.mean()
+            ridge_weight = ridge_weight.mean(dim=0, keepdim=True)
+            plate_weight = plate_weight.mean(dim=0, keepdim=True)
+            subduction_weight = subduction_weight.mean(dim=0, keepdim=True)
             
             weights = torch.cat((ridge_weight, plate_weight, subduction_weight))
 
