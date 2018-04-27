@@ -311,6 +311,9 @@ class Pix2PixGeoModel(BaseModel):
         if self.opt.isTrain and self.opt.num_folders > 1:
             self.real_folder = input['folder_id']
 
+            if len(self.gpu_ids) > 0:
+                self.real_folder = self.real_folder.cuda(self.gpu_ids[0])
+
         mask_x1 = input['mask_x1']
         mask_x2 = input['mask_x2']
         mask_y1 = input['mask_y1']
