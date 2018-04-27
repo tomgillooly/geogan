@@ -477,7 +477,12 @@ class Pix2PixGeoModel(BaseModel):
         # self.loss_D2 = (self.loss_D2_fake + self.loss_D2_real) * 0.5
         loss = fake_loss + real_loss + grad_pen * self.opt.lambda_C
 
+
         loss.backward()
+
+        print(loss)
+        print(real_loss)
+        print(fake_loss)
 
         # We could use view, but it looks like it just causes memory overflow
         # return torch.cat((loss, real_loss, fake_loss), dim=0).view(-1, 3, 1)
