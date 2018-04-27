@@ -3,7 +3,7 @@ import pytest
 import torch
 
 import models
-from models.pix2pix_geo_model import Pix2PixGeoModel, get_innermost, DiscriminatorConditionalWGANGP
+from models.pix2pix_geo_model import Pix2PixGeoModel, get_innermost
 from models.networks import UnetGenerator
 
 from options.base_options import BaseOptions
@@ -40,6 +40,7 @@ def standard_options():
 	opt.beta1 = 0.9
 	opt.which_direction = 'AtoB'
 	opt.continent_data = False
+	opt.num_folders = 0
 
 	return opt
 
@@ -287,26 +288,6 @@ def test_splitting_unet():
 
 	print(loss)
 
-def test_wgan_with_folder_predictor_shape():
-	unet = UnetGenerator(3, 3, 2)
-
-	x = torch.randn((1, 3, 64, 64))
-
-	# def extract_latent_vector(self, input, output):
-	# 	self.latent_vector = output
-
-	inner = get_innermost(unet, 'UnetSkipConnectionBlock')
-	inner.register_forward_hook(models.pix2pix_geo_model.save_output_hook)
-
-	y= unet(x)
-
-	fc1 = torch.nn.Linear(2*2*64*8, 20)
-	folder_vec = fc1(inner.output.view(1, -1))
-
-	D = DiscriminatorConditionalWGANGP(3, (64, 64), 20)
-
-	D.forward(y, folder_vec)
-
 
 def test_get_downsample():
 	unet = UnetGenerator(3, 3, 2)
@@ -340,7 +321,7 @@ def test_get_downsample():
 	assert(inner_vector.shape[3] == 512 / downsample)
 
 
-def test_conditional_wgan_called_with_c_vector(basic_gan, mocker):
+def test_folder_id_used_in_cross_entropy_loss(basic_gan, mocker):
 	MockGenerator = basic_gan
 	MockInnerLayer = fake_network(mocker, 'innermost')
 
@@ -389,26 +370,36 @@ def test_conditional_wgan_called_with_c_vector(basic_gan, mocker):
 	
 	gan.folder_fc = fake_network(mocker, 'fake_folder')
 
+	ce_fun_mock = mocker.MagicMock()
+	gan.criterionCE = mocker.MagicMock(return_value=ce_fun_mock)
+
 	gan.optimize_parameters(step_no=1)
 
 	print(gan.fake_folder.name)
 	assert(gan.fake_folder.name == 'fake_folder_softmax')
-	assert(gan.real_folder.name == 'zeros_20')
-	assert(gan.real_folder.__setitem__.call_args[0][0].name == 'folder_id')
-	assert(gan.real_folder.__setitem__.call_args[0][1] == 1)
+	assert(gan.real_folder.name == 'folder_id')
 
 	assert(gan.netD1s[0].call_args_list[0][0][0].name == '[A, mask_float, fake_discrete_output]_detach')
-	assert(gan.netD1s[0].call_args_list[0][0][1].name == 'fake_folder_softmax')
 	
 	assert(gan.netD1s[0].call_args_list[1][0][0].name 	== ['A', 'mask_float', 'B'])
-	assert(gan.netD1s[0].call_args_list[1][0][1]		== gan.real_folder)
 	
 	assert(len(gan.netD1s[0].call_args_list)		== 3)
 
 	assert(gan.netD2s[0].call_args_list[0][0][0].name == '[A, mask_float, fake_DIV, fake_Vx, fake_Vy]_detach')
-	assert(gan.netD2s[0].call_args_list[0][0][1].name == 'fake_folder_softmax')
 	
 	assert(gan.netD2s[0].call_args_list[1][0][0].name 	== ['A', 'mask_float', 'B_DIV', 'B_Vx', 'B_Vy'])
-	assert(gan.netD2s[0].call_args_list[1][0][1]		== gan.real_folder)
 
 	assert(len(gan.netD2s[0].call_args_list)		== 3)
+
+	assert(len(ce_fun_mock.call_args_list) == 2)
+	assert(ce_fun_mock.call_args_list[1][0][0].name =='fake_folder_softmax')
+	assert(ce_fun_mock.call_args_list[1][0][1].name =='folder_id')
+
+
+# def test_gradient_penalty(mocker):
+
+# 	gan = Pix2PixGeoModel()
+
+# 	MockDiscriminator = mocker.MagicMock()
+
+# 	gan.gradient_penalty(MockDiscriminator, torch.Tensor(3), torch.Tensor(0))
