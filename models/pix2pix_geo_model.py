@@ -118,6 +118,9 @@ class Pix2PixGeoModel(BaseModel):
             # Image size downsampled, times number of filters
             self.folder_fc = torch.nn.Linear(2*opt.fineSize**2 / get_downsample(self.netG)**2 * opt.ngf*8, opt.num_folders)
 
+            if len(self.gpu_ids) > 0:
+                self.folder_fc.cuda(self.gpu_ids[0])
+
         if not self.opt.discrete_only:
             self.netG_DIV = torch.nn.Sequential(
                 torch.nn.Conv2d(in_channels=opt.output_nc, out_channels=1, kernel_size=1),
