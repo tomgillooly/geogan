@@ -477,13 +477,15 @@ class Pix2PixGeoModel(BaseModel):
         # self.loss_D2 = (self.loss_D2_fake + self.loss_D2_real) * 0.5
         loss = fake_loss + real_loss + grad_pen * self.opt.lambda_C
 
-
         loss.backward()
 
         # We could use view, but it looks like it just causes memory overflow
         # return torch.cat((loss, real_loss, fake_loss), dim=0).view(-1, 3, 1)
-        
-        return loss, real_loss, fake_loss, grad_pen
+        output = torch.cat((loss, real_loss, fake_loss, grad_pen), dim=0)
+        output = output.unsqueeze(0)
+        output = output.unsqueeze(-1)
+
+        return output
 
 
     def backward_D(self, net_Ds, optimisers, cond_data, real_data, fake_data):
@@ -493,7 +495,7 @@ class Pix2PixGeoModel(BaseModel):
 
         # We get back full loss, real loss and fake loss, along axis 1
         # Concatenate the results from each discriminator along axis 2
-        loss, real_loss, fake_loss, grad_pen = list(zip(*[self.backward_single_D(net_D, cond_data, real_data, fake_data) for net_D in net_Ds]))
+        loss = torch.cat([self.backward_single_D(net_D, cond_data, real_data, fake_data) for net_D in net_Ds], dim=2)
 
         for optimiser in optimisers:
             optimiser.step()
@@ -501,10 +503,10 @@ class Pix2PixGeoModel(BaseModel):
         # loss[:, 0, :].backward()        
 
         # We take the different loss tyes (along axis 1) and take their average across all discriminators (axis 2 before selecting index on axis 1)
-        output = (np.mean(loss),
-            np.mean(real_loss),
-            np.mean(fake_loss),
-            np.mean(grad_pen))
+        output = (torch.mean(loss[:, 0, :], dim=1, keepdim=True),
+            torch.mean(loss[:, 1, :], dim=1, keepdim=True),
+            torch.mean(loss[:, 2, :], dim=1, keepdim=True),
+            torch.mean(loss[:, 3, :], dim=1, keepdim=True))
 
         return output
 
