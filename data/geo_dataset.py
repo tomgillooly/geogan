@@ -134,8 +134,11 @@ class GeoDataset(BaseDataset):
 
         self.folder_id_lookup = {}
 
+        # Remove trailing slashm, if there is one (sometimes there's not)
+        topdir = topdir.rstrip('/')
         for root, dirs, _ in os.walk(topdir):
-            self.folder_id_lookup[root[len(topdir):]] = self.opt.num_folders
+            # Re-add one to length for the trailing slash
+            self.folder_id_lookup[root[len(topdir)+1:]] = self.opt.num_folders
 
             self.opt.num_folders += 1
 
@@ -152,9 +155,7 @@ class GeoDataset(BaseDataset):
             #     Vx_paths += glob.glob(os.path.join(root, directory, '*_Vx.dat'))
             #     Vy_paths += glob.glob(os.path.join(root, directory, '*_Vy.dat'))
 
-        print(self.folder_id_lookup.keys())
-
-
+        
         return DIV_paths, Vx_paths, Vy_paths, cont_paths
 
 
