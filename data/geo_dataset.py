@@ -152,6 +152,8 @@ class GeoDataset(BaseDataset):
             #     Vx_paths += glob.glob(os.path.join(root, directory, '*_Vx.dat'))
             #     Vy_paths += glob.glob(os.path.join(root, directory, '*_Vy.dat'))
 
+        riprint(self.folder_id_lookup.keys())
+
 
         return DIV_paths, Vx_paths, Vy_paths, cont_paths
 
