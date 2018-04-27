@@ -391,13 +391,14 @@ def test_conditional_wgan_called_with_c_vector(basic_gan, mocker):
 
 	gan.optimize_parameters(step_no=1)
 
-	assert(gan.fake_folder.name == 'fake_folder')
+	print(gan.fake_folder.name)
+	assert(gan.fake_folder.name == 'fake_folder_softmax')
 	assert(gan.real_folder.name == 'zeros_20')
 	assert(gan.real_folder.__setitem__.call_args[0][0].name == 'folder_id')
 	assert(gan.real_folder.__setitem__.call_args[0][1] == 1)
 
 	assert(gan.netD1s[0].call_args_list[0][0][0].name == '[A, mask_float, fake_discrete_output]_detach')
-	assert(gan.netD1s[0].call_args_list[0][0][1].name == 'fake_folder')
+	assert(gan.netD1s[0].call_args_list[0][0][1].name == 'fake_folder_softmax')
 	
 	assert(gan.netD1s[0].call_args_list[1][0][0].name 	== ['A', 'mask_float', 'B'])
 	assert(gan.netD1s[0].call_args_list[1][0][1]		== gan.real_folder)
@@ -405,7 +406,7 @@ def test_conditional_wgan_called_with_c_vector(basic_gan, mocker):
 	assert(len(gan.netD1s[0].call_args_list)		== 3)
 
 	assert(gan.netD2s[0].call_args_list[0][0][0].name == '[A, mask_float, fake_DIV, fake_Vx, fake_Vy]_detach')
-	assert(gan.netD2s[0].call_args_list[0][0][1].name == 'fake_folder')
+	assert(gan.netD2s[0].call_args_list[0][0][1].name == 'fake_folder_softmax')
 	
 	assert(gan.netD2s[0].call_args_list[1][0][0].name 	== ['A', 'mask_float', 'B_DIV', 'B_Vx', 'B_Vy'])
 	assert(gan.netD2s[0].call_args_list[1][0][1]		== gan.real_folder)

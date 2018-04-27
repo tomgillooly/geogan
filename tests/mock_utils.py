@@ -31,7 +31,7 @@ class VariableMock(mock.MagicMock):
 
 def softmax_stub(mock, dim):
 	m = mock.copy()
-	m.name += '_softmax'
+	m.name = mock.name + '_softmax'
 
 	return m
 
