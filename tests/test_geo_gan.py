@@ -324,7 +324,7 @@ def test_get_downsample():
 	assert(inner_vector.shape[2] == 256 / downsample)
 	assert(inner_vector.shape[3] == 512 / downsample)
 	
-	unet = UnetGenerator(3, 3, 8)
+	unet = UnetGenerator(3, 3, 7, 64)
 
 	downsample = models.pix2pix_geo_model.get_downsample(unet)
 	inner = get_innermost(unet, 'UnetSkipConnectionBlock')

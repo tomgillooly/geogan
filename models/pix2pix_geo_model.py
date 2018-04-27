@@ -150,7 +150,7 @@ class Pix2PixGeoModel(BaseModel):
 
             # Image size downsampled, times number of filters
             self.folder_fc = torch.nn.Sequential(
-                torch.nn.Linear(2*opt.fineSize**2 / get_downsample(self.netG)**2 * opt.ngf*8 + opt.num_folders, 1),
+                torch.nn.Linear(int(2*opt.fineSize**2 / get_downsample(self.netG)**2 * opt.ngf*8 + opt.num_folders), int(1)),
                 torch.nn.LogSoftmax)
 
         if not self.opt.discrete_only:
