@@ -538,9 +538,16 @@ class Pix2PixGeoModel(BaseModel):
             plate_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 1, :, :], dim=1), dim=1) / total_pixels
             subduction_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 2, :, :], dim=1), dim=1) / total_pixels
 
+            print(ridge_weight)
+            print(plate_weight)
+            print(subduction_weight)
+
             ridge_weight = ridge_weight.mean()
+            print(ridge_weight)
             plate_weight = plate_weight.mean()
+            print(plate_weight)
             subduction_weight = subduction_weight.mean()
+            print(subduction_weight)
             
             weights = torch.cat((ridge_weight, plate_weight, subduction_weight))
 
