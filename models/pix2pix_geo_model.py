@@ -85,8 +85,7 @@ class DiscriminatorWGANGP(torch.nn.Module):
     def forward(self, x):
         y = self.ls(x)
 
-        y = y.view(-1)
-        return out
+        return y.view(-1)
 
 
 def save_output_hook(module, input, output):
