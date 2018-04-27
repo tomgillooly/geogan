@@ -501,10 +501,10 @@ class Pix2PixGeoModel(BaseModel):
         # loss[:, 0, :].backward()        
 
         # We take the different loss tyes (along axis 1) and take their average across all discriminators (axis 2 before selecting index on axis 1)
-        output = (torch.mean(loss),
-            torch.mean(real_loss),
-            torch.mean(fake_loss),
-            torch.mean(grad_pen))
+        output = (np.mean(loss),
+            np.mean(real_loss),
+            np.mean(fake_loss),
+            np.mean(grad_pen))
 
         return output
 
