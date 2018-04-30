@@ -70,7 +70,7 @@ def mse_loss_stub(**kwargs):
 	return loss_fun
 
 
-def mean_stub(mocks, dim):
+def mean_stub(mocks, dim, keepdim):
 	name_list = []
 	for mock in mocks:
 		if type(mock.name) == list:
@@ -79,6 +79,13 @@ def mean_stub(mocks, dim):
 			name_list.append(mock.name)
 	v = VariableMock()
 	v.name = 'mean_(' + ','.join(name_list) + ')'
+
+	return v
+
+
+def sum_stub(mocks, dim, keepdim=None):
+	v = VariableMock()
+	v.name = mocks.name + '_mean_dim_' + str(dim)
 
 	return v
 

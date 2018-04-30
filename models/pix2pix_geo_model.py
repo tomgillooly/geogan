@@ -610,18 +610,17 @@ class Pix2PixGeoModel(BaseModel):
 
         weights = torch.ones((3,)).cuda() if len(self.gpu_ids) > 0 else torch.ones((3,))
 
-        if self.opt.weighted_ce:
-            total_pixels = 1.0 * im_dims[0] * im_dims[1]
-            
-            ridge_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 0, :, :], dim=1), dim=1) / total_pixels
-            plate_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 1, :, :], dim=1), dim=1) / total_pixels
-            subduction_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 2, :, :], dim=1), dim=1) / total_pixels
+        total_pixels = 1.0 * im_dims[0] * im_dims[1]
+        
+        ridge_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 0, :, :], dim=1), dim=1) / total_pixels
+        plate_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 1, :, :], dim=1), dim=1) / total_pixels
+        subduction_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 2, :, :], dim=1), dim=1) / total_pixels
 
-            ridge_weight = ridge_weight.mean(dim=0, keepdim=True)
-            plate_weight = plate_weight.mean(dim=0, keepdim=True)
-            subduction_weight = subduction_weight.mean(dim=0, keepdim=True)
-            
-            weights = torch.cat((ridge_weight, plate_weight, subduction_weight))
+        ridge_weight = ridge_weight.mean(dim=0, keepdim=True)
+        plate_weight = plate_weight.mean(dim=0, keepdim=True)
+        subduction_weight = subduction_weight.mean(dim=0, keepdim=True)
+        
+        weights = torch.cat((ridge_weight, plate_weight, subduction_weight))
 
         ce_fun = self.criterionCE(weight=weights)
 

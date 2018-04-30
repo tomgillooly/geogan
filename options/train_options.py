@@ -33,7 +33,6 @@ class TrainOptions(BaseOptions):
                                       'For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set optidentity = 0.1')
         self.parser.add_argument('--high_iter', type=int, default=25, help='Number of critic iterations at beginning of training')
         self.parser.add_argument('--low_iter', type=int, default=5, help='Number of critic iterations after initial phase')
-        self.parser.add_argument('--weighted_ce', action='store_false', help='Weight cross entropy according to number of pixels in each class')
         self.parser.add_argument('--no_mask_to_critic', action='store_true', help="Don't pass mask to discriminator/critic")
 
         self.isTrain = True

@@ -70,6 +70,7 @@ def basic_gan(mocker):
 	mocker.patch('torch.zeros', new=zeros_stub)
 	mocker.patch('torch.ones', new=ones_stub)
 	mocker.patch('torch.mean', new=mean_stub)
+	mocker.patch('torch.sum', new=sum_stub)
 	mocker.patch.object(torch.autograd, 'Variable', new=variable_stub)
 	mocker.patch('models.networks.define_G', return_value=MockGenerator)
 
@@ -110,7 +111,6 @@ def test_generator_discriminator(basic_gan, mocker):
 	opt.lambda_C = 1
 	opt.discrete_only = False
 	opt.local_loss = False
-	opt.weighted_ce = False
 
 	gan.initialize(opt)
 
@@ -184,7 +184,6 @@ def test_with_continents(basic_gan, mocker):
 	opt.lambda_C = 1
 	opt.discrete_only = False
 	opt.local_loss = False
-	opt.weighted_ce = False
 	opt.continent_data = True
 
 	gan.initialize(opt)
@@ -342,7 +341,6 @@ def test_correct_shape_for_folder_id(mocker):
 	opt.lambda_C = 1
 	opt.discrete_only = False
 	opt.local_loss = False
-	opt.weighted_ce = False
 	opt.fineSize = 256
 	opt.ngf = 4
 	opt.num_folders = 20
@@ -377,7 +375,6 @@ def test_folder_id_used_in_cross_entropy_loss(basic_gan, mocker):
 	opt.lambda_C = 1
 	opt.discrete_only = False
 	opt.local_loss = False
-	opt.weighted_ce = False
 	opt.fineSize = 256
 	opt.num_folders = 20
 
@@ -386,7 +383,7 @@ def test_folder_id_used_in_cross_entropy_loss(basic_gan, mocker):
 	mocker.patch('models.pix2pix_geo_model.get_downsample', return_value=32)
 	gan.initialize(opt)
 
-	torch.nn.Linear.assert_called_with(2*256**2 / 32**2 * 420*8 + 20, 1)
+	torch.nn.Linear.assert_called_with(2*256**2 / 32**2 * 420*8, 20)
 
 	gan.netG = MockGenerator
 	
