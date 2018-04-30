@@ -166,6 +166,8 @@ class GeoDataset(BaseDataset):
             for idx, line in enumerate(file):
                 try:
                     self.inpaint_regions[idx] = tuple([int(param.lstrip()) for param in line.rstrip().split(',')])
+
+                    assert(len(self.inpaint_regions[idx]) == 3)
                 except ValueError:
                     continue
 
