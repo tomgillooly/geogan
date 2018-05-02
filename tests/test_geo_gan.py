@@ -41,6 +41,15 @@ def standard_options():
 	opt.which_direction = 'AtoB'
 	opt.continent_data = False
 	opt.num_folders = 0
+	
+	opt.high_iter = 1
+	opt.low_iter = 1
+	opt.lambda_A = 1
+	opt.lambda_B = 1
+	opt.lambda_C = 1
+
+	opt.local_loss = False
+	opt.div_only = False
 
 	return opt
 
@@ -426,6 +435,44 @@ def test_folder_id_used_in_cross_entropy_loss(basic_gan, mocker):
 	assert(len(ce_fun_mock.call_args_list) == 2)
 	assert(ce_fun_mock.call_args_list[1][0][0].name =='fake_folder_softmax')
 	assert(ce_fun_mock.call_args_list[1][0][1].name =='folder_id')
+
+
+def test_exclude_discriminators(basic_gan):
+	opt = standard_options()
+	opt.num_discrims = 0
+
+	geo = Pix2PixGeoModel()
+	geo.initialize(opt)
+
+	assert(len(geo.netD1s) == 0)
+
+	geo.initialize(opt)
+	opt.num_discrims = 2
+
+	geo = Pix2PixGeoModel()
+	geo.initialize(opt)
+
+	assert(len(geo.netD1s) == 2)
+
+
+def test_div_only(basic_gan, mocker):
+	opt = standard_options()
+	opt.num_discrims = 1
+	opt.div_only = True
+
+	gan = Pix2PixGeoModel()
+	gan.initialize(opt)
+	gan.netG_DIV = fake_network(mocker, 'fake_DIV')
+
+	fake_dataset = DatasetMock()
+
+	gan.set_input(fake_dataset)
+	gan.optimize_parameters(step_no=1)
+
+	assert(gan.netG.call_args[0][0].name == ['A', 'mask_float'])
+
+	assert(gan.netD2s[0].call_args_list[0][0][0].name == '[A, mask_float, fake_DIV]_detach')
+	assert(gan.netD2s[0].call_args_list[1][0][0].name == ['A', 'mask_float', 'B_DIV'])
 
 
 # def test_gradient_penalty(mocker):

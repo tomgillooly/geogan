@@ -46,8 +46,11 @@ class BaseOptions():
         self.parser.add_argument('--init_type', type=str, default='normal', help='network initialization [normal|xavier|kaiming|orthogonal]')
         self.parser.add_argument('--div_threshold', type=float, default=1000, help='network initialization [normal|xavier|kaiming|orthogonal]')
         self.parser.add_argument('--inpaint_single_class', action='store_true', help='If specified, only remove one class from inpainted region')
-        self.parser.add_argument('--discrete_only', action='store_true', help="Disregard continuous data (divergence and vector fields)")
         self.parser.add_argument('--continent_data', action='store_true', help="Include mask of continent locations in training")
+        
+        continuous_data = self.parser.add_mutually_exclusive_group()
+        continuous_data.add_argument('--discrete_only', action='store_true', help="Disregard continuous data (divergence and vector fields)")
+        continuous_data.add_argument('--div_only', action='store_true', help="Don't predict velocity data")
 
         self.initialized = True
 

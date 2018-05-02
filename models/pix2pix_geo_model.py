@@ -120,10 +120,15 @@ class Pix2PixGeoModel(BaseModel):
             if len(self.gpu_ids) > 0:
                 self.folder_fc.cuda(self.gpu_ids[0])
 
-        if not self.opt.discrete_only:
+        if not self.opt.discrete_only or self.opt.div_only:
             self.netG_DIV = torch.nn.Sequential(
                 torch.nn.Conv2d(in_channels=opt.output_nc, out_channels=1, kernel_size=1),
                 )
+            
+            if len(self.gpu_ids) > 0:
+                self.netG_DIV.cuda(self.gpu_ids[0])
+        
+        if not self.opt.discrete_only:
             self.netG_Vx = torch.nn.Sequential(
                 torch.nn.Conv2d(in_channels=opt.output_nc, out_channels=1, kernel_size=1),
                 )
@@ -132,7 +137,6 @@ class Pix2PixGeoModel(BaseModel):
                 )
 
             if len(self.gpu_ids) > 0:
-                self.netG_DIV.cuda(self.gpu_ids[0])
                 self.netG_Vx.cuda(self.gpu_ids[0])
                 self.netG_Vy.cuda(self.gpu_ids[0])
 
@@ -173,7 +177,7 @@ class Pix2PixGeoModel(BaseModel):
             if len(self.gpu_ids) > 0:
                 [netD.cuda() for netD in self.netD1s]
 
-            if not self.opt.discrete_only:
+            if not self.opt.discrete_only or self.opt.div_only:
                 # 3 channels of one-hot input (with chunk missing) + mask + DIV, Vx, Vy
                 self.netD2s = [get_discriminator() for _ in range(self.opt.num_discrims)]
 
@@ -182,20 +186,15 @@ class Pix2PixGeoModel(BaseModel):
                 if len(self.gpu_ids) > 0:
                     [netD.cuda() for netD in self.netD2s]
 
-            
-            # self.netD2 = networks.define_D(opt.input_nc + 3, opt.ndf,
-            #                               # opt.which_model_netD,
-            #                               'wgan',
-            #                               opt.n_layers_D, 'none', use_sigmoid, opt.init_type, self.gpu_ids,
-            #                               n_linear=1860)
-            #                               # n_linear=int((512*256)/70))
 
         if not self.isTrain or opt.continue_train:
             self.load_network(self.netG, 'G', opt.which_epoch)
 
+            if self.opt.div_only:
+                self.load_network(self.netG_DIV, 'G_DIV', opt.which_epoch)
+
             if not self.opt.discrete_only:
                 try:
-                    self.load_network(self.netG_DIV, 'G_DIV', opt.which_epoch)
                     self.load_network(self.netG_DIV, 'G_Vx', opt.which_epoch)
                     self.load_network(self.netG_DIV, 'G_Vy', opt.which_epoch)
                 except FileNotFoundError:
@@ -204,7 +203,7 @@ class Pix2PixGeoModel(BaseModel):
             if self.isTrain:
                 [self.load_network(self.netD1s[i], 'D1_%d' % i, opt.which_epoch) for i in range(len(self.netD1s))]
 
-                if not self.opt.discrete_only:
+                if not self.opt.discrete_only or self.opt.div_only:
                     [self.load_network(self.netD2s[i], 'D2_%d' % i, opt.which_epoch) for i in range(len(self.netD2s))]
 
         if self.isTrain:
@@ -231,19 +230,21 @@ class Pix2PixGeoModel(BaseModel):
                                                 lr=opt.lr, betas=(opt.beta1, 0.999)) for netD1 in self.netD1s]
             self.optimizers += self.optimizer_D1s
             
-            if not self.opt.discrete_only:
+            if not self.opt.discrete_only or self.opt.div_only:
                 self.optimizer_G_DIV = torch.optim.Adam(self.netG_DIV.parameters(),
                                                     lr=opt.lr, betas=(opt.beta1, 0.999))
+                self.optimizers.append(self.optimizer_G_DIV)
+                self.optimizer_D2s = [torch.optim.Adam(netD2.parameters(),
+                                                    lr=opt.lr, betas=(opt.beta1, 0.999)) for netD2 in self.netD2s]
+                self.optimizers += self.optimizer_D2s
+                
+            if not self.opt.discrete_only:
                 self.optimizer_G_Vx = torch.optim.Adam(self.netG_Vx.parameters(),
                                                     lr=opt.lr, betas=(opt.beta1, 0.999))
                 self.optimizer_G_Vy = torch.optim.Adam(self.netG_Vy.parameters(),
                                                     lr=opt.lr, betas=(opt.beta1, 0.999))
-                self.optimizer_D2s = [torch.optim.Adam(netD2.parameters(),
-                                                    lr=opt.lr, betas=(opt.beta1, 0.999)) for netD2 in self.netD2s]
-                self.optimizers.append(self.optimizer_G_DIV)
                 self.optimizers.append(self.optimizer_G_Vx)
                 self.optimizers.append(self.optimizer_G_Vy)
-                self.optimizers += self.optimizer_D2s
 
             # Just a linear decay over the last 100 iterations, by default
             for optimizer in self.optimizers:
@@ -330,14 +331,18 @@ class Pix2PixGeoModel(BaseModel):
         # Complete thresholded, one-hot divergence map
         self.real_B_discrete = torch.autograd.Variable(self.input_B)
 
-        if not self.opt.discrete_only:
+
+        if not self.opt.discrete_only or self.opt.div_only:
             # Continuous divergence map with chunk missing
             self.real_A_DIV = torch.autograd.Variable(self.input_A_DIV)
+            
+            # Complete continuous divergence map
+            self.real_B_DIV = torch.autograd.Variable(self.input_B_DIV)
+
+        if not self.opt.discrete_only:
             # Vector fields with chunk missing
             self.real_A_Vx = torch.autograd.Variable(self.input_A_Vx)
             self.real_A_Vy = torch.autograd.Variable(self.input_A_Vy)
-            # Complete continuous divergence map
-            self.real_B_DIV = torch.autograd.Variable(self.input_B_DIV)
             # Complete vector field
             self.real_B_Vx = torch.autograd.Variable(self.input_B_Vx)
             self.real_B_Vy = torch.autograd.Variable(self.input_B_Vy)
@@ -362,9 +367,12 @@ class Pix2PixGeoModel(BaseModel):
             self.fake_folder = self.folder_fc(self.netG.inner_layer.output.view(self.batch_size, -1))
             self.fake_folder = torch.nn.functional.log_softmax(self.fake_folder, dim=1)
         
-        if not self.opt.discrete_only:
+
+        if not self.opt.discrete_only or self.opt.div_only:
             # Create continuous divergence field from class probabilities
             self.fake_B_DIV = self.netG_DIV(self.fake_B_discrete)
+
+        if not self.opt.discrete_only:
             # Create vector field from class probabilities
             self.fake_B_Vx = self.netG_Vx(self.fake_B_discrete)
             self.fake_B_Vy = self.netG_Vy(self.fake_B_discrete)
@@ -388,11 +396,13 @@ class Pix2PixGeoModel(BaseModel):
         self.real_A_discrete = torch.autograd.Variable(self.input_A, volatile=True)
         self.real_B_discrete = torch.autograd.Variable(self.input_B, volatile=True)
 
-        if not self.opt.discrete_only:
+        if self.opt.div_only:
             self.real_A_DIV = torch.autograd.Variable(self.input_A_DIV)
+            self.real_B_DIV = torch.autograd.Variable(self.input_B_DIV)
+
+        if not self.opt.discrete_only:
             self.real_A_Vx = torch.autograd.Variable(self.input_A_Vx)
             self.real_A_Vy = torch.autograd.Variable(self.input_A_Vy)
-            self.real_B_DIV = torch.autograd.Variable(self.input_B_DIV)
             self.real_B_Vx = torch.autograd.Variable(self.input_B_Vx)
             self.real_B_Vy = torch.autograd.Variable(self.input_B_Vy)
         
@@ -406,8 +416,10 @@ class Pix2PixGeoModel(BaseModel):
         
         self.fake_B_discrete = self.netG(self.G_input)
 
-        if not self.opt.discrete_only:
+        if self.opt.div_only:
             self.fake_B_DIV = self.netG_DIV(self.fake_B_discrete)
+
+        if not self.opt.discrete_only:
             self.fake_B_Vx = self.netG_Vx(self.fake_B_discrete)
             self.fake_B_Vy = self.netG_Vy(self.fake_B_discrete)
         
@@ -545,7 +557,7 @@ class Pix2PixGeoModel(BaseModel):
             # Trying to incentivise making this big, so it's mistaken for real
             self.loss_G_GAN = self.loss_G_GAN1
         
-            if not self.opt.discrete_only:
+            if not self.opt.discrete_only or self.opt.div_only:
                 # Conditional data (input with chunk missing + mask) + fake DIV, Vx and Vy data
                 fake_AB = torch.cat((self.real_A_discrete,), dim=1)
  
@@ -555,7 +567,10 @@ class Pix2PixGeoModel(BaseModel):
                 if self.opt.continent_data:
                     fake_AB = torch.cat((fake_AB, self.continents.float()), dim=1)
  
-                fake_AB = torch.cat((fake_AB, self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1)
+                fake_AB = torch.cat((fake_AB, self.fake_B_DIV), dim=1)
+
+                if not self.opt.div_only:
+                    fake_AB = torch.cat((fake_AB, self.fake_B_Vx, self.fake_B_Vy), dim=1)
 
 
                 # Mean across batch, then across discriminators
@@ -577,19 +592,23 @@ class Pix2PixGeoModel(BaseModel):
             loss_mask = self.mask
             im_dims = self.mask_size_y[0], self.mask_size_x[0]
 
-        if not self.opt.discrete_only:
+
+        if not self.opt.discrete_only or self.opt.div_only:
             self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
             self.real_B_DIV_ROI = self.real_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
-            
+
+            self.loss_G_L2_DIV = self.criterionL2(
+                self.fake_B_DIV_ROI,
+                self.real_B_DIV_ROI) * self.opt.lambda_A
+
+            self.loss_G_L2 = self.loss_G_L2_DIV
+
+        if not self.opt.discrete_only:
             self.fake_B_Vx_ROI = self.fake_B_Vx.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
             self.real_B_Vx_ROI = self.real_B_Vx.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
             
             self.fake_B_Vy_ROI = self.fake_B_Vy.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
             self.real_B_Vy_ROI = self.real_B_Vy.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
-
-            self.loss_G_L2_DIV = self.criterionL2(
-                self.fake_B_DIV_ROI,
-                self.real_B_DIV_ROI) * self.opt.lambda_A
             self.loss_G_L2_Vx = self.criterionL2(
                 self.fake_B_Vx_ROI,
                 self.real_B_Vx_ROI) * self.opt.lambda_A
@@ -597,7 +616,7 @@ class Pix2PixGeoModel(BaseModel):
                 self.fake_B_Vy_ROI,
                 self.real_B_Vy_ROI) * self.opt.lambda_A
 
-            self.loss_G_L2 = self.loss_G_L2_DIV + self.loss_G_L2_Vx + self.loss_G_L2_Vy
+            self.loss_G_L2 += self.loss_G_L2_Vx + self.loss_G_L2_Vy
 
 
         self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(
@@ -632,7 +651,7 @@ class Pix2PixGeoModel(BaseModel):
 
         self.loss_G = self.loss_G_GAN + self.loss_G_CE
 
-        if not self.opt.discrete_only:
+        if not self.opt.discrete_only or self.opt.div_only:
             self.loss_G += self.loss_G_L2
 
         if self.isTrain and self.opt.num_folders > 1:
@@ -665,18 +684,28 @@ class Pix2PixGeoModel(BaseModel):
                     cond_data,
                     self.real_B_discrete, self.fake_B_discrete)
 
-                if not self.opt.discrete_only:
+                if not self.opt.discrete_only or self.opt.div_only:
+                    # Conditional data (input with chunk missing + mask) + fake DIV, Vx and Vy data
+                    real_data = torch.cat((self.real_B_DIV,), dim=1)
+                    fake_data = torch.cat((self.fake_B_DIV,), dim=1)
+
+                    if not self.opt.div_only:
+                        real_data = torch.cat((real_data, self.real_B_Vx, self.real_B_Vy), dim=1)
+                        fake_data = torch.cat((fake_data, self.fake_B_Vx, self.fake_B_Vy), dim=1)
+
                     self.loss_D2, self.loss_D2_real, self.loss_D2_fake, self.loss_D2_grad_pen = self.backward_D(self.netD2s, self.optimizer_D2s,
                         cond_data,
-                        torch.cat((self.real_B_DIV, self.real_B_Vx, self.real_B_Vy), dim=1), 
-                        torch.cat((self.fake_B_DIV, self.fake_B_Vx, self.fake_B_Vy), dim=1))
+                        real_data, 
+                        fake_data)
 
 
 
         self.optimizer_G.zero_grad()
 
-        if not self.opt.discrete_only:
+        if not self.opt.discrete_only or self.opt.div_only:
             self.optimizer_G_DIV.zero_grad()
+
+        if not self.opt.discrete_only:
             self.optimizer_G_Vx.zero_grad()
             self.optimizer_G_Vy.zero_grad()
         
@@ -684,8 +713,10 @@ class Pix2PixGeoModel(BaseModel):
         
         self.optimizer_G.step()
         
-        if not self.opt.discrete_only:
+        if not self.opt.discrete_only or self.opt.div_only:
             self.optimizer_G_DIV.step()
+
+        if not self.opt.discrete_only:
             self.optimizer_G_Vx.step()
             self.optimizer_G_Vy.step()
 
@@ -704,7 +735,7 @@ class Pix2PixGeoModel(BaseModel):
                 ('D1_grad_pen', self.loss_D1_grad_pen.data[0])
             ]
 
-        if not self.opt.discrete_only:
+        if not self.opt.discrete_only or self.opt.div_only:
             errors += [
                 ('G_L2', self.loss_G_L2.data[0]),
             ]
@@ -749,11 +780,20 @@ class Pix2PixGeoModel(BaseModel):
         visuals.append(('output_one_hot', fake_B_one_hot))
 
 
-        if not self.opt.discrete_only:
+        if not self.opt.discrete_only or self.opt.div_only:
             real_A_DIV = util.tensor2im(self.real_A_DIV.data)
             real_A_DIV[mask_edge_coords] = np.max(real_A_DIV)
             visuals.append(('input_divergence', real_A_DIV))
 
+            real_B_DIV = util.tensor2im(self.real_B_DIV.data)
+            real_B_DIV[mask_edge_coords] = np.max(real_B_DIV)
+            visuals.append(('ground_truth_divergence', real_B_DIV))
+
+            fake_B_DIV = util.tensor2im(self.fake_B_DIV.data)
+            fake_B_DIV[mask_edge_coords] = np.max(fake_B_DIV)
+            visuals.append(('output_divergence', fake_B_DIV))
+            
+        if not self.opt.discrete_only:
             real_A_Vx = util.tensor2im(self.real_A_Vx.data)
             real_A_Vx[mask_edge_coords] = np.max(real_A_Vx)
             visuals.append(('input_Vx', real_A_Vx))
@@ -762,10 +802,6 @@ class Pix2PixGeoModel(BaseModel):
             real_A_Vy[mask_edge_coords] = np.max(real_A_Vy)
             visuals.append(('input_Vy', real_A_Vy))
 
-            real_B_DIV = util.tensor2im(self.real_B_DIV.data)
-            real_B_DIV[mask_edge_coords] = np.max(real_B_DIV)
-            visuals.append(('ground_truth_divergence', real_B_DIV))
-
             real_B_Vx = util.tensor2im(self.real_B_Vx.data)
             real_B_Vx[mask_edge_coords] = np.max(real_B_Vx)
             visuals.append(('ground_truth_Vx', real_B_Vx))
@@ -773,10 +809,6 @@ class Pix2PixGeoModel(BaseModel):
             real_B_Vy = util.tensor2im(self.real_B_Vy.data)
             real_B_Vy[mask_edge_coords] = np.max(real_B_Vy)
             visuals.append(('ground_truth_Vy', real_B_Vy))
-
-            fake_B_DIV = util.tensor2im(self.fake_B_DIV.data)
-            fake_B_DIV[mask_edge_coords] = np.max(fake_B_DIV)
-            visuals.append(('output_divergence', fake_B_DIV))
 
             fake_B_Vx = util.tensor2im(self.fake_B_Vx.data)
             fake_B_Vx[mask_edge_coords] = np.max(fake_B_Vx)
@@ -921,12 +953,14 @@ class Pix2PixGeoModel(BaseModel):
     def save(self, label):
         self.save_network(self.netG, 'G', label, self.gpu_ids)
 
-        if not self.opt.discrete_only:
+        if not self.opt.discrete_only or self.opt.div_only:
             self.save_network(self.netG_DIV, 'G_DIV', label, self.gpu_ids)
-            self.save_network(self.netG_Vx, 'G_Vx', label, self.gpu_ids)
-            self.save_network(self.netG_Vy, 'G_Vy', label, self.gpu_ids)
+
+            if not self.opt.div_only:
+                self.save_network(self.netG_Vx, 'G_Vx', label, self.gpu_ids)
+                self.save_network(self.netG_Vy, 'G_Vy', label, self.gpu_ids)
 
         for i in range(len(self.netD1s)):
             self.save_network(self.netD1s[i], 'D1_%d' % i, label, self.gpu_ids)
-            if not self.opt.discrete_only:
+            if not self.opt.discrete_only or self.opt.div_only:
                 self.save_network(self.netD2s[i], 'D2_%d' % i, label, self.gpu_ids)
