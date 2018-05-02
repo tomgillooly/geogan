@@ -123,6 +123,9 @@ def test_generator_discriminator(basic_gan, mocker):
 
 	gan.initialize(opt)
 
+	assert(models.networks.define_D.called)
+	assert(models.networks.define_D.call_args[0][0] == 7)
+
 	assert(all([netD1 != netD2 for netD1, netD2 in zip(gan.netD1s, gan.netD2s)]))
 
 	gan.netG_DIV = fake_network(mocker, 'fake_DIV')
@@ -462,6 +465,10 @@ def test_div_only(basic_gan, mocker):
 
 	gan = Pix2PixGeoModel()
 	gan.initialize(opt)
+
+	assert(models.networks.define_D.called)
+	assert(models.networks.define_D.call_args[0][0] == 5)
+
 	gan.netG_DIV = fake_network(mocker, 'fake_DIV')
 
 	fake_dataset = DatasetMock()

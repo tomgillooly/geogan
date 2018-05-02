@@ -9,7 +9,7 @@ if [ "$HOSTNAME" == "tomoplata-OptiPlex-790" ]; then
 	OPTIONS="--gpu_ids -1 --display_id 0"
 else
 	VIRTUALENV_NAME=cyclegan3
-	DATAROOT=/storage/Datasets/Geology-NicolasColtice/new_data
+	DATAROOT=/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT
 	HOME=/home/tgillooly/
 
 	source find_free_port.sh
@@ -30,7 +30,7 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 	# --continue_train --which_epoch latest --epoch_count 45 \
 python train.py --dataroot $DATAROOT --name autoencoder_wce_div_only \
 	--model pix2pix_geo --which_model_netG unet_256 --which_direction BtoA \
-	--continent_data --num_discrims 0 \
+	--num_discrims 0 \
 	--div_only \
 	--high_iter 25 --low_iter 5 \
 	--num_discrims 1 --which_model_netD wgan-gp --input_nc 3 --output_nc 3 \

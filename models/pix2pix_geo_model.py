@@ -141,8 +141,25 @@ class Pix2PixGeoModel(BaseModel):
                 self.netG_Vy.cuda(self.gpu_ids[0])
 
 
-        def get_discriminator():
+        def get_discriminator(input_channels):
             # def create_WGAN_GP():
+
+            if self.opt.which_model_netD == 'wgan-gp':
+                return DiscriminatorWGANGP(input_channels, (256, 512), opt.ndf)
+
+            else:
+            # def create_PatchGAN():
+                use_sigmoid = opt.no_lsgan
+                return networks.define_D(input_channels, opt.ndf,
+                                          opt.which_model_netD,
+                                          opt.n_layers_D, opt.norm,
+                                          use_sigmoid, opt.init_type, self.gpu_ids)
+            
+                # return create_WGAN_GP
+                # return create_PatchGAN
+
+
+        if self.isTrain:
             # Inputs: 3 channels of one-hot input (with chunk missing) + discrete output data
             discrim_input_channels = opt.input_nc + opt.output_nc
 
@@ -153,23 +170,7 @@ class Pix2PixGeoModel(BaseModel):
             if self.opt.continent_data:
                 discrim_input_channels += 1
 
-            if self.opt.which_model_netD == 'wgan-gp':
-                return DiscriminatorWGANGP(discrim_input_channels, (256, 512), opt.ndf)
-
-            else:
-            # def create_PatchGAN():
-                use_sigmoid = opt.no_lsgan
-                return networks.define_D(discrim_input_channels, opt.ndf,
-                                          opt.which_model_netD,
-                                          opt.n_layers_D, opt.norm,
-                                          use_sigmoid, opt.init_type, self.gpu_ids)
-            
-                # return create_WGAN_GP
-                # return create_PatchGAN
-
-
-        if self.isTrain:
-            self.netD1s = [get_discriminator() for _ in range(self.opt.num_discrims)]
+            self.netD1s = [get_discriminator(discrim_input_channels) for _ in range(self.opt.num_discrims)]
 
             # Apply is in-place, we don't need to return into anything
             [netD1.apply(weights_init) for netD1 in self.netD1s]
@@ -178,8 +179,26 @@ class Pix2PixGeoModel(BaseModel):
                 [netD.cuda() for netD in self.netD1s]
 
             if not self.opt.discrete_only or self.opt.div_only:
+                # Inputs: 3 channels of one-hot input (with chunk missing)
+                discrim_input_channels = opt.input_nc
+
+                # Add extra channel for mask if we need it
+                if not self.opt.no_mask_to_critic:
+                    discrim_input_channels += 1
+
+                if self.opt.continent_data:
+                    discrim_input_channels += 1
+
+                # Just divergence
+                if self.opt.div_only:
+                    discrim_input_channels += 1
+                # Divergence and two velocity images
+                else:
+                    discrim_input_channels += 3
+
+
                 # 3 channels of one-hot input (with chunk missing) + mask + DIV, Vx, Vy
-                self.netD2s = [get_discriminator() for _ in range(self.opt.num_discrims)]
+                self.netD2s = [get_discriminator(discrim_input_channels) for _ in range(self.opt.num_discrims)]
 
                 [netD2.apply(weights_init) for netD2 in self.netD2s]
 
