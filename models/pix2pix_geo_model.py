@@ -627,8 +627,6 @@ class Pix2PixGeoModel(BaseModel):
                 self.batch_size, *im_dims)
 
 
-        weights = torch.ones((3,)).cuda() if len(self.gpu_ids) > 0 else torch.ones((3,))
-
         total_pixels = 1.0 * im_dims[0] * im_dims[1]
         
         ridge_weight = 1.0 - torch.sum(torch.sum(self.real_B_discrete_ROI[:, 0, :, :], dim=1), dim=1) / total_pixels
