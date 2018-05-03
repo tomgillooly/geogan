@@ -327,10 +327,10 @@ class GeoDataset(BaseDataset):
 
         def process_image(A, B, discrete=False):
             if not discrete:
-                A = np.expand_dims(A, 2)
-                B = np.expand_dims(B, 2)
-                A = transforms.ToTensor()(A)
-                B = transforms.ToTensor()(B)
+                A = np.expand_dims(A, 0)
+                B = np.expand_dims(B, 0)
+                A = torch.FloatTensor(A)
+                B = torch.FloatTensor(B)
 
                 # A = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(A)
                 # B = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(B)

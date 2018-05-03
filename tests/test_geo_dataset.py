@@ -379,13 +379,17 @@ def test_normalise_by_folder(new_dataset):
 	with open('test_data/with_continents/6/DIV_norm.dat', 'w') as file:
 		file.write('-10000 10000')
 
+
+	i_data = (0.5 * old_data + 0.5) * (10000) - 5000
+	new_data_pred = 2*((i_data + 10000) / 20000 - 0.5)
+
 	# Get data with new norm
 	data = new_dataset[0]
 
 	new_data = data['A_DIV'][0][0][0]
 
 	new_min = torch.min(data['A_DIV'].view(1, -1))
-	assert(new_data == old_data / 2)
+	assert(abs(new_data - new_data_pred) < 0.00001) # i.e. a float equals
 	
 
 
