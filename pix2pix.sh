@@ -28,7 +28,7 @@ source $HOME/$VIRTUALENV_NAME/bin/activate
 python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --continue_train --which_epoch latest --epoch_count 45 \
-python train.py --dataroot $DATAROOT --name autoencoder_wce_div_only \
+python train.py --dataroot $DATAROOT --name autoencoder_wce_div_only_no_folder_norm \
 	--model pix2pix_geo --which_model_netG unet_256 --which_direction BtoA \
 	--num_discrims 0 \
 	--div_only \
