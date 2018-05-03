@@ -39,6 +39,7 @@ def dataset(pytestconfig):
 	opt.no_flip=True
 	opt.div_threshold=1000
 	opt.inpaint_single_class=False
+	opt.normalise_by_folder = False
 	    
 	opt.continent_data=False
 
@@ -239,6 +240,7 @@ def temp_dataset(dataset, folder_nums=[1, 2, 3, 4]):
 	opt.inpaint_single_class=False
 	    
 	opt.continent_data=False
+	opt.normalise_by_folder=False
 	
 	geo = GeoDataset()
 	geo.initialize(opt)
@@ -323,6 +325,7 @@ def new_dataset():
 	opt.inpaint_single_class=False
 	    
 	opt.continent_data=True
+	opt.normalise_by_folder = True
 
 	geo = GeoDataset()
 	geo.initialize(opt)
@@ -349,6 +352,7 @@ def test_default_continent_map_is_blank():
 	opt.inpaint_single_class=False
 	    
 	opt.continent_data=True
+	opt.normalise_by_folder=True
 
 	geo = GeoDataset()
 	geo.initialize(opt)

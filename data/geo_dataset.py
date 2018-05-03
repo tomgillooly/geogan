@@ -270,10 +270,15 @@ class GeoDataset(BaseDataset):
 
                 return dmin, dmax
 
+        if self.opt.normalise_by_folder:
+            A_DIV = np.interp(A_DIV, get_norm_data('DIV'), [-1, 1])
+            A_Vx = np.interp(A_Vx, get_norm_data('Vx'), [-1, 1])
+            A_Vy = np.interp(A_Vy, get_norm_data('Vy'), [-1, 1])
+        else:
+            A_DIV = np.interp(A_DIV, [np.min(A_DIV.ravel()), np.max(A_DIV.ravel())], [-1, 1])
+            A_Vx = np.interp(A_Vx, [np.min(A_Vx.ravel()), np.max(A_Vx.ravel())], [-1, 1])
+            A_Vy = np.interp(A_Vy, [np.min(A_Vy.ravel()), np.max(A_Vy.ravel())], [-1, 1])
 
-        A_DIV = np.interp(A_DIV, get_norm_data('DIV'), [-1, 1])
-        A_Vx = np.interp(A_Vx, get_norm_data('Vx'), [-1, 1])
-        A_Vy = np.interp(A_Vy, get_norm_data('Vy'), [-1, 1])
 
         # if self.opt.continent_data
 
