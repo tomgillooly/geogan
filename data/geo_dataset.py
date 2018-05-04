@@ -16,8 +16,7 @@ from skimage.measure import regionprops
 import numpy as np
 
 
-EARTH_SURFACE_VELOCITY = 3.956e-2
-MODEL_SURFACE_VELOCITY = 700
+MAX_MASK_SEARCH_ITER = 100
 
 # def threshold(img, threshold=5000):
 #     zero_idx = np.where(np.abs(img) <= threshold)
@@ -104,17 +103,6 @@ class GeoDataset(BaseDataset):
 
         assert(opt.resize_or_crop == 'resize_and_crop')
 
-        self.inpaint_regions_file = os.path.join(opt.inpaint_file_dir, opt.phase, 'inpaint_regions')
-        self.inpaint_regions = [None]*len(self.A_paths)
-        
-        if os.path.exists(self.inpaint_regions_file):
-            with open(self.inpaint_regions_file) as file:
-                for idx, line in enumerate(file):
-                    try:
-                        self.inpaint_regions[idx] = tuple([int(param.lstrip()) for param in line.rstrip().split(',')])
-                    except ValueError:
-                        continue
-
 
     def get_dat_files(self, topdir):
         # DIV_paths = glob.glob(os.path.join(topdir, '*_DIV.dat'))
@@ -159,62 +147,24 @@ class GeoDataset(BaseDataset):
         return DIV_paths, Vx_paths, Vy_paths, cont_paths
 
 
-    def update_inpaint_regions_from_file(self):
-        with open(self.inpaint_regions_file, 'a+') as file:
-            file.seek(0)
-
-            for idx, line in enumerate(file):
-                try:
-                    self.inpaint_regions[idx] = tuple([int(param.lstrip()) for param in line.rstrip().split(',')])
-
-                    assert(len(self.inpaint_regions[idx]) == 3)
-                except ValueError:
-                    continue
-
-
-    def update_inpaint_regions_file(self):
-        with open(self.inpaint_regions_file, 'w') as file:
-            file.seek(0)
-            for idx, region in enumerate(self.inpaint_regions):
-                if not region:
-                    file.write("None\n")
-                else:
-                    file.write("{0},{1},{2}\n".format(*region))
-
-            file.truncate()
-
-
     def get_inpaint_region(self, index, A, h, w):
-        if not self.inpaint_regions[index]:
-            # If we have a batch size > 1, we need to update our inpaint regions
-            # from the other thread
-            # Also, we have to do this in stages because the file.seek(0) doesnt seem
-            # to work when we do it twice inside one context manager block
-            # We can do this with multiprocessing Manager lists, but that can be done later
-            self.update_inpaint_regions_from_file()
+        # 100 tries to find mask region
+        for i in range(100):
 
-            # success = False
+            w_offset = random.randint(0, max(0, w - 100 - 1))
+            h_offset = random.randint(0, max(0, h - 100 - 1))
 
-            # while not success:
-            # 100 tries to find mask region
-            for i in range(100):
+            layer = int(round(random.random())*2)
 
-                w_offset = random.randint(0, max(0, w - 100 - 1))
-                h_offset = random.randint(0, max(0, h - 100 - 1))
-
-                layer = int(round(random.random())*2)
-
-                if np.sum(A[h_offset:h_offset+100, w_offset:w_offset+100, layer]) > 0 and np.sum(A[h_offset:h_offset+100, w_offset:w_offset+100, 2-layer]) > 0:
-                    self.inpaint_regions[index] = (w_offset, h_offset, layer)
-
-                    break
+            # Check there are pixels in both regions
+            # Do we want a higher minimum than zero?
+            if np.sum(A[h_offset:h_offset+100, w_offset:w_offset+100, layer]) > 0 and np.sum(A[h_offset:h_offset+100, w_offset:w_offset+100, 2-layer]) > 0:
+                break
 
             if i == 99:
                 raise DataGenException("Couldn't choose mask region in file " + self.A_paths[index][0], A)
 
-            self.update_inpaint_regions_file()
-
-        return self.inpaint_regions[index]
+        return w_offset, h_offset, layer
 
 
     def __getitem__(self, index):
@@ -250,10 +200,6 @@ class GeoDataset(BaseDataset):
         rows = 256
         cols = 512
 
-        # A_DIV = data['DIV']['values']
-        # A_Vx = data['Vx']['values']
-        # A_Vy = data['Vy']['values']
-
         # Create discrete image before we normalise
         A = create_one_hot(data['DIV']['values'], self.opt.div_threshold)
         
@@ -262,20 +208,11 @@ class GeoDataset(BaseDataset):
         # Normalise
         A_DIV, A_Vx, A_Vy = A_data
 
-
         A_DIV = np.interp(A_DIV, [np.min(A_DIV.ravel()), np.max(A_DIV.ravel())], [-1, 1])
         A_Vx = np.interp(A_Vx, [np.min(A_Vx.ravel()), np.max(A_Vx.ravel())], [-1, 1])
         A_Vy = np.interp(A_Vy, [np.min(A_Vy.ravel()), np.max(A_Vy.ravel())], [-1, 1])
-
-        # if self.opt.continent_data
-
-        # Don't need this, as we're just normalising anyway
-        # A_Vx *= MODEL_SURFACE_VELOCITY / EARTH_SURFACE_VELOCITY
-        # A_Vy *= MODEL_SURFACE_VELOCITY / EARTH_SURFACE_VELOCITY
         
         w_offset, h_offset, layer = self.get_inpaint_region(index, A, rows, cols)
-        # w_offset, h_offset, layer = self.inpaint_regions[index]
-        # print(w_offset, h_offset, layer)
 
         mask_x1 = w_offset
         mask_x2 = w_offset+100
@@ -373,10 +310,10 @@ class GeoDataset(BaseDataset):
             mask_x1 = mask.shape[2] - mask_x2
             mask_x2 = mask.shape[2] - tmp
 
-        mask_x1 = torch.LongTensor([mask_x1])
-        mask_x2 = torch.LongTensor([mask_x2])
-        mask_y1 = torch.LongTensor([mask_y1])
-        mask_y2 = torch.LongTensor([mask_y2])
+        mask_x1 = torch.LongTensor([mask_x1]).expand(1, -1)
+        mask_x2 = torch.LongTensor([mask_x2]).expand(1, -1)
+        mask_y1 = torch.LongTensor([mask_y1]).expand(1, -1)
+        mask_y2 = torch.LongTensor([mask_y2]).expand(1, -1)
 
         data =  {'A': A, 'B': B,
                 'A_DIV': A_DIV, 'B_DIV': B_DIV,

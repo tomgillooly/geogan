@@ -1,11 +1,13 @@
 import glob
 import os
 import pytest
+import random
 import shutil
 import skimage.io as io
 import torch
 import tempfile
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 from collections import namedtuple
@@ -16,22 +18,12 @@ class NullOptions(object):
 
 @pytest.fixture(scope='module')
 def dataset(pytestconfig):
-	# put together basic options class to pass to dataset builder
-	inpaint_file_parent = tempfile.mkdtemp(dir='/tmp')
-	inpaint_file_dir = os.path.join(inpaint_file_parent, 'test')
-
-	os.mkdir(inpaint_file_dir)
-
 	opt = NullOptions()
 	opt.dataroot=os.path.expanduser(pytestconfig.option.dataroot)
 	opt.phase='test'
 		# 
-	opt.inpaint_file_dir=os.path.expanduser('~/data/geology/')
 	opt.resize_or_crop='resize_and_crop'
 		
-	opt.inpaint_file_dir=inpaint_file_parent
-	opt.resize_or_crop='resize_and_crop'
-	    
 	opt.loadSize=256
 	opt.fineSize=256
 	opt.which_direction='AtoB'
@@ -72,14 +64,85 @@ def test_changing_mask_locations(dataset):
 	assert((dataset[0]['mask'].view(1, -1) != dataset[2]['mask'].view(1, -1)).any())
 	assert((dataset[1]['mask'].view(1, -1) != dataset[2]['mask'].view(1, -1)).any())
 
+def test_mask_location_is_random(pytestconfig):
+	# First test we can force an identical location with random seed
+	# This is just a check for the test case itself
+
+	random.seed(0)
+	geo = dataset(pytestconfig)
+
+	old_mask_loc = (geo[0]['mask_x1'][0], geo[0]['mask_x1'][0])
+
+	random.seed(0)
+	geo = dataset(pytestconfig)
+
+	new_mask_loc = (geo[0]['mask_x1'][0], geo[0]['mask_x1'][0])
+
+	assert(old_mask_loc == new_mask_loc)
+
+	# Now see whether the mask location is different
+	random.seed(1)
+	geo = dataset(pytestconfig)
+
+	new_mask_loc = (geo[0]['mask_x1'][0], geo[0]['mask_x1'][0])
+
+	assert(old_mask_loc != new_mask_loc)
+
+
+def test_getitem_performs_random_mask_search_again(dataset):
+	x1_old = dataset[0]['mask_x1'][0]
+	x1_new = dataset[0]['mask_x1'][0]
+
+	assert(x1_old != x1_new)
+
+
+def test_dataloader_repeats_mask_search(dataset):
+	dataloader = torch.utils.data.DataLoader(
+	    dataset,
+	    batch_size=1,
+	    shuffle=False,
+	    num_workers=1)
+
+	old_s_nos = []
+	old_x1s = []
+
+	# Just doing it this way because this is how it's done in train.py
+	for i, old_data in enumerate(dataloader):
+		old_x1s.append(old_data['mask_x1'][0].item())
+		old_s_nos.append(old_data['series_number'][0].item())
+
+		# Just test first 4
+		if i > 3:
+			break
+
+	new_s_nos = []
+	new_x1s = []
+
+	for i, new_data in enumerate(dataloader):
+		new_x1s.append(new_data['mask_x1'][0].item())
+		new_s_nos.append(new_data['series_number'][0].item())
+
+		# Just test first 4
+		if i > 3:
+			break
+
+
+	# Even if we're loading a series again, the
+	# mask has been recomputed
+	assert(old_s_nos == new_s_nos)
+	assert(old_x1s != new_x1s)
+
+
 
 def test_mask_x_y_locations(dataset):
-	x1 = dataset[0]['mask_x1'][0]
-	x2 = dataset[0]['mask_x2'][0]
-	y1 = dataset[0]['mask_y1'][0]
-	y2 = dataset[0]['mask_y2'][0]
+	data = dataset[0]
 
-	mask = dataset[0]['mask']
+	x1 = data['mask_x1'][0]
+	x2 = data['mask_x2'][0]
+	y1 = data['mask_y1'][0]
+	y2 = data['mask_y2'][0]
+
+	mask = data['mask']
 
 	# Check upper and lower corners
 	assert(mask[0, y1-1, x1-1] == 0)
@@ -107,9 +170,11 @@ def test_mask_x_y_locations(dataset):
 
 
 def test_B_is_A_with_region_replaced_discrete(dataset):
-	A = dataset[0]['A']
-	B = dataset[0]['B']
-	mask = dataset[0]['mask']
+	data = dataset[0]
+
+	A = data['A']
+	B = data['B']
+	mask = data['mask']
 
 	assert((A.masked_select(~mask) == B.masked_select(~mask)).all())
 
@@ -161,8 +226,10 @@ def test_B_is_A_with_region_replaced_discrete(dataset):
 
 
 def test_discrete_data_is_one_hot(dataset):
-	A = dataset[0]['A']
-	B = dataset[0]['B']
+	data = dataset[0]
+
+	A = data['A']
+	B = data['B']
 
 	# Remember first axis is channels
 	assert((torch.sum(A, dim=0) == torch.ones(*A.shape)).all())
@@ -236,7 +303,6 @@ def temp_dataset(dataset, folder_nums=[1, 2, 3, 4]):
 	opt.dataroot=temp_data_parent
 	opt.phase=''
 		
-	opt.inpaint_file_dir=temp_data_parent
 	opt.resize_or_crop='resize_and_crop'
 	    
 	opt.loadSize=256
@@ -320,7 +386,6 @@ def new_dataset():
 	opt.dataroot='test_data/with_continents'
 	opt.phase=''
 		
-	opt.inpaint_file_dir='test_data/with_continents'
 	opt.resize_or_crop='resize_and_crop'
 	    
 	opt.loadSize=256
@@ -346,7 +411,6 @@ def test_default_continent_map_is_blank():
 	opt.dataroot='test_data/no_continents'
 	opt.phase=''
 		
-	opt.inpaint_file_dir='test_data/no_continents'
 	opt.resize_or_crop='resize_and_crop'
 	    
 	opt.loadSize=256
@@ -372,7 +436,13 @@ def test_handles_different_resolutions(new_dataset):
 	assert(len(new_dataset) == 16)
 
 	for i in range(len(new_dataset)):
-		assert(new_dataset[i] != None)
+		data = new_dataset[i]
+		assert(data != None)
+
+		assert(data['A'].shape == (3, 256, 512))
+		assert(data['B'].shape == (3, 256, 512))
+
+
 
 
 
