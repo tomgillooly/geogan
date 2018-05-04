@@ -611,7 +611,8 @@ class Pix2PixGeoModel(BaseModel):
             loss_mask = self.mask.byte()
 
             # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
-            im_dims = self.mask_size_y[0], self.mask_size_x[0]
+            # im_dims = self.mask_size_y[0], self.mask_size_x[0]
+            im_dims = (100, 100)
         
         loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
         loss_mask = torch.autograd.Variable(loss_mask)
@@ -654,7 +655,6 @@ class Pix2PixGeoModel(BaseModel):
                 self.batch_size, *im_dims)
 
         total_pixels = 1.0 * im_dims[0] * im_dims[1]
-        print(im_dims)
         
         num_ridge_pixels = torch.sum(torch.sum(self.real_B_discrete_ROI[:, 0, :, :], dim=1), dim=1)
         num_plate_pixels = torch.sum(torch.sum(self.real_B_discrete_ROI[:, 1, :, :], dim=1), dim=1)
