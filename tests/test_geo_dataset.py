@@ -6,6 +6,8 @@ import skimage.io as io
 import torch
 import tempfile
 
+import numpy as np
+
 from collections import namedtuple
 from data.geo_dataset import GeoDataset, DataGenException
 
@@ -177,18 +179,18 @@ def test_continuous_data_is_normalised(dataset):
 
 	# There might be a better way to test that it's image norm-ing, but
 	# this will do for now
-	assert(len(np.where(DIV) == 1) > 0)
-	assert(len(np.where(DIV) == -1) > 0)
+	assert(len(np.where(DIV.numpy() == 1)) > 0)
+	assert(len(np.where(DIV.numpy() == -1)) > 0)
 
 	assert(torch.max(Vx) <= 1)
 	assert(torch.min(Vx) >= -1)
-	assert(len(np.where(Vx) == 1) > 0)
-	assert(len(np.where(Vx) == -1) > 0)
+	assert(len(np.where(Vx.numpy() == 1)) > 0)
+	assert(len(np.where(Vx.numpy() == -1)) > 0)
 
 	assert(torch.max(Vy) <= 1)
 	assert(torch.min(Vy) >= -1)
-	assert(len(np.where(Vy) == 1) > 0)
-	assert(len(np.where(Vy) == -1) > 0)
+	assert(len(np.where(Vy.numpy() == 1)) > 0)
+	assert(len(np.where(Vy.numpy() == -1)) > 0)
 
 
 @pytest.fixture
