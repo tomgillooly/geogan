@@ -39,7 +39,6 @@ def dataset(pytestconfig):
 	opt.no_flip=True
 	opt.div_threshold=1000
 	opt.inpaint_single_class=False
-	opt.normalise_by_folder = False
 	    
 	opt.continent_data=False
 
@@ -176,11 +175,20 @@ def test_continuous_data_is_normalised(dataset):
 	assert(torch.max(DIV) <= 1)
 	assert(torch.min(DIV) >= -1)
 
+	# There might be a better way to test that it's image norm-ing, but
+	# this will do for now
+	assert(len(np.where(DIV) == 1) > 0)
+	assert(len(np.where(DIV) == -1) > 0)
+
 	assert(torch.max(Vx) <= 1)
 	assert(torch.min(Vx) >= -1)
+	assert(len(np.where(Vx) == 1) > 0)
+	assert(len(np.where(Vx) == -1) > 0)
 
 	assert(torch.max(Vy) <= 1)
 	assert(torch.min(Vy) >= -1)
+	assert(len(np.where(Vy) == 1) > 0)
+	assert(len(np.where(Vy) == -1) > 0)
 
 
 @pytest.fixture
@@ -240,7 +248,6 @@ def temp_dataset(dataset, folder_nums=[1, 2, 3, 4]):
 	opt.inpaint_single_class=False
 	    
 	opt.continent_data=False
-	opt.normalise_by_folder=False
 	
 	geo = GeoDataset()
 	geo.initialize(opt)
@@ -325,7 +332,6 @@ def new_dataset():
 	opt.inpaint_single_class=False
 	    
 	opt.continent_data=True
-	opt.normalise_by_folder = True
 
 	geo = GeoDataset()
 	geo.initialize(opt)
@@ -352,7 +358,6 @@ def test_default_continent_map_is_blank():
 	opt.inpaint_single_class=False
 	    
 	opt.continent_data=True
-	opt.normalise_by_folder=True
 
 	geo = GeoDataset()
 	geo.initialize(opt)
@@ -367,34 +372,6 @@ def test_handles_different_resolutions(new_dataset):
 	for i in range(len(new_dataset)):
 		assert(new_dataset[i] != None)
 
-
-def test_normalise_by_folder(new_dataset):
-	with open('test_data/with_continents/6/DIV_norm.dat', 'w') as file:
-		file.write('-5000 5000')
-
-	data = new_dataset[0]
-
-	
-	old_min = torch.min(data['A_DIV'].view(1, -1))
-	old_max = torch.max(data['A_DIV'].view(1, -1))
-
-	old_data = data['A_DIV'][0][0][0]
-
-	with open('test_data/with_continents/6/DIV_norm.dat', 'w') as file:
-		file.write('-10000 10000')
-
-
-	i_data = (0.5 * old_data + 0.5) * (10000) - 5000
-	new_data_pred = 2*((i_data + 10000) / 20000 - 0.5)
-
-	# Get data with new norm
-	data = new_dataset[0]
-
-	new_data = data['A_DIV'][0][0][0]
-
-	new_min = torch.min(data['A_DIV'].view(1, -1))
-	assert(abs(new_data - new_data_pred) < 0.00001) # i.e. a float equals
-	
 
 
 # def test_load_continent_data(new_dataset):
