@@ -604,16 +604,17 @@ class Pix2PixGeoModel(BaseModel):
         
         # if we aren't taking local loss, use entire image
         loss_mask = torch.ones(self.mask.shape).byte()
-        loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
-        loss_mask = torch.autograd.Variable(loss_mask)
 
         im_dims = self.mask.shape[2:]
 
         if self.opt.local_loss:
-            loss_mask = self.mask
+            loss_mask = self.mask.float()
 
             # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
             im_dims = self.mask_size_y[0], self.mask_size_x[0]
+        
+        loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
+        loss_mask = torch.autograd.Variable(loss_mask)
 
 
         if not self.opt.discrete_only or self.opt.div_only:
