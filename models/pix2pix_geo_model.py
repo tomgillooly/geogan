@@ -654,6 +654,7 @@ class Pix2PixGeoModel(BaseModel):
                 self.batch_size, *im_dims)
 
         total_pixels = 1.0 * im_dims[0] * im_dims[1]
+        print(im_dims)
         
         num_ridge_pixels = torch.sum(torch.sum(self.real_B_discrete_ROI[:, 0, :, :], dim=1), dim=1)
         num_plate_pixels = torch.sum(torch.sum(self.real_B_discrete_ROI[:, 1, :, :], dim=1), dim=1)
