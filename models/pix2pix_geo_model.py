@@ -611,6 +611,8 @@ class Pix2PixGeoModel(BaseModel):
 
         if self.opt.local_loss:
             loss_mask = self.mask
+
+            # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
             im_dims = self.mask_size_y[0], self.mask_size_x[0]
 
 
