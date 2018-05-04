@@ -653,6 +653,7 @@ class Pix2PixGeoModel(BaseModel):
         self.real_B_classes_ROI = self.real_B_classes.masked_select(loss_mask.squeeze()).view(
                 self.batch_size, *im_dims)
 
+        print(self.real_B_discrete_ROI)
 
         total_pixels = 1.0 * im_dims[0] * im_dims[1]
         
