@@ -40,7 +40,8 @@ def standard_options():
 	opt.beta1 = 0.9
 	opt.which_direction = 'AtoB'
 	opt.continent_data = False
-	opt.num_folders = 0
+	opt.num_folders = 1
+	opt.folder_pred=False
 	
 	opt.high_iter = 1
 	opt.low_iter = 1
@@ -356,6 +357,7 @@ def test_correct_shape_for_folder_id(mocker):
 	opt.fineSize = 256
 	opt.ngf = 4
 	opt.num_folders = 20
+	opt.folder_pred = True
 
 	gan.initialize(opt)
 
@@ -390,6 +392,15 @@ def test_folder_id_used_in_cross_entropy_loss(basic_gan, mocker):
 	opt.fineSize = 256
 	opt.num_folders = 20
 
+
+	mocker.patch('torch.nn.Linear')
+	mocker.patch('models.pix2pix_geo_model.get_downsample', return_value=32)
+	gan.initialize(opt)
+
+	torch.nn.Linear.assert_not_called()
+
+	# Check this switch is working
+	opt.folder_pred = True
 
 	mocker.patch('torch.nn.Linear')
 	mocker.patch('models.pix2pix_geo_model.get_downsample', return_value=32)

@@ -46,7 +46,7 @@ class BaseOptions():
         self.parser.add_argument('--div_threshold', type=float, default=1000, help='network initialization [normal|xavier|kaiming|orthogonal]')
         self.parser.add_argument('--inpaint_single_class', action='store_true', help='If specified, only remove one class from inpainted region')
         self.parser.add_argument('--continent_data', action='store_true', help="Include mask of continent locations in training")
-        self.parser.add_argument('--normalise_by_folder', action='store_true', help="Normalise continuous data by all series across folder, rather than by each instance")
+        self.parser.add_argument('--folder_pred', action='store_true', help="Include folder prediction in model and loss")
         
         continuous_data = self.parser.add_mutually_exclusive_group()
         continuous_data.add_argument('--discrete_only', action='store_true', help="Disregard continuous data (divergence and vector fields)")

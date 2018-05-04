@@ -110,7 +110,7 @@ class Pix2PixGeoModel(BaseModel):
         self.netG = networks.define_G(input_channels, opt.output_nc, opt.ngf,
                                       opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
 
-        if self.isTrain and opt.num_folders > 1:
+        if self.isTrain and opt.num_folders > 1 and self.opt.folder_pred:
             self.netG.inner_layer = get_innermost(self.netG, 'UnetSkipConnectionBlock')
             self.netG.inner_layer.register_forward_hook(save_output_hook)
 
@@ -329,7 +329,7 @@ class Pix2PixGeoModel(BaseModel):
         
         self.image_paths    = input['A_paths' if AtoB else 'B_paths']
 
-        if self.opt.isTrain and self.opt.num_folders > 1:
+        if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             self.real_folder = input['folder_id']
 
             if len(self.gpu_ids) > 0:
@@ -383,7 +383,7 @@ class Pix2PixGeoModel(BaseModel):
 
         self.fake_B_discrete = self.netG(self.G_input)
 
-        if self.opt.isTrain and self.opt.num_folders > 1:
+        if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             self.fake_folder = self.folder_fc(self.netG.inner_layer.output.view(self.batch_size, -1))
             self.fake_folder = torch.nn.functional.log_softmax(self.fake_folder, dim=1)
         
@@ -673,7 +673,7 @@ class Pix2PixGeoModel(BaseModel):
 
         self.loss_G += self.loss_G_CE
 
-        if self.isTrain and self.opt.num_folders > 1:
+        if self.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             ce_fun = self.criterionCE()
             self.folder_pred_CE = ce_fun(self.fake_folder, self.real_folder)
 
@@ -767,7 +767,7 @@ class Pix2PixGeoModel(BaseModel):
                     ('D2_grad_pen', self.loss_D2_grad_pen.data[0])
                 ]
 
-        if self.isTrain and self.opt.num_folders > 1:
+        if self.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             errors.append(('folder_CE', self.folder_pred_CE.data[0]))
 
         return OrderedDict(errors)
