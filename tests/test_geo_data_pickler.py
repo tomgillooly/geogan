@@ -31,8 +31,8 @@ def fake_geo_data(num_series=2):
 		# [0, 0, 0, 1, 1, 1, 1, 0, 0, 0],
 		# [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
 
-		DIV_data = np.random.rand(9, 10)*20000
-		Vx_data = np.random.rand(9, 10)*10000
+		DIV_data = np.random.randn(9, 10)*20000
+		Vx_data = np.random.randn(9, 10)*10000
 		DIV_datas.append(DIV_data)
 		Vx_datas.append(Vx_data)
 		Vy_datas.append(Vx_data)
@@ -175,6 +175,7 @@ def test_mask_location(fake_geo_data):
 
 	mask_loc = data_dict['mask_locs']
 
+	assert(len(mask_loc) > 0)
 
 	for x in range(one_hot.shape[1]-4):
 		for y in range(one_hot.shape[0]-4):
@@ -186,6 +187,28 @@ def test_mask_location(fake_geo_data):
 				assert(np.sum(one_hot[y:y+4, x:x+4, 2]) >= 6)
 			else:
 				assert(np.sum(one_hot[y:y+4, x:x+4, 0]) < 6 or np.sum(one_hot[y:y+4, x:x+4, 2]) < 6)
+
+def test_mask_params_stored_in_dict(fake_geo_data):
+	dataroot, DIV_datas, Vx_datas, Vy_datas = fake_geo_data
+	
+	p = GeoPickler(dataroot)
+
+	p.collect_all()
+
+	p.group_by_series()
+
+	data_dict = p.get_data_dict(0, 0)
+
+	DIV = (np.random.randn(*data_dict['A_DIV'].shape)*20000)
+
+	data_dict['A_DIV'] = DIV
+
+	p.create_one_hot(data_dict, 1000)
+
+	p.get_mask_loc(data_dict, 4, 6)
+
+	assert(data_dict['mask_size'] == 4)
+	assert(data_dict['min_pix_in_mask'] == 6)
 
 
 def test_normalises_continuous_data(fake_geo_data):
@@ -222,10 +245,123 @@ def test_pickling_contains_all_data(fake_geo_data, mocker):
 
 	mocker.patch('torch.save')
 
-	p.pickle_series(0, 0, 4, 6)
+	p.pickle_series(0, 0, 1000, 4, 6)
 
 	path = torch.save.call_args[0][1]
 	data = torch.save.call_args[0][0]
 
-	assert(path == 'out_dir/')
-	assert(all([key in data.keys() for key in ['A', 'A_DIV', 'A_Vx', 'A_Vy', 'mask_locs', 'folder_name', 'series_number']]))
+	assert(path == 'out_dir/00000.pkl')
+	assert(all([key in data.keys() for key in ['A', 'A_DIV', 'A_Vx', 'A_Vy', 'mask_locs', 'folder_name', 'series_number', 'mask_size', 'min_pix_in_mask']]))
+
+
+def test_pickling_preserves_folder_structure(mocker):
+	dataroot, DIV_base, Vx_base, Vy_base = fake_geo_data(1)
+	subfolder1, DIV_sub1, Vx_sub1, Vy_sub1 = fake_geo_data(2)
+	subfolder2, DIV_sub2, Vx_sub2, Vy_sub2 = fake_geo_data(2)
+
+	for data_group in ['DIV_base', 'Vx_base', 'Vy_base', 'DIV_sub1', 'Vx_sub1', 'Vy_sub1', 'DIV_sub2', 'Vx_sub2', 'Vy_sub2']:
+		for i, data in enumerate(eval(data_group)):
+			eval(data_group)[i] = np.interp(data, (np.min(data.ravel()), np.max(data.ravel())), [-1, 1])
+
+
+	shutil.move(subfolder1, dataroot)
+	shutil.move(subfolder2, dataroot)
+
+	p = GeoPickler(dataroot, 'out_dir')
+
+	p.collect_all()
+
+	p.group_by_series()
+
+	# Doesn't always load in order, but it's not a big deal
+	assert(sorted(p.folders.keys()) == sorted(['', os.path.basename(subfolder1), os.path.basename(subfolder2)]))
+
+	assert(len(p.get_folder_by_id(0)) == 1)
+	assert(len(p.get_folder_by_id(1)) == 2)
+	assert(len(p.get_folder_by_id(2)) == 2)
+
+	dirs = list(p.folders.keys())
+
+	mocker.patch('torch.save')
+
+	p.pickle_all(1000, 4, 6)
+
+	assert(len(torch.save.call_args_list) == 5)
+
+	for args, kwargs in torch.save.call_args_list:
+		series_number = args[0]['series_number']
+
+		# It doesn't matter which order they're written in
+		if args[1] == os.path.join('out_dir', '{:05}.pkl'.format(series_number)):
+			assert((args[0]['A_DIV'] == DIV_base[0]).all())
+			assert((args[0]['A_Vx'] == Vx_base[0]).all())
+			assert((args[0]['A_Vy'] == Vy_base[0]).all())
+		elif args[1] == os.path.join('out_dir', os.path.basename(subfolder1), '{:05}.pkl'.format(series_number)):
+			assert(series_number == 0 or series_number == 1)
+			assert((args[0]['A_DIV'] == DIV_sub1[series_number]).all())
+			assert((args[0]['A_Vx'] == Vx_sub1[series_number]).all())
+			assert((args[0]['A_Vy'] == Vy_sub1[series_number]).all())
+		elif args[1] == os.path.join('out_dir', os.path.basename(subfolder2), '{:05}.pkl'.format(series_number)):
+			assert(series_number == 0 or series_number == 1)
+			assert((args[0]['A_DIV'] == DIV_sub2[series_number]).all())
+			assert((args[0]['A_Vx'] == Vx_sub2[series_number]).all())
+			assert((args[0]['A_Vy'] == Vy_sub2[series_number]).all())
+		else:
+			assert False, args[1]
+
+
+def test_skip_save_if_no_mask_locations(fake_geo_data, mocker):
+	dataroot, _, _, _ = fake_geo_data
+	
+	p = GeoPickler(dataroot, 'out_dir')
+
+	p.collect_all()
+
+	p.group_by_series()
+
+	mocker.patch('torch.save')
+
+	p.pickle_series(0, 0, 1000, 4, 1000)
+
+	torch.save.assert_not_called()
+
+
+def test_continents_not_normalised():
+	p = GeoPickler('', 'out_dir')
+
+	data_dict = {}
+	data_dict['cont'] =(np.random.randn(9, 10)*255).astype(np.int8)
+	
+	old_max = np.max(data_dict['cont'].ravel())
+	old_min = np.min(data_dict['cont'].ravel())
+
+	p.normalise_continuous_data(data_dict)
+
+	assert(np.max(data_dict['cont'].ravel()) == old_max)
+	assert(np.min(data_dict['cont'].ravel()) == old_min)
+
+	non_zero = np.where(data_dict['cont'] > 0)
+	zero = np.where(data_dict['cont'] <= 0)
+	assert(len(zero) > 0)
+
+	p.process_continents(data_dict)
+
+	assert(np.max(data_dict['cont'].ravel()) == 1)
+	assert(np.min(data_dict['cont'].ravel()) == 0)
+
+	assert((data_dict['cont'][non_zero] == 1).all())
+	assert((data_dict['cont'][zero] == 0).all())
+
+
+def test_missing_continents_data_is_all_zeros():
+	p = GeoPickler('', 'out_dir')
+
+	data_dict = {}
+	data_dict['A_DIV'] = np.random.randn(9, 10)
+
+	p.process_continents(data_dict)
+	
+	assert((data_dict['cont'] == np.zeros((9, 10))).all())
+
+
+

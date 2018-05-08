@@ -8,8 +8,6 @@ from collections import OrderedDict
 from skimage.morphology import skeletonize
 from scipy.signal import correlate2d
 
-import matplotlib.pyplot as plt
-
 
 class GeoPickler(object):
 	def __init__(self, dataroot, out_dir=None):
@@ -129,10 +127,12 @@ class GeoPickler(object):
 		subductions = subductions >= num_pixels
 
 		data_dict['mask_locs'] = list(zip(*np.where(np.logical_and(ridges, subductions))))
+		data_dict['mask_size'] = mask_size
+		data_dict['min_pix_in_mask'] = num_pixels
 
 
 	def normalise_continuous_data(self, data_dict):
-		for tag in ['DIV', 'Vx', 'Vy', 'ResT', 'cont']:
+		for tag in ['DIV', 'Vx', 'Vy', 'ResT']:
 			key = 'A_' + tag
 			if not key in data_dict.keys():
 				continue
@@ -146,11 +146,28 @@ class GeoPickler(object):
 			data_dict[key] = data
 
 
-	def pickle_series(self, folder_id, series_no, mask_size, num_pix_in_mask):
+	def process_continents(self, data_dict):
+		if 'cont' in data_dict.keys():
+			data_dict['cont'] = (data_dict['cont'] > 0).astype(np.uint8)
+		else:
+			data_dict['cont'] = np.zeros(data_dict['A_DIV'].shape)
+
+
+	def pickle_series(self, folder_id, series_no, threshold, mask_size, num_pix_in_mask):
 		data_dict = self.get_data_dict(folder_id, series_no)
 
-		self.create_one_hot(data_dict, 1000)
+		self.create_one_hot(data_dict, threshold)
+
 		self.get_mask_loc(data_dict, mask_size, num_pix_in_mask)
+
+		if len(data_dict['mask_locs']) == 0:
+			return
+
 		self.normalise_continuous_data(data_dict)
 
-		torch.save(data_dict, os.path.join(self.out_dir, data_dict['folder_name']))
+		torch.save(data_dict, os.path.join(self.out_dir, data_dict['folder_name'], '{:05}.pkl'.format(series_no)))
+
+	def pickle_all(self, threshold, mask_size, num_pix_in_mask):
+		for folder in range(len(self.folders.keys())):
+			for series in self.get_folder_by_id(folder).keys():
+				self.pickle_series(folder, series, threshold, mask_size, num_pix_in_mask)
