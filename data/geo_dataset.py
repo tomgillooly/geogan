@@ -97,8 +97,10 @@ class GeoDataset(BaseDataset):
         data_paths = self.get_dat_files(self.dir_A)
 
         # If there's no continent data, remove so we don't end up with zero paths after zip
-        self.A_paths = list(zip(*[path for path in data_paths if path]))
-        
+        self.A_paths = [[path for path in pathgroup if path] for pathgroup in zip(*data_paths)]
+        # print(self.A_paths)
+
+
         assert(len(self.A_paths) > 0)
 
         assert(opt.resize_or_crop == 'resize_and_crop')
@@ -130,13 +132,22 @@ class GeoDataset(BaseDataset):
 
             self.opt.num_folders += 1
 
-            DIV_paths += sorted(glob.glob(os.path.join(root, '*_DIV.dat')), key=get_series_number)
+            DIV_path_in_folder = sorted(glob.glob(os.path.join(root, '*_DIV.dat')), key=get_series_number)
             Vx_paths += sorted(glob.glob(os.path.join(root, '*_Vx.dat')), key=get_series_number)
             Vy_paths += sorted(glob.glob(os.path.join(root, '*_Vy.dat')), key=get_series_number)
-            cont_paths += sorted(glob.glob(os.path.join(root, '*_cont.dat')), key=get_series_number)
+            cont_in_folder = sorted(glob.glob(os.path.join(root, '*_cont.dat')), key=get_series_number)
+
+            DIV_paths += DIV_path_in_folder
+            cont_paths += [None] * (len(DIV_path_in_folder)-len(cont_in_folder)) + cont_in_folder
+
+            def path_to_int(path):
+                try:
+                    return int(path)
+                except ValueError:
+                    return np.inf
 
             # Make sure they're in numerical order before we recurse into them
-            dirs.sort(key=int)
+            dirs.sort(key=path_to_int)
 
             # for directory in dirs:
             #     DIV_paths += glob.glob(os.path.join(root, directory, '*_DIV.dat'))
@@ -232,7 +243,7 @@ class GeoDataset(BaseDataset):
         # B_Vy = A_Vy.copy()
         # B_Vy[mask_y1:mask_y2, mask_x1:mask_x2] = 0
 
-        B_data = [mask_out_inpaint_region(data, mask) for data in [A_DIV, A_Vx, A_Vy]]
+        B_data = [mask_out_inpaint_region(im, mask) for im in [A_DIV, A_Vx, A_Vy]]
         
         B = A.copy()
 

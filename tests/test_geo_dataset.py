@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from collections import namedtuple
-from data.geo_dataset import GeoDataset, DataGenException
+from data.geo_dataset import GeoDataset, DataGenException, get_series_number
 
 class NullOptions(object):
 	pass
@@ -443,7 +443,39 @@ def test_handles_different_resolutions(new_dataset):
 		assert(data['B'].shape == (3, 256, 512))
 
 
+def test_zips_no_continent_data_correctly():
+	opt = NullOptions()
+	opt.dataroot=os.path.expanduser('~/data/new_geo_data')
+	opt.phase=''
+		
+	opt.resize_or_crop='resize_and_crop'
+	    
+	opt.loadSize=256
+	opt.fineSize=256
+	opt.which_direction='AtoB'
+	    
+	opt.input_nc=1
+	opt.output_nc=1
+	opt.no_flip=True,
+	opt.div_threshold=1000
+	opt.inpaint_single_class=False
+	    
+	opt.continent_data=True
 
+	geo = GeoDataset()
+	geo.initialize(opt)
+
+	# print(geo.A_paths)
+
+	for paths in geo.A_paths:
+		def get_subfolder(path):
+			return os.path.basename(os.path.dirname(path))
+
+		subfolders = [get_subfolder(path) for path in paths]
+		s_nos = [get_series_number(path) for path in paths]
+
+		assert(all([subfolder == subfolders[0] for subfolder in subfolders[1:]]))
+		assert(all([s_no == s_nos[0] for s_no in s_nos[1:]]))
 
 
 # def test_load_continent_data(new_dataset):

@@ -112,6 +112,19 @@ def test_searches_subfolders():
 	assert(len(p.get_folder_by_id(1)) == 2)
 
 
+def test_folder_omitted_if_no_files():
+	dataroot, _, _, _ = fake_geo_data(1)
+	subfolder, _, _, _ = fake_geo_data(2)
+
+	shutil.move(subfolder, dataroot)
+
+	p = GeoPickler(dataroot)
+
+	p.collect_all()
+
+	assert(list(p.folders.keys())[0] == subfolder)
+
+
 def test_build_data_dict(fake_geo_data):
 	dataroot, DIV_datas, Vx_datas, Vy_datas = fake_geo_data
 	
