@@ -31,8 +31,8 @@ def fake_geo_data(num_series=2):
 		# [0, 0, 0, 1, 1, 1, 1, 0, 0, 0],
 		# [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
 
-		DIV_data = np.random.randn(9, 10)*20000
-		Vx_data = np.random.randn(9, 10)*10000
+		DIV_data = np.random.randn(9, 18)*20000
+		Vx_data = np.random.randn(9, 18)*10000
 		DIV_datas.append(DIV_data)
 		Vx_datas.append(Vx_data)
 		Vy_datas.append(Vx_data)
@@ -113,16 +113,50 @@ def test_searches_subfolders():
 
 
 def test_folder_omitted_if_no_files():
+	import glob
+
 	dataroot, _, _, _ = fake_geo_data(1)
 	subfolder, _, _, _ = fake_geo_data(2)
 
 	shutil.move(subfolder, dataroot)
 
+	[os.remove(file) for file in glob.glob(os.path.join(dataroot, '*.dat'))]
+
 	p = GeoPickler(dataroot)
 
 	p.collect_all()
 
-	assert(list(p.folders.keys())[0] == subfolder)
+	assert(list(p.folders.keys())[0] == os.path.basename(subfolder))
+
+
+def test_matches_other_file_pattern():
+	dataroot, _, _, _ = fake_geo_data(1)
+	
+	shutil.move(os.path.join(dataroot, 'serie10_Vx.dat'), os.path.join(dataroot, 'serie1_0_Vx.dat'))
+	shutil.move(os.path.join(dataroot, 'serie10_Vy.dat'), os.path.join(dataroot, 'serie1_0_Vy.dat'))
+
+	assert('serie1_0_Vx.dat' in os.listdir(dataroot))
+	assert('serie1_0_Vy.dat' in os.listdir(dataroot))
+	
+	p = GeoPickler(dataroot)
+
+	p.collect_all()
+	p.group_by_series()
+
+	assert(len(p.get_folder_by_id(0)) == 1)
+
+
+def test_ignores_misnamed_files():
+	dataroot, _, _, _ = fake_geo_data(1)
+
+	open(os.path.join(dataroot, 'garbage'), 'w').close()
+	open(os.path.join(dataroot, 'garbage_norm.dat'), 'w').close()
+
+	p = GeoPickler(dataroot)
+
+	p.initialise()
+	
+	assert(len(p.get_folder_by_id(0)) == 1)
 
 
 def test_build_data_dict(fake_geo_data):
@@ -163,6 +197,24 @@ def test_build_one_hot(fake_geo_data):
 	assert([i in np.where(DIV > 1000) for i in np.where(one_hot[:, :, 0])])
 	assert([i in np.where(np.logical_and(DIV < 1000, DIV < -1000)) for i in np.where(one_hot[:, :, 1])])
 	assert([i in np.where(DIV < -1000) for i in np.where(one_hot[:, :, 2])])
+
+
+def test_resized(fake_geo_data):
+	dataroot, DIV_datas, Vx_datas, Vy_datas = fake_geo_data
+	
+	p = GeoPickler(dataroot, row_height=18)
+
+	p.collect_all()
+
+	p.group_by_series()
+
+	data_dict = p.get_data_dict(0, 0)
+	p.create_one_hot(data_dict, 1000)
+
+	assert((data_dict['A_DIV'].shape == (18, 36)))
+	assert((data_dict['A_Vx'].shape == (18, 36)))
+	assert((data_dict['A_Vy'].shape == (18, 36)))
+	assert((data_dict['A'].shape == (18, 36, 3)))
 
 
 def test_mask_location(fake_geo_data):
@@ -297,7 +349,9 @@ def test_pickling_preserves_folder_structure(mocker):
 
 	mocker.patch('torch.save')
 
-	p.pickle_all(1000, 4, 6)
+	# Just set mask threshold to zero, otherwise it randomly fails if not enough
+	# pixels in randomly generated test data
+	p.pickle_all(1000, 4, 0)
 
 	assert(len(torch.save.call_args_list) == 5)
 
@@ -343,7 +397,7 @@ def test_continents_not_normalised():
 	p = GeoPickler('', 'out_dir')
 
 	data_dict = {}
-	data_dict['cont'] =(np.random.randn(9, 10)*255).astype(np.int8)
+	data_dict['cont'] =(np.random.randn(9, 18)*255).astype(np.int8)
 	
 	old_max = np.max(data_dict['cont'].ravel())
 	old_min = np.min(data_dict['cont'].ravel())
@@ -370,11 +424,11 @@ def test_missing_continents_data_is_all_zeros():
 	p = GeoPickler('', 'out_dir')
 
 	data_dict = {}
-	data_dict['A_DIV'] = np.random.randn(9, 10)
+	data_dict['A_DIV'] = np.random.randn(9, 18)
 
 	p.process_continents(data_dict)
 	
-	assert((data_dict['cont'] == np.zeros((9, 10))).all())
+	assert((data_dict['cont'] == np.zeros((9, 18))).all())
 
 
 

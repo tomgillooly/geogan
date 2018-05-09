@@ -71,16 +71,12 @@ def test_getitem_loads_pkl_file(fake_folder_hierarchy, mocker):
 
 	data = u[0]
 
-	torch.load.assert_called()
-
 	path = torch.load.call_args[0][0]
 
 	assert(path.startswith(dataroot))
 	assert(path.endswith('00000.pkl'))
 
 	data = u[1]
-
-	torch.load.assert_called()
 
 	path = torch.load.call_args[0][0]
 
@@ -179,7 +175,7 @@ def test_data_tensor_conversion():
 		'A_DIV': np.random.rand(100, 100),
 		'A_Vx': np.random.rand(100, 100),
 		'A_Vy': np.random.rand(100, 100),
-		'continents': np.random.rand(100, 100),
+		'cont': np.random.rand(100, 100),
 		'mask_locs': [(0, 0), (20, 20), (40, 40)],
 		'folder_name': 'fake_folder',
 		'series_number': 0,
@@ -206,7 +202,7 @@ def test_data_tensor_conversion():
 	assert('torch.LongTensor' in fake_data['mask_x2'].type())
 	assert('torch.LongTensor' in fake_data['mask_y2'].type())
 
-	assert('torch.ByteTensor' in fake_data['continents'].type())
+	assert('torch.ByteTensor' in fake_data['cont'].type())
 
 	assert(fake_data['A'].shape == (1, 3, 100, 100))
 	assert(fake_data['A_DIV'].shape == (1, 1, 100, 100))
@@ -224,7 +220,7 @@ def test_data_tensor_conversion():
 	assert(fake_data['mask_x2'].shape == (1, 1))
 	assert(fake_data['mask_y2'].shape == (1, 1))
 
-	assert(fake_data['continents'].shape == (1, 1, 100, 100))
+	assert(fake_data['cont'].shape == (1, 1, 100, 100))
 
 
 def test_folder_id(fake_folder_hierarchy, mocker):
@@ -239,7 +235,7 @@ def test_folder_id(fake_folder_hierarchy, mocker):
 		'A_DIV': np.random.rand(100, 100),
 		'A_Vx': np.random.rand(100, 100),
 		'A_Vy': np.random.rand(100, 100),
-		'continents': np.random.rand(100, 100),
+		'cont': np.random.rand(100, 100),
 		'mask_locs': [(0, 0), (20, 20), (40, 40)],
 		'folder_name': 'fake_folder',
 		'series_number': 0,
@@ -371,6 +367,7 @@ def test_getitem_prepares_all(fake_folder_hierarchy, mocker):
 
 	opt.dataroot = fake_folder_hierarchy
 	opt.inpaint_single_class = True
+	opt.no_flip = False
 	u = GeoUnpickler()
 	u.initialise(opt)
 
@@ -386,10 +383,25 @@ def test_getitem_prepares_all(fake_folder_hierarchy, mocker):
 	manager.attach_mock(cs, 'create_masked_images')
 	manager.attach_mock(cr, 'convert_to_tensor')
 
+	mocker.patch('random.random', return_value=0)
+
 	data = u[0]
 
-	print(manager.mock_calls)
 	assert(manager.mock_calls == [mocker.call.flip_images(fake_data), 
+			mocker.call.create_masked_images(fake_data), 
+			mocker.call.convert_to_tensor(fake_data)])
+
+	# Don't know how to clear manager, so just recreate
+	manager = mocker.MagicMock()
+	manager.attach_mock(fs, 'flip_images')
+	manager.attach_mock(cs, 'create_masked_images')
+	manager.attach_mock(cr, 'convert_to_tensor')
+
+	mocker.patch('random.random', return_value=1)
+
+	data = u[0]
+
+	assert(manager.mock_calls == [
 			mocker.call.create_masked_images(fake_data), 
 			mocker.call.convert_to_tensor(fake_data)])
 
@@ -400,6 +412,7 @@ def test_can_build_dataloader_from_unpickler(fake_folder_hierarchy, mocker):
 
 	opt.dataroot = fake_folder_hierarchy
 	opt.inpaint_single_class = True
+	opt.no_flip = False
 
 	def return_fake_data(*args, **kwargs):
 		fake_data = {
@@ -407,7 +420,7 @@ def test_can_build_dataloader_from_unpickler(fake_folder_hierarchy, mocker):
 			'A_DIV': np.random.rand(100, 100),
 			'A_Vx': np.random.rand(100, 100),
 			'A_Vy': np.random.rand(100, 100),
-			'continents': np.random.rand(100, 100),
+			'cont': np.random.rand(100, 100),
 			'mask_locs': [(0, 0), (20, 20), (40, 40)],
 			'folder_name': 'fake_folder',
 			'series_number': 0,

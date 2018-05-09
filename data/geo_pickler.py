@@ -2,17 +2,21 @@ import glob
 import numpy as np
 import os
 import re
+import sys
 import torch
 
 from collections import OrderedDict
+from skimage.transform import resize
 from skimage.morphology import skeletonize
 from scipy.signal import correlate2d
 
 
 class GeoPickler(object):
-	def __init__(self, dataroot, out_dir=None):
+	def __init__(self, dataroot, out_dir=None, row_height=None):
 		self.dataroot = dataroot
 		self.out_dir = dataroot if not out_dir else out_dir
+		self.row_height = row_height
+
 		self.num_series = 0
 
 		self.folders = OrderedDict()
@@ -20,7 +24,12 @@ class GeoPickler(object):
 
 		self.series = []
 
-		self.filename_re = re.compile('serie1(?P<series_no>\d+)_*_(?P<tag>\w+).dat')
+		self.filename_re = re.compile('serie1_?(?P<series_no>\d+)_(.*_)?(?P<tag>\w+).dat')
+
+
+	def initialise(self):
+		self.collect_all()
+		self.group_by_series()
 
 
 	def collect_all(self):
@@ -28,7 +37,9 @@ class GeoPickler(object):
 
 		for root, dirs, files in os.walk(topdir):
 			folder = root[len(topdir)+1:]
-			self.folders[folder] = files
+
+			if len(files) > 0:
+				self.folders[folder] = files
 
 		self.num_folders = len(self.folders)
 
@@ -44,12 +55,20 @@ class GeoPickler(object):
 	def group_by_series(self):
 		for folder_name, files in self.folders.items():
 			file_data = [self.filename_re.match(filename) for filename in files]
+			
+
+			# Remove all files with no series number
+			bad_format_idx = [i for i, match in enumerate(file_data) if match == None]
+			[files.pop(idx-offset) for offset, idx in enumerate(bad_format_idx)]
+			[file_data.pop(idx-offset) for offset, idx in enumerate(bad_format_idx)]
+
+			self.folders[folder_name] = files
 
 			series_numbers, lookup_idx = np.unique([int(match.group('series_no')) for match in file_data], return_inverse=True)
 			
 			num_series = len(series_numbers)
 
-			self.folders[folder_name] = OrderedDict({idx: sorted([files[i] for i in np.where(lookup_idx == idx)[0]]) for idx in series_numbers})
+			self.folders[folder_name] = OrderedDict({s_no: sorted([files[i] for i in np.where(lookup_idx == idx)[0]]) for idx, s_no in enumerate(series_numbers)})
 
 
 	def read_geo_file(self, path):
@@ -85,7 +104,7 @@ class GeoPickler(object):
 
 		# Reconstruct filename
 		def reconstruct_filename(folder_id, tag):
-			return glob.glob(os.path.join(self.dataroot, folder_name, 'serie1' + str(series_no) + '*' + tag + '*'))[0]
+			return glob.glob(os.path.join(self.dataroot, folder_name, 'serie1*' + str(series_no) + '*' + tag + '*'))[0]
 
 		filenames = [reconstruct_filename(folder_id, tag) for tag in tags]
 
@@ -100,6 +119,11 @@ class GeoPickler(object):
 		rows = size_info[1][0]
 
 		data_dict = {'A_' + tag : data['values'].reshape(rows, cols) for tag, data in zip(tags, series_data)}
+
+		if self.row_height:
+			for key, im in data_dict.items():
+				data_dict[key] = resize(im, (self.row_height, self.row_height * im.shape[1]/im.shape[0]), mode='constant')
+
 		data_dict['A_path'] = os.path.join(self.dataroot, )
 		data_dict['folder_name'] = folder_name
 		data_dict['series_number'] = series_no
@@ -165,9 +189,17 @@ class GeoPickler(object):
 
 		self.normalise_continuous_data(data_dict)
 
+		if not os.path.exists(os.path.join(self.out_dir, data_dict['folder_name'])):
+			os.mkdir(os.path.join(self.out_dir, data_dict['folder_name']))
+
 		torch.save(data_dict, os.path.join(self.out_dir, data_dict['folder_name'], '{:05}.pkl'.format(series_no)))
 
-	def pickle_all(self, threshold, mask_size, num_pix_in_mask):
+	def pickle_all(self, threshold, mask_size, num_pix_in_mask, verbose=False):
 		for folder in range(len(self.folders.keys())):
-			for series in self.get_folder_by_id(folder).keys():
+			if verbose:
+				print('Folder {} of {}'.format(folder, len(self.folders)))
+			for count, series in enumerate(self.get_folder_by_id(folder).keys()):
+				if verbose:
+					sys.stdout.write('\rSeries {} of {}\t\t\t'.format(count, len(self.get_folder_by_id(folder))))
+					sys.stdout.flush()
 				self.pickle_series(folder, series, threshold, mask_size, num_pix_in_mask)

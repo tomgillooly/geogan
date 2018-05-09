@@ -3,10 +3,15 @@ import os
 import random
 import torch
 
+class DefaultOptions(object):
+	pass
+
 class GeoUnpickler(object):
-	def __init__(self, dataroot=None, inpaint_single_class=False):
-		self.dataroot = dataroot
-		self.inpaint_single_class = inpaint_single_class
+	def __init__(self, dataroot=None, inpaint_single_class=False, no_flip=True):
+		self.opt = DefaultOptions()
+		self.opt.dataroot = dataroot
+		self.opt.inpaint_single_class = inpaint_single_class
+		self.opt.no_flip = no_flip
 
 		self.files = []
 
@@ -16,8 +21,6 @@ class GeoUnpickler(object):
 
 	def initialise(self, opt):
 		self.opt = opt
-		self.dataroot = opt.dataroot
-		self.inpaint_single_class = opt.inpaint_single_class
 
 		self.collect_all()
 
@@ -25,10 +28,10 @@ class GeoUnpickler(object):
 
 
 	def collect_all(self):
-		topdir = self.dataroot.rstrip('/')
+		topdir = self.opt.dataroot.rstrip('/')
 
 		for root, dirs, files in os.walk(topdir):
-			self.files += [os.path.join(root, file) for file in files if file.endswith('.pkl')]
+			self.files += sorted([os.path.join(root, file) for file in files if file.endswith('.pkl')])
 
 			self.folder_id_lookup[root[len(topdir)+1:]] = self.num_folders
 			self.num_folders += 1
@@ -55,7 +58,7 @@ class GeoUnpickler(object):
 
 		mask = data_dict['mask']
 
-		for tag in ['DIV', 'Vx', 'Vy', 'cont', 'ResT']:
+		for tag in ['DIV', 'Vx', 'Vy', 'ResT']:
 			if 'A_' + tag not in data_dict.keys():
 				continue
 
@@ -64,7 +67,7 @@ class GeoUnpickler(object):
 
 		B = data_dict['A'].copy()
 
-		if self.inpaint_single_class:
+		if self.opt.inpaint_single_class:
 			# Layer to remove
 			layer = int(round(random.random())*2)
 
@@ -78,7 +81,7 @@ class GeoUnpickler(object):
 
 
 	def flip_images(self, data_dict):
-		for key in ['A', 'A_DIV', 'A_Vx', 'A_Vy', 'B', 'B_DIV', 'B_Vx', 'B_Vy', 'mask', 'continents']:
+		for key in ['A', 'A_DIV', 'A_Vx', 'A_Vy', 'A_ResT', 'B', 'B_DIV', 'B_Vx', 'B_Vy', 'B_ResT', 'mask', 'cont']:
 			if not key in data_dict.keys():
 				continue
 
@@ -96,7 +99,7 @@ class GeoUnpickler(object):
 
 
 	def convert_to_tensor(self, data_dict):
-		for key in ['A', 'A_DIV', 'A_Vx', 'A_Vy', 'B', 'B_DIV', 'B_Vx', 'B_Vy', 'mask', 'continents']:
+		for key in ['A', 'A_DIV', 'A_Vx', 'A_Vy', 'A_ResT', 'B', 'B_DIV', 'B_Vx', 'B_Vy', 'B_ResT', 'mask', 'cont']:
 			if not key in data_dict.keys():
 				continue
 
@@ -109,7 +112,7 @@ class GeoUnpickler(object):
 
 			item = np.expand_dims(item, 0)
 
-			if key == 'continents' or key == 'mask':
+			if key == 'cont' or key == 'mask':
 				item = torch.ByteTensor(item.copy())
 			else:
 				item = torch.FloatTensor(item.copy())
@@ -130,11 +133,13 @@ class GeoUnpickler(object):
 	def __getitem__(self, idx):
 		data = torch.load(self.files[idx])
 
-		basedir = self.dataroot.rstrip('/')
+		basedir = self.opt.dataroot.rstrip('/')
 		folder_name = os.path.dirname(self.files[idx])[len(basedir)+1:]
 		data['folder_id'] = self.folder_id_lookup[folder_name]
 
-		self.flip_images(data)
+		if (not self.opt.no_flip) and random.random() < 0.5:
+			self.flip_images(data)
+		
 		self.create_masked_images(data)
 		self.convert_to_tensor(data)
 
