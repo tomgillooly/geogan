@@ -204,23 +204,23 @@ def test_data_tensor_conversion():
 
 	assert('torch.ByteTensor' in fake_data['cont'].type())
 
-	assert(fake_data['A'].shape == (1, 3, 100, 100))
-	assert(fake_data['A_DIV'].shape == (1, 1, 100, 100))
-	assert(fake_data['A_Vx'].shape == (1, 1, 100, 100))
-	assert(fake_data['A_Vy'].shape == (1, 1, 100, 100))
+	assert(fake_data['A'].shape == (3, 100, 100))
+	assert(fake_data['A_DIV'].shape == (1, 100, 100))
+	assert(fake_data['A_Vx'].shape == (1, 100, 100))
+	assert(fake_data['A_Vy'].shape == (1, 100, 100))
 	
-	assert(fake_data['B'].shape == (1, 3, 100, 100))
-	assert(fake_data['B_DIV'].shape == (1, 1, 100, 100))
-	assert(fake_data['B_Vx'].shape == (1, 1, 100, 100))
-	assert(fake_data['B_Vy'].shape == (1, 1, 100, 100))
+	assert(fake_data['B'].shape == (3, 100, 100))
+	assert(fake_data['B_DIV'].shape == (1, 100, 100))
+	assert(fake_data['B_Vx'].shape == (1, 100, 100))
+	assert(fake_data['B_Vy'].shape == (1, 100, 100))
 	
-	assert(fake_data['mask'].shape == (1, 1, 100, 100))
-	assert(fake_data['mask_x1'].shape == (1, 1))
-	assert(fake_data['mask_y1'].shape == (1, 1))
-	assert(fake_data['mask_x2'].shape == (1, 1))
-	assert(fake_data['mask_y2'].shape == (1, 1))
+	assert(fake_data['mask'].shape == (1, 100, 100))
+	assert(fake_data['mask_x1'].shape == (1,))
+	assert(fake_data['mask_y1'].shape == (1,))
+	assert(fake_data['mask_x2'].shape == (1,))
+	assert(fake_data['mask_y2'].shape == (1,))
 
-	assert(fake_data['cont'].shape == (1, 1, 100, 100))
+	assert(fake_data['cont'].shape == (1, 100, 100))
 
 
 def test_folder_id(fake_folder_hierarchy, mocker):
@@ -445,7 +445,7 @@ def test_can_build_dataloader_from_unpickler(fake_folder_hierarchy, mocker):
 
 	assert(dataset_size == 12)
 
-	for i, data in enumerate(data_loader):
+	for data in data_loader:
 		print("ok")
 
 

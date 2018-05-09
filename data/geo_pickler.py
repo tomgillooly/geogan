@@ -180,6 +180,9 @@ class GeoPickler(object):
 	def pickle_series(self, folder_id, series_no, threshold, mask_size, num_pix_in_mask):
 		data_dict = self.get_data_dict(folder_id, series_no)
 
+		if any([key not in data_dict.keys() for key in ['A_DIV', 'A_Vx', 'A_Vy']]):
+			return
+
 		self.create_one_hot(data_dict, threshold)
 
 		self.get_mask_loc(data_dict, mask_size, num_pix_in_mask)
@@ -189,17 +192,22 @@ class GeoPickler(object):
 
 		self.normalise_continuous_data(data_dict)
 
+		self.process_continents(data_dict)
+
 		if not os.path.exists(os.path.join(self.out_dir, data_dict['folder_name'])):
 			os.mkdir(os.path.join(self.out_dir, data_dict['folder_name']))
 
 		torch.save(data_dict, os.path.join(self.out_dir, data_dict['folder_name'], '{:05}.pkl'.format(series_no)))
 
-	def pickle_all(self, threshold, mask_size, num_pix_in_mask, verbose=False):
-		for folder in range(len(self.folders.keys())):
+	def pickle_all(self, threshold, mask_size, num_pix_in_mask, verbose=False, skip_existing=False):
+		for folder_id, folder_name in enumerate(self.folders.keys()):
 			if verbose:
-				print('Folder {} of {}'.format(folder, len(self.folders)))
-			for count, series in enumerate(self.get_folder_by_id(folder).keys()):
+				print('Folder {} - {} of {}'.format(folder_name, folder_id, len(self.folders)))
+			for count, series in enumerate(self.get_folder_by_id(folder_id).keys()):
 				if verbose:
-					sys.stdout.write('\rSeries {} of {}\t\t\t'.format(count, len(self.get_folder_by_id(folder))))
+					sys.stdout.write('\rSeries {} of {}\t\t\t'.format(count, len(self.get_folder_by_id(folder_id))))
 					sys.stdout.flush()
-				self.pickle_series(folder, series, threshold, mask_size, num_pix_in_mask)
+				if skip_existing and os.path.exists(os.path.join(self.out_dir, folder_name, '{:05}.pkl'.format(series))):
+					continue
+
+				self.pickle_series(folder_id, series, threshold, mask_size, num_pix_in_mask)

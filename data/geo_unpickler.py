@@ -110,8 +110,6 @@ class GeoUnpickler(object):
 
 			item = item.transpose(2, 0, 1)
 
-			item = np.expand_dims(item, 0)
-
 			if key == 'cont' or key == 'mask':
 				item = torch.ByteTensor(item.copy())
 			else:
@@ -123,7 +121,6 @@ class GeoUnpickler(object):
 			key = 'mask_' + tag
 
 			item = np.array([data_dict[key]])
-			item = np.expand_dims(item, 0)
 
 			item = torch.LongTensor(item)
 

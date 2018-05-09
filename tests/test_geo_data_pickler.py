@@ -1,3 +1,4 @@
+import glob
 import os
 import pytest
 import numpy as np
@@ -113,8 +114,6 @@ def test_searches_subfolders():
 
 
 def test_folder_omitted_if_no_files():
-	import glob
-
 	dataroot, _, _, _ = fake_geo_data(1)
 	subfolder, _, _, _ = fake_geo_data(2)
 
@@ -393,6 +392,48 @@ def test_skip_save_if_no_mask_locations(fake_geo_data, mocker):
 	torch.save.assert_not_called()
 
 
+def test_skip_save_if_no_DIV(mocker):
+	mocker.patch('torch.save')
+	
+	dataroot, _, _, _ = fake_geo_data(1)
+	
+	p = GeoPickler(dataroot, 'out_dir')
+
+	os.remove(glob.glob(os.path.join(dataroot, '*DIV.dat'))[0])
+	p.initialise()
+	p.pickle_series(0, 0, 1000, 4, 0)
+
+	torch.save.assert_not_called()
+
+
+def test_skip_save_if_no_Vx(mocker):
+	mocker.patch('torch.save')
+	
+	dataroot, _, _, _ = fake_geo_data(1)
+	
+	p = GeoPickler(dataroot, 'out_dir')
+
+	os.remove(glob.glob(os.path.join(dataroot, '*DIV.dat'))[0])
+	p.initialise()
+	p.pickle_series(0, 0, 1000, 4, 0)
+
+	torch.save.assert_not_called()
+
+
+def test_skip_save_if_no_Vy(mocker):
+	mocker.patch('torch.save')
+	
+	dataroot, _, _, _ = fake_geo_data(1)
+	
+	p = GeoPickler(dataroot, 'out_dir')
+
+	os.remove(glob.glob(os.path.join(dataroot, '*DIV.dat'))[0])
+	p.initialise()
+	p.pickle_series(0, 0, 1000, 4, 0)
+
+	torch.save.assert_not_called()
+
+
 def test_continents_not_normalised():
 	p = GeoPickler('', 'out_dir')
 
@@ -431,4 +472,19 @@ def test_missing_continents_data_is_all_zeros():
 	assert((data_dict['cont'] == np.zeros((9, 18))).all())
 
 
+def test_skip_if_pkl_exists(mocker):
+	mocker.patch('torch.save')
+
+	dataroot, _, _, _ = fake_geo_data(1)
+	
+	out_dir = tempfile.mkdtemp()
+
+	p = GeoPickler(dataroot, out_dir)
+	p.initialise()
+
+	open(os.path.join(out_dir, '00000.pkl'), 'w').close()
+
+	p.pickle_all(1000, 4, 0, skip_existing=True)
+
+	torch.save.assert_not_called()
 
