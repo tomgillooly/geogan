@@ -10,7 +10,6 @@ def create_model(opt):
         from .pix2pix_model import Pix2PixModel
         model = Pix2PixModel()
     elif opt.model == 'pix2pix_geo':
-        assert(opt.dataset_mode == 'geo')
         from .pix2pix_geo_model import Pix2PixGeoModel
         model = Pix2PixGeoModel()
     elif opt.model == 'test':

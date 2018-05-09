@@ -298,7 +298,7 @@ class Pix2PixGeoModel(BaseModel):
         mask        = input['mask']
 
         if self.opt.continent_data:
-            continents = input['continents']
+            continents = input['cont']
         
         if len(self.gpu_ids) > 0:
             input_A     = input_A.cuda(self.gpu_ids[0], async=True)
@@ -327,7 +327,6 @@ class Pix2PixGeoModel(BaseModel):
         if self.opt.continent_data:
             self.continent_img = continents
         
-        self.image_paths    = input['A_paths' if AtoB else 'B_paths']
 
         if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             self.real_folder = input['folder_id']
@@ -454,8 +453,6 @@ class Pix2PixGeoModel(BaseModel):
         self.fake_B_one_hot.scatter_(1, self.fake_B_classes.data.cpu(), 1.0)
 
     # get image paths
-    def get_image_paths(self):
-        return self.image_paths
 
 
     def calc_gradient_penalty(self, netD, real_data, fake_data):
