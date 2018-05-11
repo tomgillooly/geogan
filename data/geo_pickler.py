@@ -211,3 +211,4 @@ class GeoPickler(object):
 					continue
 
 				self.pickle_series(folder_id, series, threshold, mask_size, num_pix_in_mask)
+			print('')
