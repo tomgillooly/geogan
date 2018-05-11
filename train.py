@@ -30,14 +30,6 @@ def train():
     dataset_size = len(dataset)
     print('#training images = %d' % dataset_size)
 
-
-    model = create_model(opt)
-    
-    model.set_input(next(iter(dataset)))
-    model.forward()
-    model.backward_G()
-    model.backward_D()
-    sys.exit(0)
     visualizer = Visualizer(opt)
     total_steps = 0
 

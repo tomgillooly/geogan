@@ -264,7 +264,8 @@ def test_folder_id(fake_folder_hierarchy, mocker):
 
 
 class NullOptions(object):
-	pass
+	def __init__(self):
+		self.phase = ''
 
 
 def test_initialise(fake_folder_hierarchy):

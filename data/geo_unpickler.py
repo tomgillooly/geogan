@@ -12,6 +12,7 @@ class GeoUnpickler(object):
 		self.opt.dataroot = dataroot
 		self.opt.inpaint_single_class = inpaint_single_class
 		self.opt.no_flip = no_flip
+		self.opt.phase = ''
 
 		self.files = []
 
@@ -28,7 +29,7 @@ class GeoUnpickler(object):
 
 
 	def collect_all(self):
-		topdir = self.opt.dataroot.rstrip('/')
+		topdir = os.path.join(self.opt.dataroot, self.opt.phase).rstrip('/')
 
 		for root, dirs, files in os.walk(topdir):
 			self.files += sorted([os.path.join(root, file) for file in files if file.endswith('.pkl')])
