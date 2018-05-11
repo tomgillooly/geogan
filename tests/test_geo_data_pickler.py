@@ -514,3 +514,8 @@ def test_skip_if_pkl_exists(mocker):
 
 	torch.save.assert_not_called()
 
+
+@pytest.mark.skip
+def test_use_xy_coordinates_as_grid():
+	#Don't just take the number of coordinates to determine grid size
+	pass

@@ -115,6 +115,10 @@ class GeoPickler(object):
 		cols = size_info[0][0]
 		rows = size_info[1][0]
 
+		# Skip, but this should be fixed later, by actually writing into a proper grid
+		if any([len(data['values']) != rows*cols for data in series_data]):
+			return {}
+
 		data_dict = {'A_' + tag : data['values'].reshape(rows, cols) for tag, data in zip(tags, series_data)}
 
 		if self.row_height:
