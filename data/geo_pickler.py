@@ -103,10 +103,7 @@ class GeoPickler(object):
 		folder_name = list(self.folders.keys())[folder_id]
 
 		# Reconstruct filename
-		def reconstruct_filename(folder_id, tag):
-			return glob.glob(os.path.join(self.dataroot, folder_name, 'serie1*' + str(series_no) + '*' + tag + '*'))[0]
-
-		filenames = [reconstruct_filename(folder_id, tag) for tag in tags]
+		filenames = [os.path.join(self.dataroot, folder_name, file) for file in files]
 
 		series_data = [self.read_geo_file(filename) for filename in filenames]
 

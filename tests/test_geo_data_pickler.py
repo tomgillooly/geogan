@@ -46,7 +46,7 @@ def fake_geo_data(num_series=2):
 
 
 		for tag in ['DIV', 'Vx', 'Vy']:
-			with open(os.path.join(test_data_dir, 'serie1{}_{}.dat'.format(series_number, tag)), 'w') as file:
+			with open(os.path.join(test_data_dir, 'serie1{:05}_{}.dat'.format(series_number, tag)), 'w') as file:
 				data_text = eval("'\\n'.join([' '.join([str(x) for x in data]) for data in " + tag + "_data])")
 				# data_text = '\n'.join([','.join(data) for data in DIV_data])
 				eval("file.write(data_text)")
@@ -90,9 +90,9 @@ def test_groups_by_series():
 
 	assert(p.get_series_in_folder(0) == [0, 1, 2])
 
-	assert(folder[0] == ['serie10_DIV.dat', 'serie10_Vx.dat', 'serie10_Vy.dat'])
-	assert(folder[1] == ['serie11_DIV.dat', 'serie11_Vx.dat', 'serie11_Vy.dat'])
-	assert(folder[2] == ['serie12_DIV.dat', 'serie12_Vx.dat', 'serie12_Vy.dat'])
+	assert(folder[0] == ['serie100000_DIV.dat', 'serie100000_Vx.dat', 'serie100000_Vy.dat'])
+	assert(folder[1] == ['serie100001_DIV.dat', 'serie100001_Vx.dat', 'serie100001_Vy.dat'])
+	assert(folder[2] == ['serie100002_DIV.dat', 'serie100002_Vx.dat', 'serie100002_Vy.dat'])
 
 
 def test_searches_subfolders():
@@ -131,8 +131,8 @@ def test_folder_omitted_if_no_files():
 def test_matches_other_file_pattern():
 	dataroot, _, _, _ = fake_geo_data(1)
 	
-	shutil.move(os.path.join(dataroot, 'serie10_Vx.dat'), os.path.join(dataroot, 'serie1_0_Vx.dat'))
-	shutil.move(os.path.join(dataroot, 'serie10_Vy.dat'), os.path.join(dataroot, 'serie1_0_Vy.dat'))
+	shutil.move(os.path.join(dataroot, 'serie100000_Vx.dat'), os.path.join(dataroot, 'serie1_0_Vx.dat'))
+	shutil.move(os.path.join(dataroot, 'serie100000_Vy.dat'), os.path.join(dataroot, 'serie1_0_Vy.dat'))
 
 	assert('serie1_0_Vx.dat' in os.listdir(dataroot))
 	assert('serie1_0_Vy.dat' in os.listdir(dataroot))
@@ -315,6 +315,32 @@ def test_pickling_contains_all_data(fake_geo_data, mocker):
 	data = torch.save.call_args[0][0]
 
 	assert(path == 'out_dir/00000.pkl')
+	assert(all([key in data.keys() for key in ['A', 'A_DIV', 'A_Vx', 'A_Vy', 'mask_locs', 'folder_name', 'series_number', 'mask_size', 'min_pix_in_mask']]))
+
+
+def test_handles_ambiguous_series_no(mocker):
+	# Enough so that there are duplicate series numbers
+	dataroot, DIV_data, _, _ = fake_geo_data(11)
+
+	for i, data in enumerate(DIV_data):
+			DIV_data[i] = np.interp(data, (np.min(data.ravel()), np.max(data.ravel())), [-1, 1])
+
+	p = GeoPickler(dataroot, 'out_dir')
+
+	p.collect_all()
+
+	p.group_by_series()
+
+	mocker.patch('torch.save')
+
+	p.pickle_series(0, 1, 1000, 4, 6)
+
+	path = torch.save.call_args[0][1]
+	data = torch.save.call_args[0][0]
+
+	assert(path == 'out_dir/00001.pkl')
+
+	assert((data['A_DIV'] == DIV_data[1]).all())
 	assert(all([key in data.keys() for key in ['A', 'A_DIV', 'A_Vx', 'A_Vy', 'mask_locs', 'folder_name', 'series_number', 'mask_size', 'min_pix_in_mask']]))
 
 
