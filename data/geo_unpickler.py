@@ -131,7 +131,8 @@ class GeoUnpickler(object):
 	def __getitem__(self, idx):
 		data = torch.load(self.files[idx])
 
-		basedir = self.opt.dataroot.rstrip('/')
+		basedir = os.path.join(self.opt.dataroot, self.opt.phase).rstrip('/')
+		
 		folder_name = os.path.dirname(self.files[idx])[len(basedir)+1:]
 		data['folder_id'] = self.folder_id_lookup[folder_name]
 
