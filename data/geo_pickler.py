@@ -202,12 +202,13 @@ class GeoPickler(object):
 	def pickle_all(self, threshold, mask_size, num_pix_in_mask, verbose=False, skip_existing=False):
 		for folder_id, folder_name in enumerate(self.folders.keys()):
 			if verbose:
-				print('Folder {} - {} of {}'.format(folder_name, folder_id, len(self.folders)))
+				print('Folder {} - {} of {}'.format(folder_name, folder_id+1, len(self.folders)))
 			for count, series in enumerate(self.get_folder_by_id(folder_id).keys()):
 				if verbose:
-					sys.stdout.write('\rSeries {} of {}\t\t\t'.format(count, len(self.get_folder_by_id(folder_id))))
+					sys.stdout.write('\rSeries {} of {}\t\t\t'.format(count+1, len(self.get_folder_by_id(folder_id))))
 					sys.stdout.flush()
 				if skip_existing and os.path.exists(os.path.join(self.out_dir, folder_name, '{:05}.pkl'.format(series))):
 					continue
 
 				self.pickle_series(folder_id, series, threshold, mask_size, num_pix_in_mask)
+			print('')
