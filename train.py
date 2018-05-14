@@ -30,6 +30,9 @@ def train():
     dataset_size = len(dataset)
     print('#training images = %d' % dataset_size)
 
+
+    model = create_model(opt)
+    
     visualizer = Visualizer(opt)
     total_steps = 0
 
