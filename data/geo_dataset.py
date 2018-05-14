@@ -95,9 +95,9 @@ class GeoDataset(BaseDataset):
         self.A_paths = []
 
         data_paths = self.get_dat_files(self.dir_A)
-
+        
         # If there's no continent data, remove so we don't end up with zero paths after zip
-        self.A_paths = [[path for path in pathgroup if path] for pathgroup in zip(*data_paths)]
+        self.A_paths = [[path for path in pathgroup] for pathgroup in zip(*data_paths) if all([path != None for path in pathgroup])]
         # print(self.A_paths)
 
 
@@ -127,19 +127,6 @@ class GeoDataset(BaseDataset):
         # Remove trailing slashm, if there is one (sometimes there's not)
         topdir = topdir.rstrip('/')
         for root, dirs, _ in os.walk(topdir):
-            # Re-add one to length for the trailing slash
-            self.folder_id_lookup[root[len(topdir)+1:]] = self.opt.num_folders
-
-            self.opt.num_folders += 1
-
-            DIV_path_in_folder = sorted(glob.glob(os.path.join(root, '*_DIV.dat')), key=get_series_number)
-            Vx_paths += sorted(glob.glob(os.path.join(root, '*_Vx.dat')), key=get_series_number)
-            Vy_paths += sorted(glob.glob(os.path.join(root, '*_Vy.dat')), key=get_series_number)
-            cont_in_folder = sorted(glob.glob(os.path.join(root, '*_cont.dat')), key=get_series_number)
-
-            DIV_paths += DIV_path_in_folder
-            cont_paths += [None] * (len(DIV_path_in_folder)-len(cont_in_folder)) + cont_in_folder
-
             def path_to_int(path):
                 try:
                     return int(path)
@@ -148,6 +135,39 @@ class GeoDataset(BaseDataset):
 
             # Make sure they're in numerical order before we recurse into them
             dirs.sort(key=path_to_int)
+
+            # Re-add one to length for the trailing slash
+            self.folder_id_lookup[root[len(topdir)+1:]] = self.opt.num_folders
+
+            self.opt.num_folders += 1
+
+            DIV = sorted(glob.glob(os.path.join(root, '*_DIV.dat')), key=get_series_number)
+            Vx = sorted(glob.glob(os.path.join(root, '*_Vx.dat')), key=get_series_number)
+            Vy = sorted(glob.glob(os.path.join(root, '*_Vy.dat')), key=get_series_number)
+            cont = sorted(glob.glob(os.path.join(root, '*_cont.dat')), key=get_series_number)
+
+            DIV_series = [get_series_number(path) for path in DIV]
+            Vx_series = [get_series_number(path) for path in Vx]
+            Vy_series = [get_series_number(path) for path in Vy]
+            cont_series = [get_series_number(path) for path in cont]
+            
+            if not DIV_series:
+                continue
+
+            max_series_number = max(DIV_series + Vx_series + Vy_series + cont_series)
+
+            for new_paths, series, a_paths in zip([DIV, Vx, Vy, cont], [DIV_series, Vx_series, Vy_series, cont_series], [DIV_paths, Vx_paths, Vy_paths, cont_paths]):
+                paths = [None] * (max_series_number+1)
+                
+                for i, idx in enumerate(series):
+                    paths[idx] = new_paths[i]
+                
+                a_paths += paths
+
+
+            # DIV_paths += DIV_path_in_folder
+            # cont_paths += [None] * (len(DIV_path_in_folder)-len(cont_in_folder)) + cont_in_folder
+
 
             # for directory in dirs:
             #     DIV_paths += glob.glob(os.path.join(root, directory, '*_DIV.dat'))
