@@ -23,7 +23,7 @@ def train():
         unpickler,
         batch_size=opt.batchSize,
         shuffle=not opt.serial_batches,
-        num_workers=0)
+        num_workers=opt.nThreads)
 
 
 
