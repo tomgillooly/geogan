@@ -213,21 +213,21 @@ def test_with_continents(basic_gan, mocker):
 
 	gan.optimize_parameters(step_no=1)
 
-	assert(MockGenerator.call_args[0][0].name == (['A', 'mask_float', 'continents_float']))
+	assert(MockGenerator.call_args[0][0].name == (['A', 'mask_float', 'cont_float']))
 	assert(gan.netG_DIV.call_args[0][0].name == ('fake_discrete_output'))
 	assert(gan.netG_Vx.call_args[0][0].name == ('fake_discrete_output'))
 	assert(gan.netG_Vy.call_args[0][0].name == ('fake_discrete_output'))
 
 
 	for netD1 in gan.netD1s:
-		assert(netD1.call_args_list[0][0][0].name == '[A, mask_float, continents_float, fake_discrete_output]_detach')
-		assert(netD1.call_args_list[1][0][0].name == ['A', 'mask_float', 'continents_float', 'B'])
+		assert(netD1.call_args_list[0][0][0].name == '[A, mask_float, cont_float, fake_discrete_output]_detach')
+		assert(netD1.call_args_list[1][0][0].name == ['A', 'mask_float', 'cont_float', 'B'])
 	
 		# Third call to grad penalty??
 
 	for netD2 in gan.netD2s:
-		assert(netD2.call_args_list[0][0][0].name == '[A, mask_float, continents_float, fake_DIV, fake_Vx, fake_Vy]_detach')
-		assert(netD2.call_args_list[1][0][0].name == ['A', 'mask_float', 'continents_float', 'B_DIV', 'B_Vx', 'B_Vy'])
+		assert(netD2.call_args_list[0][0][0].name == '[A, mask_float, cont_float, fake_DIV, fake_Vx, fake_Vy]_detach')
+		assert(netD2.call_args_list[1][0][0].name == ['A', 'mask_float', 'cont_float', 'B_DIV', 'B_Vx', 'B_Vy'])
 
 		# Third call to grad penalty??
 
