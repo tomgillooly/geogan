@@ -97,7 +97,7 @@ class GeoDataset(BaseDataset):
         data_paths = self.get_dat_files(self.dir_A)
         
         # If there's no continent data, remove so we don't end up with zero paths after zip
-        self.A_paths = [[path for path in pathgroup] for pathgroup in zip(*data_paths) if all([path != None for path in pathgroup])]
+        self.A_paths = [[path for path in pathgroup if path != None] for pathgroup in zip(*data_paths) if all([path != None for path in pathgroup[0:3]])]
         # print(self.A_paths)
 
 
