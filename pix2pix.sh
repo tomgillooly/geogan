@@ -34,6 +34,7 @@ python train.py --dataroot $DATAROOT --name autoencoder_weighted_folder_pred \
 	--dataset_mode geo --no_lsgan --norm batch \
 	--input_nc 3 --output_nc 3 \
 	--lambda_A 100 --lambda_B 100 --lambda_D 100 \
+	--folder_pred \
 	--num_discrims 0 \
 	--which_model_netG unet_256 \
 	--discrete_only \
