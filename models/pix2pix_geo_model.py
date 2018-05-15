@@ -679,7 +679,7 @@ class Pix2PixGeoModel(BaseModel):
 
         if self.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             ce_fun = self.criterionCE()
-            self.folder_pred_CE = ce_fun(self.fake_folder, self.real_folder)
+            self.folder_pred_CE = ce_fun(self.fake_folder, self.real_folder) * self.opt.lambda_D
 
             self.loss_G += self.folder_pred_CE
 
