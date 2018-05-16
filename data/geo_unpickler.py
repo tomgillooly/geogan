@@ -85,11 +85,11 @@ class GeoUnpickler(object):
 
 
 	def flip_images(self, data_dict):
-		for key in ['A', 'A_DIV', 'A_Vx', 'A_Vy', 'A_ResT', 'B', 'B_DIV', 'B_Vx', 'B_Vy', 'B_ResT', 'mask', 'cont']:
+		for key in ['A', 'A_DIV', 'A_Vx', 'A_Vy', 'A_cont', 'A_ResT', 'B', 'B_DIV', 'B_Vx', 'B_Vy', 'B_ResT', 'mask', 'cont']:
 			if not key in data_dict.keys():
 				continue
 
-			data_dict[key] = np.flip(data_dict[key], axis=1)
+			data_dict[key] = np.flip(data_dict[key], axis=1).copy()
 
 		im_width = data_dict['A'].shape[1]
 
@@ -100,6 +100,11 @@ class GeoUnpickler(object):
 		else:
 			for i, (y, x) in enumerate(data_dict['mask_locs']):
 				data_dict['mask_locs'][i] = (y, im_width - x - data_dict['mask_size'])
+
+
+	def process_continents(self, data_dict):
+		data_dict['cont'] = (data_dict['A_cont'] > 0).astype(np.uint8)
+
 
 
 	def convert_to_tensor(self, data_dict):
@@ -137,14 +142,14 @@ class GeoUnpickler(object):
 		basedir = os.path.join(self.opt.dataroot, self.opt.phase).rstrip('/')
 		
 		folder_name = os.path.dirname(self.files[idx])[len(basedir)+1:]
+		
 		data['folder_id'] = self.folder_id_lookup[folder_name]
 
 		if (not self.opt.no_flip) and random.random() < 0.5:
 			self.flip_images(data)
 		
 		self.create_masked_images(data)
-
-		data['cont'] = (data['A_cont'] > 0).astype(np.uint8)
+		self.process_continents(data)
 
 		self.convert_to_tensor(data)
 

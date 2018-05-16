@@ -67,6 +67,7 @@ def test_getitem_loads_pkl_file(fake_folder_hierarchy, mocker):
 	mocker.patch('torch.load')
 	u.flip_images = mocker.MagicMock()
 	u.create_masked_images = mocker.MagicMock()
+	u.process_continents = mocker.MagicMock()
 	u.convert_to_tensor = mocker.MagicMock()
 
 	data = u[0]
@@ -224,6 +225,8 @@ def test_data_tensor_conversion():
 
 
 def test_folder_id(fake_folder_hierarchy, mocker):
+	import copy
+
 	dataroot = fake_folder_hierarchy
 
 	u = GeoUnpickler(dataroot)
@@ -235,7 +238,7 @@ def test_folder_id(fake_folder_hierarchy, mocker):
 		'A_DIV': np.random.rand(100, 100),
 		'A_Vx': np.random.rand(100, 100),
 		'A_Vy': np.random.rand(100, 100),
-		'cont': np.random.rand(100, 100),
+		'A_cont': np.random.rand(100, 100),
 		'mask_locs': [(0, 0), (20, 20), (40, 40)],
 		'folder_name': 'fake_folder',
 		'series_number': 0,
@@ -243,14 +246,14 @@ def test_folder_id(fake_folder_hierarchy, mocker):
 		'min_num_mask_pixels': 10
 		}
 
-	def empty_dictionary(*args, **kwargs):
-		return {}
+	def fake_dictionary(*args, **kwargs):
+		return copy.deepcopy(fake_data)
 
-	mocker.patch('torch.load', side_effect=empty_dictionary)
+	mocker.patch('torch.load', side_effect=fake_dictionary)
 	u.flip_images = mocker.MagicMock()
 	u.create_masked_images = mocker.MagicMock()
 	u.convert_to_tensor = mocker.MagicMock()
-
+	print(u.folder_id_lookup)
 	all_data = [u[i] for i in range(len(u))]
 
 	folder_ids = [data['folder_id'] for data in all_data]
@@ -377,11 +380,13 @@ def test_getitem_prepares_all(fake_folder_hierarchy, mocker):
 
 	fs = mocker.patch.object(u, 'flip_images')
 	cs = mocker.patch.object(u, 'create_masked_images')
+	pc = mocker.patch.object(u, 'process_continents')
 	cr = mocker.patch.object(u, 'convert_to_tensor')
 
 	manager = mocker.MagicMock()
 	manager.attach_mock(fs, 'flip_images')
 	manager.attach_mock(cs, 'create_masked_images')
+	manager.attach_mock(pc, 'process_continents')
 	manager.attach_mock(cr, 'convert_to_tensor')
 
 	mocker.patch('random.random', return_value=0)
@@ -390,12 +395,14 @@ def test_getitem_prepares_all(fake_folder_hierarchy, mocker):
 
 	assert(manager.mock_calls == [mocker.call.flip_images(fake_data), 
 			mocker.call.create_masked_images(fake_data), 
+			mocker.call.process_continents(fake_data), 
 			mocker.call.convert_to_tensor(fake_data)])
 
 	# Don't know how to clear manager, so just recreate
 	manager = mocker.MagicMock()
 	manager.attach_mock(fs, 'flip_images')
 	manager.attach_mock(cs, 'create_masked_images')
+	manager.attach_mock(pc, 'process_continents')
 	manager.attach_mock(cr, 'convert_to_tensor')
 
 	mocker.patch('random.random', return_value=1)
@@ -404,6 +411,7 @@ def test_getitem_prepares_all(fake_folder_hierarchy, mocker):
 
 	assert(manager.mock_calls == [
 			mocker.call.create_masked_images(fake_data), 
+			mocker.call.process_continents(fake_data), 
 			mocker.call.convert_to_tensor(fake_data)])
 
 
@@ -421,7 +429,7 @@ def test_can_build_dataloader_from_unpickler(fake_folder_hierarchy, mocker):
 			'A_DIV': np.random.rand(100, 100),
 			'A_Vx': np.random.rand(100, 100),
 			'A_Vy': np.random.rand(100, 100),
-			'cont': np.random.rand(100, 100),
+			'A_cont': np.random.rand(100, 100),
 			'mask_locs': [(0, 0), (20, 20), (40, 40)],
 			'folder_name': 'fake_folder',
 			'series_number': 0,

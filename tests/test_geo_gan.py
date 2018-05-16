@@ -48,6 +48,7 @@ def standard_options():
 	opt.lambda_A = 1
 	opt.lambda_B = 1
 	opt.lambda_C = 1
+	opt.lambda_D = 1
 
 	opt.local_loss = False
 	opt.div_only = False

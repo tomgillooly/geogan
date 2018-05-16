@@ -464,18 +464,19 @@ def test_continents_not_normalised():
 	p = GeoPickler('', 'out_dir')
 
 	data_dict = {}
-	data_dict['cont'] =(np.random.randn(9, 18)*255).astype(np.int8)
+	data_dict['A_DIV'] =(np.random.randn(9, 18)*255).astype(np.int8)
+	data_dict['A_cont'] =(np.random.randn(9, 18)*255).astype(np.int8)
 	
-	old_max = np.max(data_dict['cont'].ravel())
-	old_min = np.min(data_dict['cont'].ravel())
+	old_max = np.max(data_dict['A_cont'].ravel())
+	old_min = np.min(data_dict['A_cont'].ravel())
 
 	p.normalise_continuous_data(data_dict)
 
-	assert(np.max(data_dict['cont'].ravel()) == old_max)
-	assert(np.min(data_dict['cont'].ravel()) == old_min)
+	assert(np.max(data_dict['A_cont'].ravel()) == old_max)
+	assert(np.min(data_dict['A_cont'].ravel()) == old_min)
 
-	non_zero = np.where(data_dict['cont'] > 0)
-	zero = np.where(data_dict['cont'] <= 0)
+	non_zero = np.where(data_dict['A_cont'] > 0)
+	zero = np.where(data_dict['A_cont'] <= 0)
 	assert(len(zero) > 0)
 
 	p.process_continents(data_dict)
