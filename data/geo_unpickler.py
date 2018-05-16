@@ -144,7 +144,7 @@ class GeoUnpickler(object):
 		
 		self.create_masked_images(data)
 
-		data['cont'] = (data_dict['A_cont'] > 0).astype(np.uint8)
+		data['cont'] = (data['A_cont'] > 0).astype(np.uint8)
 
 		self.convert_to_tensor(data)
 
