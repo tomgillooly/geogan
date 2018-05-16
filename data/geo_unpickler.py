@@ -143,6 +143,9 @@ class GeoUnpickler(object):
 			self.flip_images(data)
 		
 		self.create_masked_images(data)
+
+		data['cont'] = (data_dict['A_cont'] > 0).astype(np.uint8)
+
 		self.convert_to_tensor(data)
 
 		return data
