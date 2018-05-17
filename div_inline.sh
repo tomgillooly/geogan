@@ -32,7 +32,7 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 python train.py --dataroot $DATAROOT --name div_inline_ae_base \
 	--model div_inline --which_direction BtoA \
 	--no_lsgan --norm batch \
-	--input_nc 3 --output_nc 3 \
+	--input_nc 3 --output_nc 1 \
 	--lambda_D 100 \
 	--which_model_netG unet_256 \
 	--pool_size 0 --no_html --batchSize 4 $OPTIONS
