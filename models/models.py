@@ -12,6 +12,9 @@ def create_model(opt):
     elif opt.model == 'pix2pix_geo':
         from .pix2pix_geo_model import Pix2PixGeoModel
         model = Pix2PixGeoModel()
+    elif opt.model == 'div_inline':
+        from .div_inline import DivInlineModel
+        model = DivInlineModel()
     elif opt.model == 'test':
         assert(opt.dataset_mode == 'single')
         from .test_model import TestModel
