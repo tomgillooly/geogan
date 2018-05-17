@@ -267,12 +267,6 @@ class DivInlineModel(BaseModel):
 
 
     def backward_G(self):
-        # First, G(A) should fake the discriminator
-        # Note that we don't detach here because we DO want to backpropagate
-        # to the generator this time
-
-        self.loss_G_GAN = 0
-            
         # if we aren't taking local loss, use entire image
         loss_mask = torch.ones(self.mask.shape).byte()
 
@@ -297,8 +291,7 @@ class DivInlineModel(BaseModel):
             self.real_B_DIV_ROI)
 
         self.loss_G_L2 = self.loss_G_L2_DIV
-
-        self.loss_G += self.loss_G_L2
+        self.loss_G = self.loss_G_L2
 
 
         if self.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
