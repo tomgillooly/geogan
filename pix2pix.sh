@@ -28,13 +28,12 @@ source $HOME/$VIRTUALENV_NAME/bin/activate
 
 python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
-	# --continue_train --which_epoch latest --epoch_count 45 \
-python train.py --dataroot $DATAROOT --name autoencoder_local_loss \
+python train.py --dataroot $DATAROOT --name autoencoder_base \
+	--continue_train --which_epoch latest --epoch_count 200 \
 	--model pix2pix_geo --which_direction BtoA \
 	--dataset_mode geo --no_lsgan --norm batch \
 	--input_nc 3 --output_nc 3 \
 	--lambda_A 100 --lambda_B 100 \
-	--local_loss \
 	--num_discrims 0 \
 	--which_model_netG unet_256 \
 	--discrete_only \
