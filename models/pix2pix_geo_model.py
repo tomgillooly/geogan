@@ -121,9 +121,12 @@ class Pix2PixGeoModel(BaseModel):
                 self.folder_fc.cuda(self.gpu_ids[0])
 
         if not self.opt.discrete_only or self.opt.div_only:
-            self.netG_DIV = torch.nn.Sequential(
-                torch.nn.Conv2d(in_channels=opt.output_nc, out_channels=1, kernel_size=1),
-                )
+            if self.opt.deep_div:
+                self.netG_DIV = SecondHead(self.netG, 1, 'ConvTranspose2d', self.opt.div_depth, 'Conv2d')
+            else:
+                self.netG_DIV = torch.nn.Sequential(
+                    torch.nn.Conv2d(in_channels=opt.output_nc, out_channels=1, kernel_size=1),
+                    )
             
             if len(self.gpu_ids) > 0:
                 self.netG_DIV.cuda(self.gpu_ids[0])
@@ -237,7 +240,7 @@ class Pix2PixGeoModel(BaseModel):
                 self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan,
                     tensor=self.Tensor)
 
-            self.criterionL2 = torch.nn.MSELoss(size_average=True)
+            self.criterionL2 = torch.nn.MSELoss(size_average=False)
             self.criterionCE = torch.nn.NLLLoss2d
 
             # initialize optimizers
