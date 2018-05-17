@@ -38,7 +38,6 @@ python train.py --dataroot $DATAROOT --name autoencoder_deep_div_3_001_restart \
 	--div_only \
 	--num_discrims 0 \
 	--which_model_netG unet_256 \
-	--discrete_only \
 	--pool_size 0 --no_html --div_threshold 1000 --batchSize 4 $OPTIONS
 
 kill %1
