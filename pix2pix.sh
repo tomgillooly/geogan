@@ -29,7 +29,7 @@ source $HOME/$VIRTUALENV_NAME/bin/activate
 python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 python train.py --dataroot $DATAROOT --name autoencoder_base \
-	--continue_train --which_epoch latest --epoch_count 200 \
+	--continue_train --which_epoch 100 --epoch_count 100 --niter 300 --niter_decay 100 \
 	--model pix2pix_geo --which_direction BtoA \
 	--dataset_mode geo --no_lsgan --norm batch \
 	--input_nc 3 --output_nc 3 \
