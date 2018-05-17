@@ -28,13 +28,13 @@ source $HOME/$VIRTUALENV_NAME/bin/activate
 
 python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
-python train.py --dataroot $DATAROOT --name autoencoder_weighted_folder_pred_restart \
+python train.py --dataroot $DATAROOT --name autoencoder_deep_div_3_001_restart \
 	--continue_train --which_epoch 100 --epoch_count 101 --niter 300 --niter_decay 100 \
 	--model pix2pix_geo --which_direction BtoA \
 	--dataset_mode geo --no_lsgan --norm batch \
 	--input_nc 3 --output_nc 3 \
-	--lambda_A 100 --lambda_B 100 --lambda_D 100 \
-	--folder_pred \
+	--lambda_A 0.01 --lambda_B 100 --lambda_D 100 \
+	--deep_div --div_depth 3 \
 	--num_discrims 0 \
 	--which_model_netG unet_256 \
 	--discrete_only \
