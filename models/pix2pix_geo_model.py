@@ -327,6 +327,11 @@ class Pix2PixGeoModel(BaseModel):
         self.input_A_Vy     = input_A_Vy
         self.input_B_Vy     = input_B_Vy
         self.mask           = mask
+
+        if 'A_paths' in input.keys():
+            self.A_path = input['A_paths']
+        elif 'folder_id' in input.keys():
+            self.A_path = str(input['folder_id']) + '_' + str(input['series_number'])
             
         if self.opt.continent_data:
             self.continent_img = continents
@@ -431,11 +436,14 @@ class Pix2PixGeoModel(BaseModel):
         
         self.mask = torch.autograd.Variable(self.mask)
         
+        if self.opt.continent_data:
+            self.continents = torch.autograd.Variable(self.continent_img)
+
         # mask_var = Variable(self.mask.float(), volatile=True)
         self.G_input = torch.cat((self.real_A_discrete, self.mask.float()), dim=1)
 
         if self.opt.continent_data:
-            self.G_input = torch.cat((G_input, self.continents), dim=1)
+            self.G_input = torch.cat((self.G_input, self.continents.float()), dim=1)
         
         self.fake_B_discrete = self.netG(self.G_input)
 
@@ -457,6 +465,8 @@ class Pix2PixGeoModel(BaseModel):
         self.fake_B_one_hot.scatter_(1, self.fake_B_classes.data.cpu(), 1.0)
 
     # get image paths
+    def get_image_paths(self):
+        return self.A_path
 
 
     def calc_gradient_penalty(self, netD, real_data, fake_data):

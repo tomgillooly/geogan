@@ -360,7 +360,7 @@ class GeoDataset(BaseDataset):
                 }
 
         if self.opt.continent_data:
-            data['continents'] = continents
+            data['cont'] = continents
 
         return data
 

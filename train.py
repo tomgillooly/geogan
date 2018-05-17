@@ -11,14 +11,10 @@ import torch.utils.data
 
 def train():
     opt = TrainOptions().parse()
-    # data_loader = CreateDataLoader(opt)
-    # dataset = data_loader.load_data()
 
     unpickler = GeoUnpickler()
     unpickler.initialise(opt)
 
-    # Using multiprocessing in the dataloader is causing our file descriptors to max out
-    # it doesn't look like there's much we can do about it
     dataset = torch.utils.data.DataLoader(
         unpickler,
         batch_size=opt.batchSize,
