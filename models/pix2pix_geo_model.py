@@ -331,7 +331,7 @@ class Pix2PixGeoModel(BaseModel):
         if 'A_paths' in input.keys():
             self.A_path = input['A_paths']
         elif 'folder_id' in input.keys():
-            self.A_path = str(input['folder_id']) + '_' + str(input['series_number'])
+            self.A_path = ['serie_{}_{:05}'.format(input['folder_id'][0], input['series_number'][0])]
             
         if self.opt.continent_data:
             self.continent_img = continents
@@ -889,9 +889,9 @@ class Pix2PixGeoModel(BaseModel):
         mask_tl =(mask_coords[0][0], mask_coords[1][0])
         mask_br =(mask_coords[0][-1], mask_coords[1][-1])
 
-        d_h_recall = 0.0
-        d_h_precision = 0.0
-        d_h_symmetric = 0.0
+        # d_h_recall = 0.0
+        # d_h_precision = 0.0
+        # d_h_symmetric = 0.0
 
         d_h_recall_exc = 0.0
         d_h_precision_exc = 0.0
@@ -920,21 +920,21 @@ class Pix2PixGeoModel(BaseModel):
 
                 # d_h_s = max(d_h_s, max(d_h_fr, d_h_rf))
 
-            d_h_p, d_h_r, d_h_s = get_hausdorff(fake_channel, real_channel)
+            # d_h_p, d_h_r, d_h_s = get_hausdorff(fake_channel, real_channel)
             
             d_h_p_exc, d_h_r_exc, d_h_s_exc = get_hausdorff_exc(fake_channel, real_channel)
 
-            d_h_recall = max(d_h_recall, d_h_r)
-            d_h_precision = max(d_h_precision, d_h_p)
-            d_h_symmetric = max(d_h_symmetric, d_h_s)
+            # d_h_recall = max(d_h_recall, d_h_r)
+            # d_h_precision = max(d_h_precision, d_h_p)
+            # d_h_symmetric = max(d_h_symmetric, d_h_s)
 
             d_h_recall_exc = max(d_h_recall_exc, d_h_r_exc)
             d_h_precision_exc = max(d_h_precision_exc, d_h_p_exc)
             d_h_symmetric_exc = max(d_h_symmetric_exc, d_h_s_exc)
 
-        metrics.append(('Hausdorff distance (R)', d_h_recall))
-        metrics.append(('Hausdorff distance (P)', d_h_precision))
-        metrics.append(('Hausdorff distance (S)', d_h_symmetric))
+        # metrics.append(('Hausdorff distance (R)', d_h_recall))
+        # metrics.append(('Hausdorff distance (P)', d_h_precision))
+        # metrics.append(('Hausdorff distance (S)', d_h_symmetric))
 
         metrics.append(('Hausdorff distance (R - exc)', d_h_recall_exc))
         metrics.append(('Hausdorff distance (P - exc)', d_h_precision_exc))
@@ -950,9 +950,9 @@ class Pix2PixGeoModel(BaseModel):
 
 
     def accumulate_metrics(self, metrics):
-        d_h_recall = []
-        d_h_precision = []
-        d_h_s = []
+        # d_h_recall = []
+        # d_h_precision = []
+        # d_h_s = []
         
         d_h_recall_exc = []
         d_h_precision_exc = []
@@ -962,9 +962,9 @@ class Pix2PixGeoModel(BaseModel):
         ot_s = []
 
         for metric in metrics:
-            d_h_recall.append(metric['Hausdorff distance (R)'])
-            d_h_precision.append(metric['Hausdorff distance (P)'])
-            d_h_s.append(metric['Hausdorff distance (S)'])
+            # d_h_recall.append(metric['Hausdorff distance (R)'])
+            # d_h_precision.append(metric['Hausdorff distance (P)'])
+            # d_h_s.append(metric['Hausdorff distance (S)'])
             
             d_h_recall_exc.append(metric['Hausdorff distance (R - exc)'])
             d_h_precision_exc.append(metric['Hausdorff distance (P - exc)'])
@@ -975,9 +975,9 @@ class Pix2PixGeoModel(BaseModel):
 
 
         return OrderedDict([
-            ('Hausdorff distance (R)', np.mean(d_h_recall)),
-            ('Hausdorff distance (P)', np.mean(d_h_precision)),
-            ('Hausdorff distance (S)', np.mean(d_h_s)),
+            # ('Hausdorff distance (R)', np.mean(d_h_recall)),
+            # ('Hausdorff distance (P)', np.mean(d_h_precision)),
+            # ('Hausdorff distance (S)', np.mean(d_h_s)),
             
             ('Hausdorff distance (R - exc)', np.mean(d_h_recall_exc)),
             ('Hausdorff distance (P - exc)', np.mean(d_h_precision_exc)),
