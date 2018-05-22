@@ -701,9 +701,8 @@ class Pix2PixGeoModel(BaseModel):
         subduction_weight = subduction_weight.mean(dim=0, keepdim=True)
         
         prec_weights = torch.cat((ridge_weight, plate_weight, subduction_weight))
-        prec_weights.requires_grad = False
 
-        ce_fun_prec = self.criterionCE(weight=prec_weights)
+        ce_fun_prec = self.criterionCE(weight=prec_weights.detach())
 
         self.loss_G_CE_precision = ce_fun_prec(F.log_softmax(self.fake_B_discrete_ROI, dim=1),
             self.real_B_classes_ROI) * self.opt.lambda_B
