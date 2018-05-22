@@ -33,7 +33,7 @@ python train.py --dataroot $DATAROOT --name wgan_long_iter_base \
 	--model pix2pix_geo --which_direction BtoA \
 	--dataset_mode geo --no_lsgan --norm batch \
 	--input_nc 3 --output_nc 3 \
-	--high_iter 500 --low_iter 50 \
+	--high_iter 2500 --low_iter 500 \
 	--lambda_A 0.01 --lambda_B 100 --lambda_D 100 \
 	--discrete_only \
 	--num_discrims 1 \
