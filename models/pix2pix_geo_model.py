@@ -666,9 +666,7 @@ class Pix2PixGeoModel(BaseModel):
                 self.batch_size, *im_dims)
 
         total_pixels = 1.0 * im_dims[0] * im_dims[1]
-
-        self.loss_G_CE_recall = ce_fun_rec(F.log_softmax(self.fake_B_discrete_ROI, dim=1),
-            self.real_B_classes_ROI) * self.opt.lambda_B
+        
 
         num_ridge_pixels = torch.sum(torch.sum(self.fake_B_discrete_ROI[:, 0, :, :], dim=1), dim=1)
         num_plate_pixels = torch.sum(torch.sum(self.fake_B_discrete_ROI[:, 1, :, :], dim=1), dim=1)
@@ -688,7 +686,7 @@ class Pix2PixGeoModel(BaseModel):
 
         self.loss_G_CE_precision = ce_fun_prec(F.log_softmax(self.fake_B_discrete_ROI, dim=1),
             self.real_B_classes_ROI) * self.opt.lambda_B
-        
+
         
         num_ridge_pixels = torch.sum(torch.sum(self.real_B_discrete_ROI[:, 0, :, :], dim=1), dim=1)
         num_plate_pixels = torch.sum(torch.sum(self.real_B_discrete_ROI[:, 1, :, :], dim=1), dim=1)
@@ -705,6 +703,9 @@ class Pix2PixGeoModel(BaseModel):
         rec_weights = torch.cat((ridge_weight, plate_weight, subduction_weight))
 
         ce_fun_rec = self.criterionCE(weight=rec_weights)
+
+        self.loss_G_CE_recall = ce_fun_rec(F.log_softmax(self.fake_B_discrete_ROI, dim=1),
+            self.real_B_classes_ROI) * self.opt.lambda_B
 
         # print(fake_B_discrete_masked)
         # print(real_B_classes_masked)
