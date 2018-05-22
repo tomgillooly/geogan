@@ -38,7 +38,7 @@ python train.py --dataroot $DATAROOT --name wgan_long_iter_base \
 	--discrete_only \
 	--num_discrims 1 \
 	--which_model_netG unet_256 \
-	--pool_size 0 --no_html --div_threshold 1000 --batchSize 4 $OPTIONS
+	--pool_size 0 --no_html --div_threshold 1000 --batchSize 32 --nThreads 0 $OPTIONS
 
 kill %1
 
