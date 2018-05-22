@@ -29,16 +29,16 @@ source $HOME/$VIRTUALENV_NAME/bin/activate
 python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --continue_train --which_epoch 100 --epoch_count 101 --niter 300 --niter_decay 100 \
-python train.py --dataroot $DATAROOT --name wgan_long_iter_larger_batch_base \
+	# --high_iter 2500 --low_iter 500 \
+python train.py --dataroot $DATAROOT --name autoencoder_symmetrical_wce \
 	--model pix2pix_geo --which_direction BtoA \
 	--dataset_mode geo --no_lsgan --norm batch \
 	--input_nc 3 --output_nc 3 \
-	--high_iter 2500 --low_iter 500 \
 	--lambda_A 0.01 --lambda_B 100 --lambda_D 100 \
 	--discrete_only \
-	--num_discrims 1 \
+	--num_discrims 0 \
 	--which_model_netG unet_256 \
-	--pool_size 0 --no_html --div_threshold 1000 --batchSize 32 --nThreads 0 $OPTIONS
+	--pool_size 0 --no_html --div_threshold 1000 --batchSize 4 $OPTIONS
 
 kill %1
 
