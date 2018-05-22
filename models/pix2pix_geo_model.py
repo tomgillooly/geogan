@@ -422,7 +422,7 @@ class Pix2PixGeoModel(BaseModel):
     # no backprop gradients
     def test(self):
         self.real_A_discrete = torch.autograd.Variable(self.input_A, volatile=True)
-        self.real_B_discrete = torch.autograd.Variable(self.input_B, volatile=True)
+        self.real_B_discrete = torch.autograd.Variable(self.input_B, requires_grad=False)
 
         if not self.opt.discrete_only or self.opt.div_only:
             self.real_A_DIV = torch.autograd.Variable(self.input_A_DIV)
