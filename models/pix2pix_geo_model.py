@@ -376,7 +376,7 @@ class Pix2PixGeoModel(BaseModel):
                 self.real_B_Vy = torch.autograd.Variable(self.input_B_Vy)
 
         # Mask of inpainted region
-        self.mask = torch.autograd.Variable(self.mask)
+        self.mask = torch.autograd.Variable(self.mask, requires_grad=False)
 
         if self.opt.continent_data:
             self.continents = torch.autograd.Variable(self.continent_img)
@@ -389,6 +389,9 @@ class Pix2PixGeoModel(BaseModel):
             self.G_input = torch.cat((self.G_input, self.continents.float()), dim=1)
 
 
+        if self.opt.which_model_netG == 'unet_256_sparse':
+            self.G_input.sparse_mask = self.mask
+            
         self.fake_B_discrete = self.netG(self.G_input)
 
         if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:

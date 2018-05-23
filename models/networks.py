@@ -6,6 +6,7 @@ from torch.autograd import Variable
 from torch.optim import lr_scheduler
 
 from .non_local import NONLocalBlock2D
+from .sparse_conv import *
 
 ###############################################################################
 # Functions
@@ -126,6 +127,8 @@ def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch', use_dropo
         netG = UnetGeneratorNonLocal(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout, gpu_ids=gpu_ids)
     elif which_model_netG == 'unet_256_non_local':
         netG = UnetGeneratorNonLocal(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout, gpu_ids=gpu_ids)
+    elif which_model_netG == 'unet_256_sparse':
+        netG = UnetGeneratorSparse(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout, gpu_ids=gpu_ids)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % which_model_netG)
     if len(gpu_ids) > 0:
@@ -369,6 +372,30 @@ class UnetGeneratorNonLocal(nn.Module):
             return self.model(input)
 
 
+class UnetGeneratorSparse(nn.Module):
+    def __init__(self, input_nc, output_nc, num_downs, ngf=64,
+                 norm_layer=SparseBatchNorm2d, use_dropout=False, gpu_ids=[]):
+        super(UnetGeneratorSparse, self).__init__()
+        self.gpu_ids = gpu_ids
+
+        # construct unet structure
+        unet_block = UnetSparseSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
+        for i in range(num_downs - 5):
+            unet_block = UnetSparseSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout, non_local_block=(not (i < num_downs-6)))
+        unet_block = UnetSparseSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, non_local_block=True)
+        unet_block = UnetSparseSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer, non_local_block=True)
+        unet_block = UnetSparseSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+        unet_block = UnetSparseSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)
+
+        self.model = unet_block
+
+    def forward(self, input):
+        if self.gpu_ids and isinstance(input.data, torch.cuda.FloatTensor):
+            return nn.parallel.data_parallel(self.model, input, self.gpu_ids)
+        else:
+            return self.model(input)
+
+
 # Defines the submodule with skip connection.
 # X -------------------identity---------------------- X
 #   |-- downsampling -- |submodule| -- upsampling --|
@@ -407,6 +434,64 @@ class UnetSkipConnectionBlock(nn.Module):
             model = down + up
         else:
             upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
+                                        kernel_size=4, stride=2,
+                                        padding=1, bias=use_bias)
+            down = [downrelu, downconv, downnorm]
+
+            if non_local_block:
+                down += [NONLocalBlock2D(inner_nc)]
+
+            up = [uprelu, upconv, upnorm]
+
+            if use_dropout:
+                model = down + [submodule] + up + [nn.Dropout(0.5)]
+            else:
+                model = down + [submodule] + up
+
+        self.model = nn.Sequential(*model)
+
+    def forward(self, x):
+        if self.outermost:
+            return self.model(x)
+        else:
+            return torch.cat([x, self.model(x)], 1)
+
+
+class UnetSparseSkipConnectionBlock(nn.Module):
+    def __init__(self, outer_nc, inner_nc, input_nc=None,
+                 submodule=None, outermost=False, innermost=False, norm_layer=SparseBatchNorm2d, use_dropout=False,
+                 non_local_block=False):
+        super(UnetSparseSkipConnectionBlock, self).__init__()
+        self.outermost = outermost
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+        if input_nc is None:
+            input_nc = outer_nc
+        downconv = SparseConv2d(input_nc, inner_nc, kernel_size=4,
+                             stride=2, padding=1, bias=use_bias)
+        downrelu = SparseLeakyReLU(0.2, True)
+        downnorm = norm_layer(inner_nc)
+        uprelu = SparseReLU(True)
+        upnorm = norm_layer(outer_nc)
+
+        if outermost:
+            upconv = SparseConvTranspose2d(inner_nc * 2, outer_nc,
+                                        kernel_size=4, stride=2,
+                                        padding=1)
+            down = [downconv]
+            up = [uprelu, upconv, SparseTanh()]
+            model = down + [submodule] + up
+        elif innermost:
+            upconv = SparseConvTranspose2d(inner_nc, outer_nc,
+                                        kernel_size=4, stride=2,
+                                        padding=1, bias=use_bias)
+            down = [downrelu, downconv]
+            up = [uprelu, upconv, upnorm]
+            model = down + up
+        else:
+            upconv = SparseConvTranspose2d(inner_nc * 2, outer_nc,
                                         kernel_size=4, stride=2,
                                         padding=1, bias=use_bias)
             down = [downrelu, downconv, downnorm]
