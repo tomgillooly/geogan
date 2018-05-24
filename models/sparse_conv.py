@@ -36,6 +36,8 @@ class SparseTanh(torch.nn.Tanh):
 		return output
 
 class SparseConvTranspose2d(torch.nn.ConvTranspose2d):
+	## torch.nn.Upsample
+	## followed by SparseConv2d
 	def forward(self, x):
 		output = super(SparseConvTranspose2d, self).forward(x)
 		output.sparse_mask = x.sparse_mask
@@ -45,7 +47,16 @@ class SparseConvTranspose2d(torch.nn.ConvTranspose2d):
 
 class SparseConv2d(torch.nn.Conv2d):
 	def __init__(self, *args, **kwargs):
+		if 'bias' in kwargs.keys():
+			assert(kwargs['bias'] == False)
+		else:
+			kwargs['bias'] = False
+
 		super().__init__(*args, **kwargs)
+
+		self.mask_weight_conv = torch.nn.Conv2d(self.in_channels, 1, self.kernel_size,
+			self.stride, self.padding, self.dilation, bias=False)
+		self.mask_weight_conv.weight.data.fill_(1)
 
 		self.maxpool = torch.nn.MaxPool2d(self.kernel_size, self.stride,
 			self.padding, self.dilation)
@@ -57,8 +68,10 @@ class SparseConv2d(torch.nn.Conv2d):
 
 		mask = input.sparse_mask
 		output = super(SparseConv2d, self).forward(input * mask.float())
-		output = output * torch.sum(mask.float()) / mask.numel()
-		output.sparse_mask = self.maxpool(mask)
+		mask_weights = self.mask_weight_conv(mask.float())
+
+		output = output / mask_weights
+		output.sparse_mask = torch.min(self.maxpool(mask), dim=1, keepdim=True)[0]
 
 		return output
 
