@@ -406,7 +406,8 @@ class DivInlineModel(BaseModel):
         visuals.append(('output_divergence', fake_B_DIV))
         
         weight_mask = util.tensor2im(self.weight_mask.data)
-        weight_mask[mask_edge_coords] = np.max(weight_mask)
+        if not self.opt.local_loss:
+            weight_mask[mask_edge_coords] = np.max(weight_mask)
         visuals.append(('L2 weight mask', weight_mask))
             
 

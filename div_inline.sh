@@ -35,7 +35,6 @@ python train.py --dataroot $DATAROOT --name div_inline_ae_weighted \
 	--input_nc 3 --output_nc 1 \
 	--lambda_A 100 --lambda_D 100 \
 	--which_model_netG unet_256 \
-	--local_loss \
 	--pool_size 0 --no_html --batchSize 4 $OPTIONS
 
 kill %1
