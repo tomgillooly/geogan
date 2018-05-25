@@ -422,7 +422,7 @@ class Pix2PixGeoModel(BaseModel):
     # no backprop gradients
     def test(self):
         self.real_A_discrete = torch.autograd.Variable(self.input_A, volatile=True)
-        self.real_B_discrete = torch.autograd.Variable(self.input_B, volatile=True)
+        self.real_B_discrete = torch.autograd.Variable(self.input_B, requires_grad=False)
 
         if not self.opt.discrete_only or self.opt.div_only:
             self.real_A_DIV = torch.autograd.Variable(self.input_A_DIV)
@@ -716,46 +716,46 @@ class Pix2PixGeoModel(BaseModel):
 
 
 
-            for _ in range(self.opt.low_iter if kwargs['step_no'] >= 25 else self.opt.high_iter):
-                self.loss_D1, self.loss_D1_real, self.loss_D1_fake, self.loss_D1_grad_pen = self.backward_D(self.netD1s, self.optimizer_D1s,
+            self.loss_D1, self.loss_D1_real, self.loss_D1_fake, self.loss_D1_grad_pen = self.backward_D(self.netD1s, self.optimizer_D1s,
+                cond_data,
+                self.real_B_discrete, self.fake_B_discrete)
+
+            if not self.opt.discrete_only or self.opt.div_only:
+                # Conditional data (input with chunk missing + mask) + fake DIV, Vx and Vy data
+                real_data = torch.cat((self.real_B_DIV,), dim=1)
+                fake_data = torch.cat((self.fake_B_DIV,), dim=1)
+
+                if not self.opt.div_only:
+                    real_data = torch.cat((real_data, self.real_B_Vx, self.real_B_Vy), dim=1)
+                    fake_data = torch.cat((fake_data, self.fake_B_Vx, self.fake_B_Vy), dim=1)
+
+                self.loss_D2, self.loss_D2_real, self.loss_D2_fake, self.loss_D2_grad_pen = self.backward_D(self.netD2s, self.optimizer_D2s,
                     cond_data,
-                    self.real_B_discrete, self.fake_B_discrete)
-
-                if not self.opt.discrete_only or self.opt.div_only:
-                    # Conditional data (input with chunk missing + mask) + fake DIV, Vx and Vy data
-                    real_data = torch.cat((self.real_B_DIV,), dim=1)
-                    fake_data = torch.cat((self.fake_B_DIV,), dim=1)
-
-                    if not self.opt.div_only:
-                        real_data = torch.cat((real_data, self.real_B_Vx, self.real_B_Vy), dim=1)
-                        fake_data = torch.cat((fake_data, self.fake_B_Vx, self.fake_B_Vy), dim=1)
-
-                    self.loss_D2, self.loss_D2_real, self.loss_D2_fake, self.loss_D2_grad_pen = self.backward_D(self.netD2s, self.optimizer_D2s,
-                        cond_data,
-                        real_data, 
-                        fake_data)
+                    real_data, 
+                    fake_data)
 
 
+        step_no = kwargs['step_no']
+        if (step_no < self.opt.high_iter*25 and step_no % self.opt.high_iter == 0) or (step_no >= self.opt.high_iter*25 and step_no % self.opt.low_iter == 0):
+            self.optimizer_G.zero_grad()
 
-        self.optimizer_G.zero_grad()
+            if not self.opt.discrete_only or self.opt.div_only:
+                self.optimizer_G_DIV.zero_grad()
 
-        if not self.opt.discrete_only or self.opt.div_only:
-            self.optimizer_G_DIV.zero_grad()
+                if not self.opt.div_only:
+                    self.optimizer_G_Vx.zero_grad()
+                    self.optimizer_G_Vy.zero_grad()
+            
+            self.backward_G()
+            
+            self.optimizer_G.step()
+            
+            if not self.opt.discrete_only or self.opt.div_only:
+                self.optimizer_G_DIV.step()
 
-            if not self.opt.div_only:
-                self.optimizer_G_Vx.zero_grad()
-                self.optimizer_G_Vy.zero_grad()
-        
-        self.backward_G()
-        
-        self.optimizer_G.step()
-        
-        if not self.opt.discrete_only or self.opt.div_only:
-            self.optimizer_G_DIV.step()
-
-            if not self.opt.div_only:
-                self.optimizer_G_Vx.step()
-                self.optimizer_G_Vy.step()
+                if not self.opt.div_only:
+                    self.optimizer_G_Vx.step()
+                    self.optimizer_G_Vy.step()
 
 
     def get_current_errors(self):
@@ -766,8 +766,8 @@ class Pix2PixGeoModel(BaseModel):
 
         if self.opt.num_discrims > 0:
             errors += [
-                ('G_GAN_D1', self.loss_G_GAN1.data[0]),
-                ('D1_real', self.loss_D1_real.data[0]),
+                ('G_GAN_D1', -self.loss_G_GAN1.data[0]),
+                ('D1_real', -self.loss_D1_real.data[0]),
                 ('D1_fake', self.loss_D1_fake.data[0]),
                 ('D1_grad_pen', self.loss_D1_grad_pen.data[0])
             ]
@@ -779,8 +779,8 @@ class Pix2PixGeoModel(BaseModel):
 
             if self.opt.num_discrims > 0:
                 errors += [
-                    ('G_GAN_D2', self.loss_G_GAN2.data[0]),
-                    ('D2_real', self.loss_D2_real.data[0]),
+                    ('G_GAN_D2', -self.loss_G_GAN2.data[0]),
+                    ('D2_real', -self.loss_D2_real.data[0]),
                     ('D2_fake', self.loss_D2_fake.data[0]),
                     ('D2_grad_pen', self.loss_D2_grad_pen.data[0])
                 ]

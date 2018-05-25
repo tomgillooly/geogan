@@ -39,10 +39,12 @@ def train():
         for i, data in enumerate(dataset):
             iter_start_time = time.time()
             visualizer.reset()
-            total_steps += opt.batchSize
-            epoch_iter += opt.batchSize
+            
             model.set_input(data)
             model.optimize_parameters(step_no=total_steps)
+            
+            total_steps += opt.batchSize
+            epoch_iter += opt.batchSize
 
             if total_steps % opt.display_freq == 0:
                 save_result = total_steps % opt.update_html_freq == 0
