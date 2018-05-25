@@ -330,6 +330,7 @@ class DivInlineModel(BaseModel):
 
         weight_mask = torch.max(pixel_weights * self.real_B_discrete_ROI, dim=1, keepdim=True)[0]
 
+        self.weight_mask = weight_mask
 
         weighted_div_predicted = self.fake_B_DIV_ROI * weight_mask
         weighted_div_target = self.real_B_DIV_ROI * weight_mask
@@ -403,6 +404,10 @@ class DivInlineModel(BaseModel):
         fake_B_DIV = util.tensor2im(self.fake_B_DIV.data)
         fake_B_DIV[mask_edge_coords] = np.max(fake_B_DIV)
         visuals.append(('output_divergence', fake_B_DIV))
+        
+        weight_mask = util.tensor2im(self.weight_mask.data)
+        weight_mask[mask_edge_coords] = np.max(weight_mask)
+        visuals.append(('L2 weight mask', weight_mask))
             
 
         if self.opt.continent_data:
