@@ -8,6 +8,8 @@ from .base_model import BaseModel
 from . import networks
 from .second_head import SecondHead
 
+from data.geo_pickler import GeoPickler
+
 import torch.nn.functional as F
 import numpy as np
 import re
@@ -100,6 +102,8 @@ class DivInlineModel(BaseModel):
     def initialize(self, opt):
         BaseModel.initialize(self, opt)
         self.isTrain = opt.isTrain
+
+        self.p = GeoPickler('')
 
         # load/define networks
         # Input channels = 3 channels for input one-hot map + mask
@@ -234,6 +238,10 @@ class DivInlineModel(BaseModel):
 
         self.fake_B_DIV = self.netG(self.G_input)
 
+        # tmp_dict = {'A_DIV': self.fake_B_DIV}
+        # self.p.create_one_hot(tmp_dict, self.div_thresh)
+        # self.fake_B_discrete = tmp_dict['A']
+
         if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             self.fake_folder = self.folder_fc(self.netG.inner_layer.output.view(self.batch_size, -1))
             self.fake_folder = torch.nn.functional.log_softmax(self.fake_folder, dim=1)
@@ -260,6 +268,20 @@ class DivInlineModel(BaseModel):
         
         self.fake_B_DIV = self.netG(self.G_input)
 
+        tmp_dict = {'A_DIV': self.fake_B_DIV}
+        self.p.create_one_hot(tmp_dict, self.div_thresh)
+        self.fake_B_discrete = tmp_dict['A']
+
+
+        # Work out the threshold from quantification factor
+        # tmp_dict = {'A_DIV': self.fake_B_DIV.data[0].numpy().squeeze()}
+        # self.p.create_one_hot(tmp_dict, 0.5)
+        # self.fake_B_discrete_05 = tmp_dict['A']
+        # self.p.create_one_hot(tmp_dict, 0.2)
+        # self.fake_B_discrete_02 = tmp_dict['A']
+        # self.p.create_one_hot(tmp_dict, 0.1)
+        # self.fake_B_discrete_01 = tmp_dict['A']
+
 
     # get image paths
     def get_image_paths(self):
@@ -269,6 +291,8 @@ class DivInlineModel(BaseModel):
     def backward_G(self):
         # if we aren't taking local loss, use entire image
         loss_mask = torch.ones(self.mask.shape).byte()
+        loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
+        loss_mask = torch.autograd.Variable(loss_mask)
 
         im_dims = self.mask.shape[2:]
 
@@ -279,16 +303,40 @@ class DivInlineModel(BaseModel):
             # im_dims = self.mask_size_y[0], self.mask_size_x[0]
             im_dims = (100, 100)
         
-        loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
-        loss_mask = torch.autograd.Variable(loss_mask)
 
+        total_pixels = torch.sum(torch.sum(loss_mask > 0, dim=2, keepdim=True), dim=3, keepdim=True).float()
 
         self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
         self.real_B_DIV_ROI = self.real_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+        self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
+
+        num_ridge_pixels = torch.sum(torch.sum(self.real_B_discrete_ROI[:, 0, :, :].unsqueeze(1),
+            dim=2, keepdim=True), dim=3, keepdim=True).float()
+        num_plate_pixels = torch.sum(torch.sum(self.real_B_discrete_ROI[:, 1, :, :].unsqueeze(1),
+            dim=2, keepdim=True), dim=3, keepdim=True).float()
+        num_subduction_pixels = torch.sum(torch.sum(self.real_B_discrete_ROI[:, 2, :, :].unsqueeze(1),
+            dim=2, keepdim=True), dim=3, keepdim=True).float()
+
+        ridge_weight = total_pixels / num_ridge_pixels + self.opt.alpha
+        plate_weight = total_pixels / num_plate_pixels + self.opt.alpha
+        subduction_weight = total_pixels / num_subduction_pixels + self.opt.alpha
+
+        ridge_weight = ridge_weight.mean(dim=0, keepdim=True)
+        plate_weight = plate_weight.mean(dim=0, keepdim=True)
+        subduction_weight = subduction_weight.mean(dim=0, keepdim=True)
+        
+        pixel_weights = torch.cat((ridge_weight, plate_weight, subduction_weight), dim=1)
+        pixel_weights /= torch.sum(pixel_weights + 1e-8)
+
+        weight_mask = torch.max(pixel_weights * self.real_B_discrete_ROI, dim=1, keepdim=True)[0]
+
+
+        weighted_div_predicted = self.fake_B_DIV_ROI * weight_mask
+        weighted_div_target = self.real_B_DIV_ROI * weight_mask
 
         self.loss_G_L2_DIV = self.criterionL2(
-            self.fake_B_DIV_ROI,
-            self.real_B_DIV_ROI)
+            weighted_div_predicted,
+            weighted_div_target) * self.opt.lambda_A
 
         self.loss_G_L2 = self.loss_G_L2_DIV
         self.loss_G = self.loss_G_L2
