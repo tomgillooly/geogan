@@ -103,6 +103,9 @@ class GeoUnpickler(object):
 
 
 	def process_continents(self, data_dict):
+		if 'cont' in data_dict.keys():
+			return
+			
 		data_dict['cont'] = (data_dict['A_cont'] > 0).astype(np.uint8)
 
 

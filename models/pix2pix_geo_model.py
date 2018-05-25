@@ -376,7 +376,7 @@ class Pix2PixGeoModel(BaseModel):
                 self.real_B_Vy = torch.autograd.Variable(self.input_B_Vy)
 
         # Mask of inpainted region
-        self.mask = torch.autograd.Variable(self.mask)
+        self.mask = torch.autograd.Variable(self.mask, requires_grad=False)
 
         if self.opt.continent_data:
             self.continents = torch.autograd.Variable(self.continent_img)
