@@ -138,6 +138,12 @@ class GeoUnpickler(object):
 
 			data_dict[key] = item
 
+		for key in ['DIV_max', 'DIV_min', 'DIV_thresh', 'conn_comp_hist']:
+			if not key in data_dict.keys():
+				continue
+
+			data_dict[key] = torch.FloatTensor(data_dict[key])
+
 
 	def __getitem__(self, idx):
 		data = torch.load(self.files[idx])
