@@ -139,6 +139,7 @@ class GeoPickler(object):
 		plate = np.ones(ridge.shape, dtype=float)
 		plate[np.where(np.logical_or(ridge == 1, subduction == 1))] = 0
 
+		data_dict['DIV_thresh'] = threshold
 		data_dict['A'] = np.stack((ridge, plate, subduction), axis=2)
 
 
@@ -167,6 +168,14 @@ class GeoPickler(object):
 			dmin = np.min(data.ravel())
 
 			data = np.interp(data, [dmin, dmax], [-1, 1])
+			data_dict['DIV_min'] = dmin
+			data_dict['DIV_max'] = dmax
+
+			# norm = max(abs(dmin), dmax)
+			# data_dict['DIV_min'] = -norm
+			# data_dict['DIV_max'] = norm
+
+			# data = np.interp(data, [-norm, norm], [-1, 1])
 
 			data_dict[key] = data
 
@@ -184,16 +193,16 @@ class GeoPickler(object):
 		if any([key not in data_dict.keys() for key in ['A_DIV', 'A_Vx', 'A_Vy']]):
 			return
 
+		self.normalise_continuous_data(data_dict)
+
+		self.process_continents(data_dict)
+		
 		self.create_one_hot(data_dict, threshold)
 
 		self.get_mask_loc(data_dict, mask_size, num_pix_in_mask)
 
 		if len(data_dict['mask_locs']) == 0:
 			return
-
-		self.normalise_continuous_data(data_dict)
-
-		self.process_continents(data_dict)
 
 		if not os.path.exists(os.path.join(self.out_dir, data_dict['folder_name'])):
 			os.mkdir(os.path.join(self.out_dir, data_dict['folder_name']))

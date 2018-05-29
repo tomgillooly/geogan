@@ -144,9 +144,9 @@ class GeoUnpickler(object):
 
 		basedir = os.path.join(self.opt.dataroot, self.opt.phase).rstrip('/')
 		
-		folder_name = os.path.dirname(self.files[idx])[len(basedir)+1:]
+		data['folder_name'] = os.path.dirname(self.files[idx])[len(basedir)+1:]
 		
-		data['folder_id'] = self.folder_id_lookup[folder_name]
+		data['folder_id'] = self.folder_id_lookup[data['folder_name']]
 
 		if (not self.opt.no_flip) and random.random() < 0.5:
 			self.flip_images(data)
