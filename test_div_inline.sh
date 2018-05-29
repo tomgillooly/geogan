@@ -7,7 +7,7 @@ if [ "$HOSTNAME" == "tomoplata-OptiPlex-790" ]; then
 	OPTIONS="--gpu_ids -1 --display_id 0"
 else
 	VIRTUALENV_NAME=cyclegan3
-	DATAROOT=/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT
+	DATAROOT=/storage/Datasets/Geology-NicolasColtice/pytorch_records
 	HOME=/home/tgillooly/
 	OPTIONS="--gpu_ids -1"
 fi
