@@ -9,7 +9,7 @@ else
 	VIRTUALENV_NAME=cyclegan3
 	DATAROOT=/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT
 	HOME=/home/tgillooly/
-	OPTIONS="--inpaint_file_dir ."
+	OPTIONS=""
 fi
 
 if [ "$HOSTNAME" == "marky" ]; then
