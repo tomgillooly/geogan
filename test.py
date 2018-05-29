@@ -143,7 +143,7 @@ with open(results_file_name, 'a') as results_file:
                 print(key, value)
             results.append(str(value))
 
-        results_file.write(', '.join(results))
+        results_file.write(', '.join(results) + '\n')
         
         row_lengths = []
         row_lengths.append(4)   # Discrete input, GT, softmax, one-hot output
