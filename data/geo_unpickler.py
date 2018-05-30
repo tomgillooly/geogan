@@ -3,6 +3,8 @@ import os
 import random
 import torch
 
+from .geo_pickler import GeoPickler
+
 class DefaultOptions(object):
 	pass
 
@@ -13,6 +15,8 @@ class GeoUnpickler(object):
 		self.opt.inpaint_single_class = inpaint_single_class
 		self.opt.no_flip = no_flip
 		self.opt.phase = ''
+
+		self.p = GeoPickler('')
 
 		self.files = []
 
@@ -138,9 +142,16 @@ class GeoUnpickler(object):
 
 			data_dict[key] = item
 
+		data_dict['conn_comp_hist'] = torch.LongTensor(data_dict['conn_comp_hist']).expand(1, -1)
+		data_dict['conn_comp_hist_ridge'] = torch.LongTensor(data_dict['conn_comp_hist_ridge']).expand(1, -1)
+		data_dict['conn_comp_hist_subduction'] = torch.LongTensor(data_dict['conn_comp_hist_subduction']).expand(1, -1)
+
 
 	def __getitem__(self, idx):
 		data = torch.load(self.files[idx])
+
+		if 'conn_comp_hist' not in data.keys():
+			self.p.build_conn_comp_hist(data)
 
 		basedir = os.path.join(self.opt.dataroot, self.opt.phase).rstrip('/')
 		
