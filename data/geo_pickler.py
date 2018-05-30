@@ -6,6 +6,7 @@ import sys
 import torch
 
 from collections import OrderedDict
+from skimage.measure import label, regionprops
 from skimage.transform import resize
 from skimage.morphology import skeletonize
 from scipy.signal import correlate2d
@@ -139,6 +140,7 @@ class GeoPickler(object):
 		plate = np.ones(ridge.shape, dtype=float)
 		plate[np.where(np.logical_or(ridge == 1, subduction == 1))] = 0
 
+		data_dict['DIV_thresh'] = threshold
 		data_dict['A'] = np.stack((ridge, plate, subduction), axis=2)
 
 
@@ -170,6 +172,14 @@ class GeoPickler(object):
 			data_dict[tag + '_min'] = dmin
 
 			data = np.interp(data, [dmin, dmax], [-1, 1])
+			data_dict['DIV_min'] = dmin
+			data_dict['DIV_max'] = dmax
+
+			# norm = max(abs(dmin), dmax)
+			# data_dict['DIV_min'] = -norm
+			# data_dict['DIV_max'] = norm
+
+			# data = np.interp(data, [-norm, norm], [-1, 1])
 
 			data_dict[key] = data
 
@@ -179,6 +189,24 @@ class GeoPickler(object):
 			data_dict['cont'] = (data_dict['A_cont'] > 0).astype(np.uint8)
 		else:
 			data_dict['cont'] = np.zeros(data_dict['A_DIV'].shape)
+
+
+	def build_conn_comp_hist(self, data_dict):
+		A = data_dict['A']
+
+		r_label = label(A[:, :, 0])
+		s_label = label(A[:, :, 2])
+
+		r_area = [region.area for region in regionprops(r_label)]
+		s_area = [region.area for region in regionprops(s_label)]
+
+		r_area_hist, _ = np.histogram(r_area, bins=np.linspace(0, 256, 128))
+		s_area_hist, bins = np.histogram(s_area, bins=np.linspace(0, 256, 128))
+		total_hist = r_area_hist + s_area_hist
+
+		data_dict['conn_comp_hist_ridge'] = r_area_hist
+		data_dict['conn_comp_hist_subduction'] = s_area_hist
+		data_dict['conn_comp_hist'] = total_hist
 
 
 	def pickle_series(self, folder_id, series_no, threshold, mask_size, num_pix_in_mask):
@@ -195,10 +223,12 @@ class GeoPickler(object):
 		if len(data_dict['mask_locs']) == 0:
 			return
 
+		self.build_conn_comp_hist(data_dict)
+		
 		self.normalise_continuous_data(data_dict)
 
 		self.process_continents(data_dict)
-
+		
 		if not os.path.exists(os.path.join(self.out_dir, data_dict['folder_name'])):
 			os.mkdir(os.path.join(self.out_dir, data_dict['folder_name']))
 

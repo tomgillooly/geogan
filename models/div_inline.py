@@ -271,9 +271,9 @@ class DivInlineModel(BaseModel):
         
         self.fake_B_DIV = self.netG(self.G_input)
 
-        tmp_dict = {'A_DIV': self.fake_B_DIV}
-        self.p.create_one_hot(tmp_dict, self.div_thresh)
-        self.fake_B_discrete = tmp_dict['A']
+        # tmp_dict = {'A_DIV': self.fake_B_DIV}
+        # self.p.create_one_hot(tmp_dict, self.div_thresh)
+        # self.fake_B_discrete = tmp_dict['A']
 
 
         # Work out the threshold from quantification factor
@@ -408,10 +408,11 @@ class DivInlineModel(BaseModel):
         fake_B_DIV[mask_edge_coords] = np.max(fake_B_DIV)
         visuals.append(('output_divergence', fake_B_DIV))
         
-        weight_mask = util.tensor2im(self.weight_mask.data)
-        if not self.opt.local_loss:
-            weight_mask[mask_edge_coords] = np.max(weight_mask)
-        visuals.append(('L2 weight mask', weight_mask))
+        if self.isTrain:
+            weight_mask = util.tensor2im(self.weight_mask.data)
+            if not self.opt.local_loss:
+                weight_mask[mask_edge_coords] = np.max(weight_mask)
+            visuals.append(('L2 weight mask', weight_mask))
             
 
         if self.opt.continent_data:

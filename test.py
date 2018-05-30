@@ -143,18 +143,20 @@ with open(results_file_name, 'a') as results_file:
                 print(key, value)
             results.append(str(value))
 
-        results_file.write(', '.join(results))
+        results_file.write(', '.join(results) + '\n')
         
-        row_lengths = []
-        row_lengths.append(4)   # Discrete input, GT, softmax, one-hot output
-        row_lengths.append(3)   # Divergence input, output, G
-        row_lengths.append(3)   # Velocity x input, output, G
-        row_lengths.append(3)   # Velocity y input, output, G
-        row_lengths.append(2)   # Class 0 Haussdorf recall, precision
-        row_lengths.append(2)   # Class 2 Haussdorf recall, precision
-        row_lengths.append(2)   # Class 0 Haussdorf exclusive recall, precision
-        row_lengths.append(2)   # Class 2 Haussdorf exclusive recall, precision
-        # row_lengths.append(2)   # Class 0 and 2 EM distance
+        if len(visuals) == 5:
+            row_lengths = [5]
+        else:
+            row_lengths.append(4)   # Discrete input, GT, softmax, one-hot output
+            row_lengths.append(3)   # Divergence input, output, G
+            row_lengths.append(3)   # Velocity x input, output, G
+            row_lengths.append(3)   # Velocity y input, output, G
+            row_lengths.append(2)   # Class 0 Haussdorf recall, precision
+            row_lengths.append(2)   # Class 2 Haussdorf recall, precision
+            row_lengths.append(2)   # Class 0 Haussdorf exclusive recall, precision
+            row_lengths.append(2)   # Class 2 Haussdorf exclusive recall, precision
+            # row_lengths.append(2)   # Class 0 and 2 EM distance
 
 
         visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, row_lengths=row_lengths)
