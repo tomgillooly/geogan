@@ -212,16 +212,16 @@ class GeoPickler(object):
 		if any([key not in data_dict.keys() for key in ['A_DIV', 'A_Vx', 'A_Vy']]):
 			return
 
-		self.normalise_continuous_data(data_dict)
-
-		self.process_continents(data_dict)
-		
 		self.create_one_hot(data_dict, threshold)
 
 		self.get_mask_loc(data_dict, mask_size, num_pix_in_mask)
 
 		if len(data_dict['mask_locs']) == 0:
 			return
+
+		self.build_conn_comp_hist(data_dict)
+		
+		self.normalise_continuous_data(data_dict)
 
 		self.process_continents(data_dict)
 		
