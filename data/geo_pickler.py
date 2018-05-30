@@ -214,15 +214,11 @@ class GeoPickler(object):
 			print('Missing DIV or velocity files, skipping')
 			return
 
+		self.normalise_continuous_data(data_dict)
+
+		self.process_continents(data_dict)
+		
 		self.create_one_hot(data_dict, threshold)
-		data_dict['DIV_thresh'] = threshold
-
-		# Find connected ridge and subduction examples
-		A_RS = np.max(data_dict['A'][:, :, [0, 2]], axis=2)
-		label_image = label(A_RS)
-		area = [region.area for region in regionprops(label_image) if region.area != 0]
-
-		data_dict['conn_comp_hist'] = np.histogram(area, np.linspace(0, 256,128))[0]
 
 		self.get_mask_loc(data_dict, mask_size, num_pix_in_mask)
 
@@ -231,10 +227,6 @@ class GeoPickler(object):
 			return
 
 		self.build_conn_comp_hist(data_dict)
-		
-		self.normalise_continuous_data(data_dict)
-
-		self.process_continents(data_dict)
 		
 		if not os.path.exists(os.path.join(self.out_dir, data_dict['folder_name'])):
 			os.mkdir(os.path.join(self.out_dir, data_dict['folder_name']))
@@ -245,6 +237,18 @@ class GeoPickler(object):
 		for folder_id, folder_name in enumerate(self.folders.keys()):
 			if verbose:
 				print('Folder {} - {} of {}'.format(folder_name, folder_id+1, len(self.folders)))
+
+			if isinstance(threshold, dict):
+				if folder_name not in threshold.keys():
+					print('No threshold defined for folder {}, skipping...'.format(folder_name))
+					continue
+
+				thresh = threshold[folder_name]
+			elif isinstance(threshold, int):
+				thresh = threshold
+			else:
+				raise Exception('Unrecognised threshold type')
+
 			for count, series in enumerate(self.get_folder_by_id(folder_id).keys()):
 				if verbose:
 					sys.stdout.write('\rSeries {} of {}\t\t\t'.format(count+1, len(self.get_folder_by_id(folder_id))))
@@ -252,5 +256,5 @@ class GeoPickler(object):
 				if skip_existing and os.path.exists(os.path.join(self.out_dir, folder_name, '{:05}.pkl'.format(series))):
 					continue
 
-				self.pickle_series(folder_id, series, threshold, mask_size, num_pix_in_mask)
+				self.pickle_series(folder_id, series, thresh, mask_size, num_pix_in_mask)
 			print('')
