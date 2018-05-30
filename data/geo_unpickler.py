@@ -138,13 +138,13 @@ class GeoUnpickler(object):
 
 			data_dict[key] = item
 
-		for key in ['DIV_max', 'DIV_min']:
+		for key in ['DIV_max', 'DIV_min', 'DIV_thresh']:
 			if not key in data_dict.keys():
 				continue
 
-			data_dict[key] = torch.DoubleTensor(data_dict[key])
+			data_dict[key] = torch.DoubleTensor([data_dict[key]])
 
-		for key in ['DIV_thresh', 'conn_comp_hist']:
+		for key in ['conn_comp_hist']:
 			if not key in data_dict.keys():
 				continue
 
