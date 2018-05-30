@@ -150,7 +150,8 @@ class GeoUnpickler(object):
 			if not key in data_dict.keys():
 				continue
 
-			data_dict[key] = torch.FloatTensor(data_dict[key])
+			data_dict[key] = torch.DoubleTensor([data_dict[key]])
+
 
 
 	def __getitem__(self, idx):

@@ -7,8 +7,8 @@ import torch
 
 from collections import OrderedDict
 from skimage.measure import label, regionprops
-from skimage.transform import resize
 from skimage.morphology import skeletonize
+from skimage.transform import resize
 from scipy.signal import correlate2d
 
 
@@ -171,9 +171,7 @@ class GeoPickler(object):
 			data_dict[tag + '_max'] = dmax
 			data_dict[tag + '_min'] = dmin
 
-			data = np.interp(data, [dmin, dmax], [-1, 1])
-			data_dict['DIV_min'] = dmin
-			data_dict['DIV_max'] = dmax
+			data = np.interp(data, [dmin, 0, dmax], [-1, 0, 1])
 
 			# norm = max(abs(dmin), dmax)
 			# data_dict['DIV_min'] = -norm
@@ -213,14 +211,23 @@ class GeoPickler(object):
 		data_dict = self.get_data_dict(folder_id, series_no)
 
 		if any([key not in data_dict.keys() for key in ['A_DIV', 'A_Vx', 'A_Vy']]):
+			print('Missing DIV or velocity files, skipping')
 			return
 
 		self.create_one_hot(data_dict, threshold)
 		data_dict['DIV_thresh'] = threshold
 
+		# Find connected ridge and subduction examples
+		A_RS = np.max(data_dict['A'][:, :, [0, 2]], axis=2)
+		label_image = label(A_RS)
+		area = [region.area for region in regionprops(label_image) if region.area != 0]
+
+		data_dict['conn_comp_hist'] = np.histogram(area, np.linspace(0, 256,128))[0]
+
 		self.get_mask_loc(data_dict, mask_size, num_pix_in_mask)
 
 		if len(data_dict['mask_locs']) == 0:
+			print("Couldn't find any valid mask locations, skipping")
 			return
 
 		self.build_conn_comp_hist(data_dict)

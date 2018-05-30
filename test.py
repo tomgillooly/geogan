@@ -12,6 +12,7 @@ import skimage.io as io
 from data.geo_unpickler import GeoUnpickler
 import torch.utils.data
 
+import random
 
 # Need this if we trained with a different version
 import torch._utils
@@ -35,10 +36,23 @@ opt.no_flip = True  # no flip
 unpickler = GeoUnpickler()
 unpickler.initialise(opt)
 
+
+# dataset = torch.utils.data.DataLoader(
+#         unpickler,
+#         batch_size=opt.batchSize,
+#         shuffle=not opt.serial_batches,
+#         num_workers=opt.nThreads)
+
+random.seed(1)
+sample_idx = random.sample(range(len(unpickler)), opt.how_many)
+print(sample_idx)
+
+dataset = [unpickler[idx] for idx in sample_idx]
+
 dataset = torch.utils.data.DataLoader(
-        unpickler,
+        dataset,
         batch_size=opt.batchSize,
-        shuffle=not opt.serial_batches,
+        shuffle=False,
         num_workers=opt.nThreads)
 
 dataset_size = len(dataset)
@@ -127,6 +141,9 @@ with open(results_file_name, 'a') as results_file:
             except ValueError:
                 print(key, value)
 
+    results_file.write(' '.join([str(x) for x in total_metrics.values()]) + '\n')
+    results_file.write('\n')
+
     if text:
         webpage.add_text(text)
 
@@ -143,7 +160,7 @@ with open(results_file_name, 'a') as results_file:
                 print(key, value)
             results.append(str(value))
 
-        results_file.write(', '.join(results) + '\n')
+        results_file.write(' '.join(results) + '\n')
         
         if len(visuals) == 5:
             row_lengths = [5]
