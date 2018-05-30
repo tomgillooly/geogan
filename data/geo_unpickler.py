@@ -142,9 +142,15 @@ class GeoUnpickler(object):
 
 			data_dict[key] = item
 
-		data_dict['conn_comp_hist'] = torch.LongTensor(data_dict['conn_comp_hist']).expand(1, -1)
-		data_dict['conn_comp_hist_ridge'] = torch.LongTensor(data_dict['conn_comp_hist_ridge']).expand(1, -1)
-		data_dict['conn_comp_hist_subduction'] = torch.LongTensor(data_dict['conn_comp_hist_subduction']).expand(1, -1)
+		data_dict['conn_comp_hist'] = torch.LongTensor(data_dict['conn_comp_hist'])
+		data_dict['conn_comp_hist_ridge'] = torch.LongTensor(data_dict['conn_comp_hist_ridge'])
+		data_dict['conn_comp_hist_subduction'] = torch.LongTensor(data_dict['conn_comp_hist_subduction'])
+		
+		for key in ['DIV_max', 'DIV_min', 'DIV_thresh']:
+			if not key in data_dict.keys():
+				continue
+
+			data_dict[key] = torch.FloatTensor(data_dict[key])
 
 
 	def __getitem__(self, idx):

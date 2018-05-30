@@ -168,6 +168,9 @@ class GeoPickler(object):
 			dmax = np.max(data.ravel())
 			dmin = np.min(data.ravel())
 
+			data_dict[tag + '_max'] = dmax
+			data_dict[tag + '_min'] = dmin
+
 			data = np.interp(data, [dmin, dmax], [-1, 1])
 			data_dict['DIV_min'] = dmin
 			data_dict['DIV_max'] = dmax
@@ -213,6 +216,7 @@ class GeoPickler(object):
 			return
 
 		self.create_one_hot(data_dict, threshold)
+		data_dict['DIV_thresh'] = threshold
 
 		self.get_mask_loc(data_dict, mask_size, num_pix_in_mask)
 
