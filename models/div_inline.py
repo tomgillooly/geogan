@@ -120,10 +120,11 @@ class DivInlineModel(BaseModel):
             self.netG.inner_layer.register_forward_hook(save_output_hook)
 
             # Image size downsampled, times number of filters
-            inner_im_size = (opt.fineSize, 2*opt.fineSize) / get_downsample(self.netG)
-            GAP = torch.nn.AveragePooling2d(inner_im_size)
+            ds_factor = get_downsample(self.netG)
+            inner_im_size = (int(opt.fineSize / ds_factor), int(2*opt.fineSize / ds_factor))
+            GAP = torch.nn.AvgPool2d(inner_im_size)
             self.folder_fc = torch.nn.Sequential(GAP,
-                torch.nn.Linear(inner_im_size[0] * inner_im_size[1], opt.num_folders))
+                torch.nn.Linear(int(inner_im_size[0] * inner_im_size[1]), opt.num_folders))
 
             if len(self.gpu_ids) > 0:
                 self.folder_fc.cuda(self.gpu_ids[0])
