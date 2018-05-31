@@ -49,8 +49,6 @@ def main(opt):
 
 	for epoch in range(opt.num_epochs):
 		for i, data in enumerate(dataset):
-			total_steps += 1
-
 			input = Variable(data['B'])
 			input = input.cuda(0) if torch.cuda.is_available() else input
 
@@ -76,6 +74,8 @@ def main(opt):
 						opts={
 						'title': 'Conn commp L2 histogram loss'
 						}, win=0)
+			
+			total_steps += 1
 
 		if epoch % 10 == 0:
 			save_filename = '%s_net_conncomp.pth' % (str(epoch))
