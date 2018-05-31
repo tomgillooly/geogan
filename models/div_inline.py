@@ -97,7 +97,7 @@ def save_output_hook(module, input, output):
 
 class DivInlineModel(BaseModel):
     def name(self):
-        return 'Pix2PixGeoModel'
+        return 'DivInlineModel'
 
     def initialize(self, opt):
         BaseModel.initialize(self, opt)
@@ -175,6 +175,10 @@ class DivInlineModel(BaseModel):
 
         print('---------- Networks initialized -------------')
         networks.print_network(self.netG)
+        if self.isTrain:
+            if self.opt.num_discrims > 0:
+                networks.print_network(self.netD1s[0])
+            print("#discriminators", len(self.netD1s))
         print('-----------------------------------------------')
 
     def set_input(self, input):
