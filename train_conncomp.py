@@ -53,7 +53,7 @@ def main(opt):
 			input = Variable(data['B'])
 			input = input.cuda(0) if torch.cuda.is_available() else input
 
-			y_hat = c()
+			y_hat = c(input)
 
 			y = Variable(data['conn_comp_hist'], requires_grad=False)
 			y = y.cuda(0) if torch.cuda.is_available() else y
