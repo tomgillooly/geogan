@@ -36,6 +36,8 @@ def main(opt):
 		batch_size=opt.batch_size,
 		num_workers=2)
 
+	print('dataset length = ' + str(len(dataset)))
+
 	loss_fn = nn.MSELoss()
 	optimiser = torch.optim.Adam(c.parameters(), lr=0.0002, betas=(0.5, 0.999))
 
@@ -65,14 +67,17 @@ def main(opt):
 
 			optimiser.step()
 
+			if total_steps % 50 == 0:
+				print('Epoch: {}, total steps {}, loss {}, x_val {}'.format(epoch, total_steps, loss.data, total_steps * 1.0 / len(dataset)))
+
 			if total_steps % 100 == 0:
 				loss_x.append(total_steps * 1.0 / len(dataset))
 				loss_y.append(loss.data)
 
 				if opt.display_port != -1:
-					vis.line(np.array(loss_x), np.array(loss_y),
+					vis.line(X=np.array(loss_x), Y=np.array(loss_y),
 						opts={
-						'title': 'Conn commp L2 histogram loss'
+						'title': 'Conn comp L2 histogram loss'
 						}, win=0)
 			
 			total_steps += 1
