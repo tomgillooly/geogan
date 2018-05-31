@@ -465,16 +465,13 @@ class DivInlineModel(BaseModel):
         ridge_weight = total_pixels / num_ridge_pixels + self.opt.alpha
         plate_weight = total_pixels / num_plate_pixels + self.opt.alpha
         subduction_weight = total_pixels / num_subduction_pixels + self.opt.alpha
-        print(ridge_weight.shape)
 
         # ridge_weight = ridge_weight.mean(dim=0, keepdim=True)
         # plate_weight = plate_weight.mean(dim=0, keepdim=True)
         # subduction_weight = subduction_weight.mean(dim=0, keepdim=True)
         
         pixel_weights = torch.cat((ridge_weight, plate_weight, subduction_weight), dim=1)
-        print(pixel_weights.shape)
-        pixel_weights /= torch.sum(pixel_weights + 1e-8, dim=1)
-        print(pixel_weights.shape)
+        pixel_weights /= torch.sum(pixel_weights + 1e-8, dim=1, keepdim=True)
 
         weight_mask = torch.max(pixel_weights * self.real_B_discrete_ROI, dim=1, keepdim=True)[0]
 
