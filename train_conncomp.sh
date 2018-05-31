@@ -28,7 +28,7 @@ source $HOME/$VIRTUALENV_NAME/bin/activate
 
 python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
-python train_conncomp.py --dataroot $DATAROOT --batchSize 32 --nThreads 2 $OPTIONS
+python train_conncomp.py --dataroot $DATAROOT --batch_size 32 $OPTIONS
 
 kill %1
 
