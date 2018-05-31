@@ -27,7 +27,7 @@ def main(opt):
 
 	c = ConnCompNet(im_size, hist_size)
 	if torch.cuda.is_available():
-		c.cuda(1)
+		c.cuda(0)
 
 	dataset = torch.utils.data.DataLoader(
 		u,
@@ -51,12 +51,12 @@ def main(opt):
 			total_steps += 1
 
 			input = Variable(data['B'])
-			input = input.cuda(1) if torch.cuda.is_available() else input
+			input = input.cuda(0) if torch.cuda.is_available() else input
 
 			y_hat = c()
 
 			y = Variable(data['conn_comp_hist'], requires_grad=False)
-			y = y.cuda(1) if torch.cuda.is_available() else y
+			y = y.cuda(0) if torch.cuda.is_available() else y
 
 			loss = loss_fn(y_hat, y)
 
@@ -81,7 +81,7 @@ def main(opt):
 			save_path = os.path.join('results', 'conncomp', save_filename)
 			torch.save(c.cpu().state_dict(), save_path)
 			if torch.cuda.is_available():
-				c.cuda(1)
+				c.cuda(0)
 
 
 if __name__ == '__main__':
