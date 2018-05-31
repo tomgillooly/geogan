@@ -10,7 +10,7 @@ if [ "$HOSTNAME" == "tomoplata-OptiPlex-790" ]; then
 else
 	VIRTUALENV_NAME=cyclegan3
 	# DATAROOT=/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT
-	DATAROOT=/storage/Datasets/Geology-NicolasColtice/pytorch_records
+	DATAROOT=/storage/Datasets/Geology-NicolasColtice/pytorch_records_new_thresh
 	HOME=/home/tgillooly/
 
 	source find_free_port.sh
