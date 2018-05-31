@@ -2,6 +2,7 @@ from models.conncomp_net import ConnCompNet
 from data.geo_unpickler import GeoUnpickler
 from torch.autograd import Variable
 
+import numpy as np
 import os
 import torch.nn as nn
 import torch.utils.data
@@ -71,7 +72,7 @@ def main(opt):
 				loss_y.append(loss.data)
 
 				if opt.display_port != -1:
-					vis.line(loss_x, loss_y,
+					vis.line(np.array(loss_x), np.array(loss_y),
 						opts={
 						'title': 'Conn commp L2 histogram loss'
 						}, win=0)
