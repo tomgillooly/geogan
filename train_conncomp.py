@@ -10,7 +10,7 @@ import argparse
 import visdom
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataroot', type=str, default=os.path.expanduser('~/data/geo_data_pkl/test'), help='Base directory for data files')
+parser.add_argument('--dataroot', type=str, help='Base directory for data files')
 parser.add_argument('--num_epochs', type=int, default=200, help='Number of training epochs')
 parser.add_argument('--display_port', type=int, default=-1, help='Port for visdom')
 parser.add_argument('--batch_size', type=int, default=32, help='Number of samples in batch')
