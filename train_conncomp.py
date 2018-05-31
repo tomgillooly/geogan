@@ -72,7 +72,7 @@ def main(opt):
 
 				if opt.display_port != -1:
 					vis.line(loss_x, loss_y,
-						options={
+						opts={
 						'title': 'Conn commp L2 histogram loss'
 						}, win=0)
 
