@@ -466,12 +466,12 @@ class DivInlineModel(BaseModel):
         plate_weight = total_pixels / num_plate_pixels + self.opt.alpha
         subduction_weight = total_pixels / num_subduction_pixels + self.opt.alpha
 
-        ridge_weight = ridge_weight.mean(dim=0, keepdim=True)
-        plate_weight = plate_weight.mean(dim=0, keepdim=True)
-        subduction_weight = subduction_weight.mean(dim=0, keepdim=True)
+        # ridge_weight = ridge_weight.mean(dim=0, keepdim=True)
+        # plate_weight = plate_weight.mean(dim=0, keepdim=True)
+        # subduction_weight = subduction_weight.mean(dim=0, keepdim=True)
         
         pixel_weights = torch.cat((ridge_weight, plate_weight, subduction_weight), dim=1)
-        pixel_weights /= torch.sum(pixel_weights + 1e-8)
+        pixel_weights /= torch.sum(pixel_weights + 1e-8, dim=1)
 
         weight_mask = torch.max(pixel_weights * self.real_B_discrete_ROI, dim=1, keepdim=True)[0]
 
@@ -518,7 +518,7 @@ class DivInlineModel(BaseModel):
                 self.real_B_DIV, self.fake_B_DIV)
 
         step_no = kwargs['step_no']
-        if (step_no < self.opt.high_iter*25 and step_no % self.opt.high_iter == 0) or (step_no >= self.opt.high_iter*25 and step_no % self.opt.low_iter == 0):
+        if ((step_no < self.opt.high_iter*25 and step_no % self.opt.high_iter == 0) or (step_no >= self.opt.high_iter*25 and step_no % self.opt.low_iter == 0)) or self.opt.num_discrims == 0:
             self.optimizer_G.zero_grad()
 
             self.backward_G()
