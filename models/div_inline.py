@@ -122,7 +122,7 @@ class DivInlineModel(BaseModel):
             # Image size downsampled, times number of filters
             ds_factor = get_downsample(self.netG)
             inner_im_size = (int(opt.fineSize / ds_factor), int(2*opt.fineSize / ds_factor))
-            print(inner_im_size)
+            print('inner im size', inner_im_size)
             GAP = torch.nn.AvgPool2d(inner_im_size)
             self.folder_fc = torch.nn.Sequential(GAP,
                 torch.nn.Linear(opt.ngf*8, opt.num_folders))
@@ -248,7 +248,7 @@ class DivInlineModel(BaseModel):
         # self.fake_B_discrete = tmp_dict['A']
 
         if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
-            self.fake_folder = self.folder_fc(self.netG.inner_layer.output.view(self.batch_size, -1))
+            self.fake_folder = self.folder_fc(self.netG.inner_layer.output)
             self.fake_folder = torch.nn.functional.log_softmax(self.fake_folder, dim=1)
         
 
