@@ -136,7 +136,7 @@ class DivInlineModel(BaseModel):
             if self.opt.continent_data:
                 discrim_input_channels += 1
 
-            self.netDs = [DiscriminatorWGANGP(discrim_input_channels) for _ in range(self.opt.num_discrims)]
+            self.netDs = [DiscriminatorWGANGP(discrim_input_channels, (256, 512), opt.ndf) for _ in range(self.opt.num_discrims)]
 
             # Apply is in-place, we don't need to return into anything
             [netD.apply(weights_init) for netD in self.netDs]
