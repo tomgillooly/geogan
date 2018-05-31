@@ -58,7 +58,7 @@ def main(opt):
 			y = Variable(data['conn_comp_hist'], requires_grad=False)
 			y = y.cuda(0) if torch.cuda.is_available() else y
 
-			loss = loss_fn(y_hat, y)
+			loss = loss_fn(y_hat, y.float())
 
 			optimiser.zero_grad()
 
