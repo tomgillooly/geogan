@@ -97,7 +97,7 @@ def save_output_hook(module, input, output):
 
 class DivInlineModel(BaseModel):
     def name(self):
-        return 'Pix2PixGeoModel'
+        return 'DivInlineModel'
 
     def initialize(self, opt):
         BaseModel.initialize(self, opt)
@@ -125,9 +125,30 @@ class DivInlineModel(BaseModel):
             if len(self.gpu_ids) > 0:
                 self.folder_fc.cuda(self.gpu_ids[0])
 
+        if self.isTrain:
+            # Inputs: 3 channels of one-hot input (with chunk missing) + divergence output data
+            discrim_input_channels = opt.input_nc + opt.output_nc
+
+            # Add extra channel for mask if we need it
+            if not self.opt.no_mask_to_critic:
+                discrim_input_channels += 1
+
+            if self.opt.continent_data:
+                discrim_input_channels += 1
+
+            self.netDs = [DiscriminatorWGANGP(discrim_input_channels, (256, 512), opt.ndf) for _ in range(self.opt.num_discrims)]
+
+            # Apply is in-place, we don't need to return into anything
+            [netD.apply(weights_init) for netD in self.netDs]
+
+            if len(self.gpu_ids) > 0:
+                [netD.cuda() for netD in self.netDs]
 
         if not self.isTrain or opt.continue_train:
             self.load_network(self.netG, 'G', opt.which_epoch)
+
+            if self.isTrain:
+                [self.load_network(self.netDs[i], 'D_%d' % i, opt.which_epoch) for i in range(len(self.netDs))]
 
 
         if self.isTrain:
@@ -142,6 +163,11 @@ class DivInlineModel(BaseModel):
             self.optimizer_G = torch.optim.Adam(self.netG.parameters(),
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
             self.optimizers.append(self.optimizer_G)
+
+            self.optimizer_Ds = [torch.optim.Adam(netD.parameters(),
+                                                lr=opt.lr, betas=(opt.beta1, 0.999)) for netD in self.netDs]
+            self.optimizers += self.optimizer_Ds
+           
             
             # Just a linear decay over the last 100 iterations, by default
             for optimizer in self.optimizers:
@@ -149,6 +175,10 @@ class DivInlineModel(BaseModel):
 
         print('---------- Networks initialized -------------')
         networks.print_network(self.netG)
+        if self.isTrain:
+            if self.opt.num_discrims > 0:
+                networks.print_network(self.netDs[0])
+            print("#discriminators", len(self.netDs))
         print('-----------------------------------------------')
 
     def set_input(self, input):
@@ -288,7 +318,122 @@ class DivInlineModel(BaseModel):
         return self.A_path
 
 
+    def calc_gradient_penalty(self, netD, real_data, fake_data):
+        # print "real_data: ", real_data.size(), fake_data.size()
+        alpha = torch.rand(real_data.shape[0], 1)
+        alpha = alpha.expand(alpha.shape[0], real_data[0, ...].nelement()).contiguous().view(-1, *real_data.shape[1:])
+        alpha = alpha.cuda(self.gpu_ids[0]) if len(self.gpu_ids) > 0 else alpha
+
+        interpolates = alpha * fake_data + ((1 - alpha) * real_data)
+
+        if len(self.gpu_ids) > 0:
+            interpolates = interpolates.cuda(self.gpu_ids[0])
+        interpolates = autograd.Variable(interpolates, requires_grad=True)
+
+        disc_interpolates = netD(interpolates)
+
+        # We have the [0] at the end because grad() returns a tuple with an empty second element, for some reason
+        gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
+                                  grad_outputs=torch.ones(disc_interpolates.size()).cuda(self.gpu_ids[0]) if len(self.gpu_ids) > 0 else torch.ones(
+                                      disc_interpolates.size()),
+                                  create_graph=True, retain_graph=True, only_inputs=True)[0]
+        
+        gradients = gradients.view(gradients.size(0), -1)
+        
+        # Flattened, so we take the gradient wrt every x (each pixel in each channel)
+        # Take mean across the batch
+        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean(dim=0, keepdim=True)
+
+        return gradient_penalty
+
+
+    def backward_single_D(self, net_D, cond_data, real_data, fake_data):
+        # Fake
+        # In this case real_A, the input, is our conditional vector
+        fake_AB = torch.cat((cond_data, fake_data), dim=1)
+        # stop backprop to the generator by detaching fake_B
+        fake_loss = net_D(fake_AB.detach()).mean(dim=0, keepdim=True)
+        # self.loss_D2_fake = self.criterionGAN(pred_fake, False)
+
+        # Real
+        real_AB = torch.cat((cond_data, real_data), dim=1)
+        # Mean across batch
+        real_loss = net_D(real_AB).mean(dim=0, keepdim=True)
+        # self.loss_D2_real = self.criterionGAN(pred_real, True)
+
+        grad_pen = torch.zeros((1,))
+        grad_pen = grad_pen.cuda() if len(self.gpu_ids) > 0 else grad_pen
+        grad_pen = torch.autograd.Variable(grad_pen, requires_grad=False)
+
+        if self.opt.which_model_netD == 'wgan-gp':
+            grad_pen = self.calc_gradient_penalty(net_D, real_AB.data, fake_AB.data)
+
+        # Combined loss
+        # self.loss_D2 = (self.loss_D2_fake + self.loss_D2_real) * 0.5
+        loss = fake_loss - real_loss + grad_pen * self.opt.lambda_C
+
+        loss.backward()
+
+        # We could use view, but it looks like it just causes memory overflow
+        # return torch.cat((loss, real_loss, fake_loss), dim=0).view(-1, 3, 1)
+        output = torch.cat((loss, real_loss, fake_loss, grad_pen), dim=0)
+        output = output.unsqueeze(0)
+        output = output.unsqueeze(-1)
+
+        return output
+
+
+    def backward_D(self, net_Ds, optimisers, cond_data, real_data, fake_data):
+
+        for optimiser in optimisers:
+            optimiser.zero_grad()
+
+        # We get back full loss, real loss and fake loss, along axis 1
+        # Concatenate the results from each discriminator along axis 2
+        loss = torch.cat([self.backward_single_D(net_D, cond_data, real_data, fake_data) for net_D in net_Ds], dim=2)
+
+        for optimiser in optimisers:
+            optimiser.step()
+
+        # loss[:, 0, :].backward()        
+
+        # We take the different loss tyes (along axis 1) and take their average across all discriminators (axis 2 before selecting index on axis 1)
+        output = (torch.mean(loss[:, 0, :], dim=1, keepdim=True),
+            torch.mean(loss[:, 1, :], dim=1, keepdim=True),
+            torch.mean(loss[:, 2, :], dim=1, keepdim=True),
+            torch.mean(loss[:, 3, :], dim=1, keepdim=True))
+
+        return output
+
+
     def backward_G(self):
+        self.loss_G_GAN = 0
+
+        if self.opt.num_discrims > 0:
+            # Conditional data (input with chunk missing + mask) + fake data
+            # Remember self.fake_B_discrete is the generator output
+            fake_AB = self.real_A_discrete
+            
+            if not self.opt.no_mask_to_critic:
+                fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
+            
+            if self.opt.continent_data:
+                fake_AB = torch.cat((fake_AB, self.continents.float()), dim=1)
+            
+            # Append fake data
+            fake_AB = torch.cat((fake_AB, self.fake_B_DIV), dim=1)
+        
+            # Mean across batch, then across discriminators
+            # We only optimise with respect to the fake prediction because
+            # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
+            pred_fake1 = torch.cat([netD(fake_AB).mean(dim=0, keepdim=True) for netD in self.netDs]).mean(dim=0, keepdim=True)
+            
+            self.loss_G_GAN1 = -pred_fake1
+ 
+            # Trying to incentivise making this big, so it's mistaken for real
+            self.loss_G_GAN = self.loss_G_GAN1
+
+
         # if we aren't taking local loss, use entire image
         loss_mask = torch.ones(self.mask.shape).byte()
         loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
@@ -340,7 +485,7 @@ class DivInlineModel(BaseModel):
             weighted_div_target) * self.opt.lambda_A
 
         self.loss_G_L2 = self.loss_G_L2_DIV
-        self.loss_G = self.loss_G_L2
+        self.loss_G = self.loss_G_GAN + self.loss_G_L2
 
 
         if self.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
@@ -357,17 +502,42 @@ class DivInlineModel(BaseModel):
         # target and generated data in object
         self.forward()
 
-        self.optimizer_G.zero_grad()
+        if self.opt.num_discrims > 0:
+            cond_data = self.real_A_discrete
 
-        self.backward_G()
+            if not self.opt.no_mask_to_critic:
+                cond_data = torch.cat((cond_data, self.mask.float()), dim=1)
+ 
+            if self.opt.continent_data:
+                cond_data = torch.cat((cond_data, self.continents.float()), dim=1)
+
+
+
+            self.loss_D, self.loss_D_real, self.loss_D_fake, self.loss_D_grad_pen = self.backward_D(self.netDs, self.optimizer_Ds,
+                cond_data,
+                self.real_B_DIV, self.fake_B_DIV)
+
+        step_no = kwargs['step_no']
+        if (step_no < self.opt.high_iter*25 and step_no % self.opt.high_iter == 0) or (step_no >= self.opt.high_iter*25 and step_no % self.opt.low_iter == 0):
+            self.optimizer_G.zero_grad()
+
+            self.backward_G()
         
-        self.optimizer_G.step()
+            self.optimizer_G.step()
         
 
     def get_current_errors(self):
         errors = [
             ('G', self.loss_G.data.item()),
             ('G_L2', self.loss_G_L2.data.item()),
+            ]
+
+        if self.opt.num_discrims > 0:
+            errors += [
+                ('G_GAN_D', self.loss_G_GAN.data[0]),
+                ('D_real', self.loss_D_real.data[0]),
+                ('D_fake', self.loss_D_fake.data[0]),
+                ('D_grad_pen', self.loss_D_grad_pen.data[0])
             ]
 
         if self.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
@@ -435,4 +605,7 @@ class DivInlineModel(BaseModel):
 
     def save(self, label):
         self.save_network(self.netG, 'G', label, self.gpu_ids)
+        
+        for i in range(len(self.netDs)):
+            self.save_network(self.netDs[i], 'D_%d' % i, label, self.gpu_ids)
 

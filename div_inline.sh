@@ -10,7 +10,7 @@ if [ "$HOSTNAME" == "tomoplata-OptiPlex-790" ]; then
 else
 	VIRTUALENV_NAME=cyclegan3
 	# DATAROOT=/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT
-	DATAROOT=/storage/Datasets/Geology-NicolasColtice/pytorch_records
+	DATAROOT=/storage/Datasets/Geology-NicolasColtice/pytorch_records_new_thresh
 	HOME=/home/tgillooly/
 
 	source find_free_port.sh
@@ -28,14 +28,16 @@ source $HOME/$VIRTUALENV_NAME/bin/activate
 
 python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
-python train.py --dataroot $DATAROOT --name div_inline_ae_weighted_restart \
+	# --continue_train --which_epoch 100 --epoch_count 101 --niter 300 --niter_decay 100 \
+python train.py --dataroot $DATAROOT --name div_inline_wgan_base \
 	--model div_inline --which_direction BtoA \
-	--continue_train --which_epoch 100 --epoch_count 101 --niter 300 --niter_decay 100 \
+	--num_discrims 1 --alpha 1000 \
+	--high_iter 25 --low_iter 5 \
 	--no_lsgan --norm batch \
 	--input_nc 3 --output_nc 1 \
-	--lambda_A 100 --lambda_D 100 \
+	--lambda_A 0.01 --lambda_D 100 \
 	--which_model_netG unet_256 \
-	--pool_size 0 --no_html --batchSize 4 $OPTIONS
+	--pool_size 0 --no_html --batchSize 32 --nThreads 2 $OPTIONS
 
 kill %1
 
