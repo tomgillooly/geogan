@@ -78,10 +78,10 @@ def main(opt):
 
 		if epoch % 10 == 0:
 			save_filename = '%s_net_conncomp.pth' % (str(epoch))
-	        save_path = os.path.join('results', 'conncomp', save_filename)
-	        torch.save(c.cpu().state_dict(), save_path)
-	        if torch.cuda.is_available():
-	            c.cuda(1)
+			save_path = os.path.join('results', 'conncomp', save_filename)
+			torch.save(c.cpu().state_dict(), save_path)
+			if torch.cuda.is_available():
+				c.cuda(1)
 
 
 if __name__ == '__main__':
