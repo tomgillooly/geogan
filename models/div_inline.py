@@ -177,8 +177,8 @@ class DivInlineModel(BaseModel):
         networks.print_network(self.netG)
         if self.isTrain:
             if self.opt.num_discrims > 0:
-                networks.print_network(self.netD1s[0])
-            print("#discriminators", len(self.netD1s))
+                networks.print_network(self.netDs[0])
+            print("#discriminators", len(self.netDs))
         print('-----------------------------------------------')
 
     def set_input(self, input):
