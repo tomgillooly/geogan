@@ -7,8 +7,8 @@ import torch
 
 from collections import OrderedDict
 from skimage.measure import label, regionprops
-from skimage.transform import resize
 from skimage.morphology import skeletonize
+from skimage.transform import resize
 from scipy.signal import correlate2d
 
 
@@ -171,9 +171,7 @@ class GeoPickler(object):
 			data_dict[tag + '_max'] = dmax
 			data_dict[tag + '_min'] = dmin
 
-			data = np.interp(data, [dmin, dmax], [-1, 1])
-			data_dict['DIV_min'] = dmin
-			data_dict['DIV_max'] = dmax
+			data = np.interp(data, [dmin, 0, dmax], [-1, 0, 1])
 
 			# norm = max(abs(dmin), dmax)
 			# data_dict['DIV_min'] = -norm
@@ -213,21 +211,22 @@ class GeoPickler(object):
 		data_dict = self.get_data_dict(folder_id, series_no)
 
 		if any([key not in data_dict.keys() for key in ['A_DIV', 'A_Vx', 'A_Vy']]):
+			print('Missing DIV or velocity files, skipping')
 			return
 
+		self.normalise_continuous_data(data_dict)
+
+		self.process_continents(data_dict)
+		
 		self.create_one_hot(data_dict, threshold)
-		data_dict['DIV_thresh'] = threshold
 
 		self.get_mask_loc(data_dict, mask_size, num_pix_in_mask)
 
 		if len(data_dict['mask_locs']) == 0:
+			print("Couldn't find any valid mask locations, skipping")
 			return
 
 		self.build_conn_comp_hist(data_dict)
-		
-		self.normalise_continuous_data(data_dict)
-
-		self.process_continents(data_dict)
 		
 		if not os.path.exists(os.path.join(self.out_dir, data_dict['folder_name'])):
 			os.mkdir(os.path.join(self.out_dir, data_dict['folder_name']))
@@ -238,6 +237,18 @@ class GeoPickler(object):
 		for folder_id, folder_name in enumerate(self.folders.keys()):
 			if verbose:
 				print('Folder {} - {} of {}'.format(folder_name, folder_id+1, len(self.folders)))
+
+			if isinstance(threshold, dict):
+				if folder_name not in threshold.keys():
+					print('No threshold defined for folder {}, skipping...'.format(folder_name))
+					continue
+
+				thresh = threshold[folder_name]
+			elif isinstance(threshold, int):
+				thresh = threshold
+			else:
+				raise Exception('Unrecognised threshold type')
+
 			for count, series in enumerate(self.get_folder_by_id(folder_id).keys()):
 				if verbose:
 					sys.stdout.write('\rSeries {} of {}\t\t\t'.format(count+1, len(self.get_folder_by_id(folder_id))))
@@ -245,5 +256,5 @@ class GeoPickler(object):
 				if skip_existing and os.path.exists(os.path.join(self.out_dir, folder_name, '{:05}.pkl'.format(series))):
 					continue
 
-				self.pickle_series(folder_id, series, threshold, mask_size, num_pix_in_mask)
+				self.pickle_series(folder_id, series, thresh, mask_size, num_pix_in_mask)
 			print('')

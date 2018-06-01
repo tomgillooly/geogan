@@ -16,7 +16,12 @@ p.collect_all()
 
 p.group_by_series()
 
-# p.pickle_all(1000, 100, 10, verbose=True, skip_existing=False)
+groups = [(1, [10, 11, 12, 13, 18, 2, 3, 4, 5, 6, 9]),
+			(2, [14, 15, 16, 17, 23]),
+			(3, [19, 20, 21, 22])]
 
-for i, folder in enumerate(p.folders):
-	p.pickle_series(i, 1, 1000, 100, 10)
+thresholds = [0.045, 0.03, 0.03]
+
+thresholds = {str(folder): thresholds[i-1] for i, folders in groups for folder in folders }
+
+p.pickle_all(thresholds, 100, 10, verbose=True, skip_existing=True)
