@@ -75,11 +75,11 @@ class GeoUnpickler(object):
 			# Layer to remove
 			layer = int(round(random.random())*2)
 
-			# Fill in just that layer in the plate channel
-			B[:, :, 1][np.where(np.logical_and(mask, B[:, :, layer]))] = 1
+			# Kill just that layer and the plate channel
+			B[:, :, 1][np.where(mask)] = 0
 			B[:, :, layer][np.where(mask)] = 0
 		else:
-			B[np.where(mask)] = [0, 1, 0]
+			B[np.where(mask)] = [0, 0, 0]
 
 		data_dict['B'] = B
 
