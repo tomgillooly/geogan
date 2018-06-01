@@ -2,13 +2,15 @@ from data.geo_pickler import GeoPickler
 
 import os
 
+dataroot = os.path.expanduser('/storage/Datasets/Geology-NicolasColtice/DS2-RAW-1810/train')
 # dataroot = os.path.expanduser('/storage/Datasets/Geology-NicolasColtice/new_data/test')
 # dataroot = os.path.expanduser('~/data/new_geo_data/test')
-dataroot = os.path.expanduser('~/data/new_geo_data/validation')
+# dataroot = os.path.expanduser('~/data/new_geo_data/validation')
 
+out_dir = os.path.expanduser('/storage/Datasets/Geology-NicolasColtice/old_pytorch_records/train')
 # out_dir = os.path.expanduser('/storage/Datasets/Geology-NicolasColtice/pytorch_records/test')
 # out_dir = os.path.expanduser('~/data/geo_data_pkl/test')
-out_dir = os.path.expanduser('~/data/geo_data_pkl/validation')
+# out_dir = os.path.expanduser('~/data/geo_data_pkl/validation')
 
 p = GeoPickler(dataroot, out_dir, 256)
 
@@ -24,4 +26,5 @@ thresholds = [0.045, 0.03, 0.03]
 
 thresholds = {str(folder): thresholds[i-1] for i, folders in groups for folder in folders }
 
-p.pickle_all(thresholds, 100, 10, verbose=True, skip_existing=True)
+# p.pickle_all(thresholds, 100, 10, verbose=True, skip_existing=True)
+p.pickle_all(1000, 100, 10, verbose=True, skip_existing=True)
