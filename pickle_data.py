@@ -2,7 +2,7 @@ from data.geo_pickler import GeoPickler
 
 import os
 
-dataroot = os.path.expanduser('/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW_DAT/train')
+dataroot = os.path.expanduser('/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT/train')
 # dataroot = os.path.expanduser('/storage/Datasets/Geology-NicolasColtice/new_data/test')
 # dataroot = os.path.expanduser('~/data/new_geo_data/test')
 # dataroot = os.path.expanduser('~/data/new_geo_data/validation')
