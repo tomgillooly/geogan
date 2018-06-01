@@ -272,9 +272,9 @@ class DivInlineModel(BaseModel):
 
         self.fake_B_DIV = self.netG(self.G_input)
 
-        # tmp_dict = {'A_DIV': self.fake_B_DIV}
-        # self.p.create_one_hot(tmp_dict, self.div_thresh)
-        # self.fake_B_discrete = tmp_dict['A']
+        tmp_dict = {'A_DIV': A_DIV}
+        self.p.create_one_hot(tmp_dict, self.div_thresh)
+        self.fake_B_discrete = tmp_dict['A']
 
         if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             self.fake_folder = self.folder_fc(self.netG.inner_layer.output.view(self.batch_size, -1))
