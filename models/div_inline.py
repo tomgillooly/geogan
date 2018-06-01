@@ -154,7 +154,7 @@ class DivInlineModel(BaseModel):
         if self.isTrain:
             # define loss functions
 
-            self.criterionL2 = torch.nn.MSELoss(size_average=False)
+            self.criterionL2 = torch.nn.MSELoss(reduce=False)
             self.criterionCE = torch.nn.NLLLoss2d
 
             # initialize optimizers
@@ -487,9 +487,7 @@ class DivInlineModel(BaseModel):
         weighted_div_predicted = self.fake_B_DIV_ROI * weight_mask
         weighted_div_target = self.real_B_DIV_ROI * weight_mask
 
-        self.loss_G_L2_DIV = self.criterionL2(
-            weighted_div_predicted,
-            weighted_div_target) * self.opt.lambda_A
+        self.loss_G_L2_DIV = (weight_mask * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
         self.loss_G_L2 = self.loss_G_L2_DIV
         self.loss_G = self.loss_G_GAN + self.loss_G_L2
