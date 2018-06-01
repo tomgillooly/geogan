@@ -240,6 +240,10 @@ class DivInlineModel(BaseModel):
         self.mask_size_y = mask_y2[0] - mask_y1[0]
         self.mask_size_x = mask_x2[0] - mask_x1[0]
 
+        self.div_thresh = input['DIV_thresh'].numpy()[0][0]
+        self.div_min = input['DIV_min'].numpy()[0][0]
+        self.div_max = input['DIV_max'].numpy()[0][0]
+
     def forward(self):
         # Thresholded, one-hot divergence map with chunk missing
         self.real_A_discrete = torch.autograd.Variable(self.input_A)
@@ -298,9 +302,12 @@ class DivInlineModel(BaseModel):
         
         self.fake_B_DIV = self.netG(self.G_input)
 
-        # tmp_dict = {'A_DIV': self.fake_B_DIV}
-        # self.p.create_one_hot(tmp_dict, self.div_thresh)
-        # self.fake_B_discrete = tmp_dict['A']
+        A_DIV = self.fake_B_DIV.data.numpy().squeeze()
+        A_DIV = np.interp(A_DIV, [np.min(A_DIV), 0, np.max(A_DIV)], [self.div_min, 0, self.div_max])
+
+        tmp_dict = {'A_DIV': A_DIV}
+        self.p.create_one_hot(tmp_dict, self.div_thresh)
+        self.fake_B_discrete = tmp_dict['A']
 
 
         # Work out the threshold from quantification factor
@@ -574,6 +581,11 @@ class DivInlineModel(BaseModel):
         fake_B_DIV = util.tensor2im(self.fake_B_DIV.data)
         fake_B_DIV[mask_edge_coords] = np.max(fake_B_DIV)
         visuals.append(('output_divergence', fake_B_DIV))
+
+        fake_B_discrete = self.fake_B_discrete
+        fake_B_discrete = np.interp(fake_B_discrete, [np.min(fake_B_discrete), np.max(fake_B_discrete)], [0, 255]).astype(np.uint8)
+        fake_B_discrete[mask_edge_coords] = np.max(self.fake_B_discrete)
+        visuals.append(('output_discrete', fake_B_discrete))
         
         if self.isTrain:
             weight_mask = util.tensor2im(self.weight_mask.data)
