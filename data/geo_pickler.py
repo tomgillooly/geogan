@@ -214,6 +214,8 @@ class GeoPickler(object):
 			print('Missing DIV or velocity files, skipping')
 			return
 		
+		self.normalise_continuous_data(data_dict)
+
 		self.create_one_hot(data_dict, threshold)
 
 		self.get_mask_loc(data_dict, mask_size, num_pix_in_mask)
@@ -221,8 +223,6 @@ class GeoPickler(object):
 		if len(data_dict['mask_locs']) == 0:
 			print("Couldn't find any valid mask locations, skipping")
 			return
-
-		self.normalise_continuous_data(data_dict)
 
 		self.process_continents(data_dict)
 

@@ -2,13 +2,13 @@ from data.geo_pickler import GeoPickler
 
 import os
 
-dataroot = os.path.expanduser('/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT/train')
-# dataroot = os.path.expanduser('/storage/Datasets/Geology-NicolasColtice/new_data/test')
+# dataroot = os.path.expanduser('/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT/train')
+dataroot = os.path.expanduser('/storage/Datasets/Geology-NicolasColtice/new_data/test')
 # dataroot = os.path.expanduser('~/data/new_geo_data/test')
 # dataroot = os.path.expanduser('~/data/new_geo_data/validation')
 
 out_dir = os.path.expanduser('/storage/Datasets/Geology-NicolasColtice/old_pytorch_records/train')
-# out_dir = os.path.expanduser('/storage/Datasets/Geology-NicolasColtice/pytorch_records/test')
+out_dir = os.path.expanduser('/storage/Datasets/Geology-NicolasColtice/pytorch_records_new_thresh/test')
 # out_dir = os.path.expanduser('~/data/geo_data_pkl/test')
 # out_dir = os.path.expanduser('~/data/geo_data_pkl/validation')
 
