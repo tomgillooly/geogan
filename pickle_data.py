@@ -26,5 +26,5 @@ thresholds = [0.045, 0.03, 0.03]
 
 thresholds = {str(folder): thresholds[i-1] for i, folders in groups for folder in folders }
 
-# p.pickle_all(thresholds, 100, 10, verbose=True, skip_existing=True)
-p.pickle_all(1000, 100, 10, verbose=True, skip_existing=True)
+p.pickle_all(thresholds, 100, 10, verbose=True, skip_existing=True)
+# p.pickle_all(1000, 100, 10, verbose=True, skip_existing=True)
