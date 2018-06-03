@@ -273,7 +273,7 @@ class DivInlineModel(BaseModel):
         self.fake_B_DIV = self.netG(self.G_input)
 
         A_DIV = self.fake_B_DIV[0].data.cpu().numpy().squeeze()
-        A_DIV = np.interp(A_DIV, [np.min(A_DIV), 0, np.max(A_DIV)], [self.div_min, 0, self.div_max])
+        A_DIV = np.interp(A_DIV, [np.min(A_DIV), np.max(A_DIV)], [self.div_min, self.div_max])
         tmp_dict = {'A_DIV': A_DIV}
         self.p.create_one_hot(tmp_dict, self.div_thresh)
         self.fake_B_discrete = tmp_dict['A']
