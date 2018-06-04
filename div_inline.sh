@@ -31,9 +31,9 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --continue_train --which_epoch 100 --epoch_count 101 --niter 300 --niter_decay 100 \
 	# --high_iter 25 --low_iter 5 \
-python train.py --dataroot $DATAROOT --name div_inline_ae_l2_no_plate_100_alpha_old_data \
+python train.py --dataroot $DATAROOT --name div_inline_ae_l2_no_plate_1000_alpha_old_data \
 	--model div_inline --which_direction BtoA \
-	--num_discrims 0 --alpha 100 \
+	--num_discrims 0 --alpha 1000 \
 	--no_lsgan --norm batch \
 	--input_nc 3 --output_nc 1 \
 	--lambda_A 1 --lambda_D 100 \
