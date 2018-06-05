@@ -230,15 +230,7 @@ class DivInlineModel(BaseModel):
             if len(self.gpu_ids) > 0:
                 self.real_folder = self.real_folder.cuda(self.gpu_ids[0])
 
-        mask_x1 = input['mask_x1']
-        mask_x2 = input['mask_x2']
-        mask_y1 = input['mask_y1']
-        mask_y2 = input['mask_y2']
-
         self.batch_size = input_A.shape[0]
-        # Masks are always the same size (for now)
-        self.mask_size_y = mask_y2[0] - mask_y1[0]
-        self.mask_size_x = mask_x2[0] - mask_x1[0]
 
         self.div_thresh = input['DIV_thresh'].numpy()[0][0]
         self.div_min = input['DIV_min'].numpy()[0][0]
@@ -278,7 +270,7 @@ class DivInlineModel(BaseModel):
         self.p.create_one_hot(tmp_dict, self.div_thresh)
         self.fake_B_discrete = tmp_dict['A']
 
-        self.fake_B_DIV.cuda()
+        self.fake_B_DIV = self.fake_B_DIV.cuda() if len(self.gpu_ids) > 0 else self.fake_B_DIV
 
         if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             self.fake_folder = self.folder_fc(self.netG.inner_layer.output.view(self.batch_size, -1))

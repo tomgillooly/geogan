@@ -22,7 +22,6 @@ def train():
         num_workers=opt.nThreads)
 
 
-
     dataset_size = len(dataset)
     print('#training images = %d' % dataset_size)
 
