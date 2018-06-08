@@ -232,6 +232,7 @@ class DivInlineModel(BaseModel):
 
         self.batch_size = input_A.shape[0]
 
+        self.mask_size = input['mask_size'].numpy()[0]
         self.div_thresh = input['DIV_thresh'].numpy()[0][0]
         self.div_min = input['DIV_min'].numpy()[0][0]
         self.div_max = input['DIV_max'].numpy()[0][0]
@@ -448,8 +449,8 @@ class DivInlineModel(BaseModel):
             loss_mask = self.mask.byte()
 
             # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
-            # im_dims = self.mask_size_y[0], self.mask_size_x[0]
-            im_dims = (100, 100)
+            im_dims = self.mask_size, self.mask_size
+            # im_dims = (100, 100)
         
 
         total_pixels = torch.sum(torch.sum(loss_mask > 0, dim=2, keepdim=True), dim=3, keepdim=True).float()
