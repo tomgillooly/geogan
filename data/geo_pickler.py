@@ -133,10 +133,15 @@ class GeoPickler(object):
 		return data_dict
 
 
-	def create_one_hot(self, data_dict, threshold):
+	def create_one_hot(self, data_dict, threshold, skel=True):
 		DIV_img = data_dict['A_DIV']
-		ridge = skeletonize(DIV_img >= threshold).astype(float)
-		subduction = skeletonize(DIV_img <= -threshold).astype(float)
+		ridge = DIV_img >= threshold
+		subduction = DIV_img <= -threshold
+
+		if skel:
+			ridge = skeletonize(ridge).astype(float)
+			subduction = skeletonize(subduction).astype(float)
+
 		plate = np.ones(ridge.shape, dtype=float)
 		plate[np.where(np.logical_or(ridge == 1, subduction == 1))] = 0
 
