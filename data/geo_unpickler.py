@@ -117,6 +117,7 @@ class GeoUnpickler(object):
 			data_dict['cont'] = (data_dict['A_cont'] > 0).astype(np.uint8)
 		else:
 			data_dict['cont'] = np.zeros(data_dict['A_DIV'].shape, dtype=np.uint8)
+			
 
 
 
@@ -148,15 +149,27 @@ class GeoUnpickler(object):
 
 			data_dict[key] = item
 
+		for key in ['DIV_max', 'DIV_min', 'DIV_thresh']:
+			if not key in data_dict.keys():
+				continue
+
+			data_dict[key] = torch.DoubleTensor([data_dict[key]])
+
+		for key in ['conn_comp_hist']:
+			if not key in data_dict.keys():
+				continue
+
+			data_dict[key] = torch.FloatTensor(data_dict[key])
+
 
 	def __getitem__(self, idx):
 		data = torch.load(self.files[idx])
 
 		basedir = os.path.join(self.opt.dataroot, self.opt.phase).rstrip('/')
 		
-		folder_name = os.path.dirname(self.files[idx])[len(basedir)+1:]
+		data['folder_name'] = os.path.dirname(self.files[idx])[len(basedir)+1:]
 		
-		data['folder_id'] = self.folder_id_lookup[folder_name]
+		data['folder_id'] = self.folder_id_lookup[data['folder_name']]
 
 		if (not self.opt.no_flip) and random.random() < 0.5:
 			self.flip_images(data)

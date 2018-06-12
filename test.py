@@ -1,6 +1,5 @@
 import os
 from options.test_options import TestOptions
-from data.data_loader import CreateDataLoader
 from metrics.hausdorff import get_hausdorff, get_hausdorff_exc
 from models.models import create_model
 from util.visualizer import Visualizer
@@ -9,6 +8,9 @@ from util import html
 import matplotlib.pyplot as plt
 import numpy as np
 import skimage.io as io
+
+from data.geo_unpickler import GeoUnpickler
+import torch.utils.data
 
 
 # Need this if we trained with a different version
@@ -23,14 +25,25 @@ except AttributeError:
         return tensor
     torch._utils._rebuild_tensor_v2 = _rebuild_tensor_v2
 
+
 opt = TestOptions().parse()
 opt.nThreads = 1   # test code only supports nThreads = 1
 opt.batchSize = 1  # test code only supports batchSize = 1
-opt.serial_batches = True  # no shuffle
+opt.serial_batches = False  # no shuffle
 opt.no_flip = True  # no flip
 
-data_loader = CreateDataLoader(opt)
-dataset = data_loader.load_data()
+unpickler = GeoUnpickler()
+unpickler.initialise(opt)
+
+dataset = torch.utils.data.DataLoader(
+        unpickler,
+        batch_size=opt.batchSize,
+        shuffle=not opt.serial_batches,
+        num_workers=opt.nThreads)
+
+dataset_size = len(dataset)
+print('#training images = %d' % dataset_size)
+
 model = create_model(opt)
 visualizer = Visualizer(opt)
 # create website
@@ -68,17 +81,17 @@ for i, data in enumerate(dataset):
 
 
         for c in [0, 2]:
-            _, _, _, i_precision, i_recall = get_hausdorff(test_inpaint_region == c, actual_inpaint_region[:, :, c], True)
-            gt = np.zeros((actual_inpaint_region.shape[0], actual_inpaint_region.shape[1], 3), dtype=np.uint8)
-            gt[:, :, c] = actual_inpaint_region[:, :, c]*255
+            # _, _, _, i_precision, i_recall = get_hausdorff(test_inpaint_region == c, actual_inpaint_region[:, :, c], True)
+            # gt = np.zeros((actual_inpaint_region.shape[0], actual_inpaint_region.shape[1], 3), dtype=np.uint8)
+            # gt[:, :, c] = actual_inpaint_region[:, :, c]*255
 
-            inpainted = np.zeros((actual_inpaint_region.shape[0], actual_inpaint_region.shape[1], 3), dtype=np.uint8)
-            inpainted[:, :, c] = (test_inpaint_region == c)*255
+            # inpainted = np.zeros((actual_inpaint_region.shape[0], actual_inpaint_region.shape[1], 3), dtype=np.uint8)
+            # inpainted[:, :, c] = (test_inpaint_region == c)*255
 
             # visuals['ground_truth_class_%d' % c] = gt
             # visuals['inpainted_class_%d' % c] = inpainted
-            visuals['hausdorff_recall_class_%d' % c] = i_recall
-            visuals['hausdorff_precision_class_%d' % c] = i_precision
+            # visuals['hausdorff_recall_class_%d' % c] = i_recall
+            # visuals['hausdorff_precision_class_%d' % c] = i_precision
             
             _, _, _, i_precision, i_recall = get_hausdorff_exc(test_inpaint_region == c, actual_inpaint_region[:, :, c], True)
             visuals['hausdorff_recall_exc_class_%d' % c] = i_recall
@@ -130,18 +143,20 @@ with open(results_file_name, 'a') as results_file:
                 print(key, value)
             results.append(str(value))
 
-        results_file.write(', '.join(results))
+        results_file.write(', '.join(results) + '\n')
         
-        row_lengths = []
-        row_lengths.append(4)   # Discrete input, GT, softmax, one-hot output
-        row_lengths.append(3)   # Divergence input, output, G
-        row_lengths.append(3)   # Velocity x input, output, G
-        row_lengths.append(3)   # Velocity y input, output, G
-        row_lengths.append(2)   # Class 0 Haussdorf recall, precision
-        row_lengths.append(2)   # Class 2 Haussdorf recall, precision
-        row_lengths.append(2)   # Class 0 Haussdorf exclusive recall, precision
-        row_lengths.append(2)   # Class 2 Haussdorf exclusive recall, precision
-        # row_lengths.append(2)   # Class 0 and 2 EM distance
+        if len(visuals) == 5:
+            row_lengths = [5]
+        else:
+            row_lengths.append(4)   # Discrete input, GT, softmax, one-hot output
+            row_lengths.append(3)   # Divergence input, output, G
+            row_lengths.append(3)   # Velocity x input, output, G
+            row_lengths.append(3)   # Velocity y input, output, G
+            row_lengths.append(2)   # Class 0 Haussdorf recall, precision
+            row_lengths.append(2)   # Class 2 Haussdorf recall, precision
+            row_lengths.append(2)   # Class 0 Haussdorf exclusive recall, precision
+            row_lengths.append(2)   # Class 2 Haussdorf exclusive recall, precision
+            # row_lengths.append(2)   # Class 0 and 2 EM distance
 
 
         visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, row_lengths=row_lengths)

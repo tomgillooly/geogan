@@ -331,7 +331,7 @@ class Pix2PixGeoModel(BaseModel):
         if 'A_paths' in input.keys():
             self.A_path = input['A_paths']
         elif 'folder_id' in input.keys():
-            self.A_path = str(input['folder_id']) + '_' + str(input['series_number'])
+            self.A_path = ['serie_{}_{:05}'.format(input['folder_id'][0], input['series_number'][0])]
             
         if self.opt.continent_data:
             self.continent_img = continents
@@ -376,7 +376,7 @@ class Pix2PixGeoModel(BaseModel):
                 self.real_B_Vy = torch.autograd.Variable(self.input_B_Vy)
 
         # Mask of inpainted region
-        self.mask = torch.autograd.Variable(self.mask)
+        self.mask = torch.autograd.Variable(self.mask, requires_grad=False)
 
         if self.opt.continent_data:
             self.continents = torch.autograd.Variable(self.continent_img)
@@ -422,7 +422,7 @@ class Pix2PixGeoModel(BaseModel):
     # no backprop gradients
     def test(self):
         self.real_A_discrete = torch.autograd.Variable(self.input_A, volatile=True)
-        self.real_B_discrete = torch.autograd.Variable(self.input_B, volatile=True)
+        self.real_B_discrete = torch.autograd.Variable(self.input_B, requires_grad=False)
 
         if not self.opt.discrete_only or self.opt.div_only:
             self.real_A_DIV = torch.autograd.Variable(self.input_A_DIV)
@@ -716,46 +716,46 @@ class Pix2PixGeoModel(BaseModel):
 
 
 
-            for _ in range(self.opt.low_iter if kwargs['step_no'] >= 25 else self.opt.high_iter):
-                self.loss_D1, self.loss_D1_real, self.loss_D1_fake, self.loss_D1_grad_pen = self.backward_D(self.netD1s, self.optimizer_D1s,
+            self.loss_D1, self.loss_D1_real, self.loss_D1_fake, self.loss_D1_grad_pen = self.backward_D(self.netD1s, self.optimizer_D1s,
+                cond_data,
+                self.real_B_discrete, self.fake_B_discrete)
+
+            if not self.opt.discrete_only or self.opt.div_only:
+                # Conditional data (input with chunk missing + mask) + fake DIV, Vx and Vy data
+                real_data = torch.cat((self.real_B_DIV,), dim=1)
+                fake_data = torch.cat((self.fake_B_DIV,), dim=1)
+
+                if not self.opt.div_only:
+                    real_data = torch.cat((real_data, self.real_B_Vx, self.real_B_Vy), dim=1)
+                    fake_data = torch.cat((fake_data, self.fake_B_Vx, self.fake_B_Vy), dim=1)
+
+                self.loss_D2, self.loss_D2_real, self.loss_D2_fake, self.loss_D2_grad_pen = self.backward_D(self.netD2s, self.optimizer_D2s,
                     cond_data,
-                    self.real_B_discrete, self.fake_B_discrete)
-
-                if not self.opt.discrete_only or self.opt.div_only:
-                    # Conditional data (input with chunk missing + mask) + fake DIV, Vx and Vy data
-                    real_data = torch.cat((self.real_B_DIV,), dim=1)
-                    fake_data = torch.cat((self.fake_B_DIV,), dim=1)
-
-                    if not self.opt.div_only:
-                        real_data = torch.cat((real_data, self.real_B_Vx, self.real_B_Vy), dim=1)
-                        fake_data = torch.cat((fake_data, self.fake_B_Vx, self.fake_B_Vy), dim=1)
-
-                    self.loss_D2, self.loss_D2_real, self.loss_D2_fake, self.loss_D2_grad_pen = self.backward_D(self.netD2s, self.optimizer_D2s,
-                        cond_data,
-                        real_data, 
-                        fake_data)
+                    real_data, 
+                    fake_data)
 
 
+        step_no = kwargs['step_no']
+        if (step_no < self.opt.high_iter*25 and step_no % self.opt.high_iter == 0) or (step_no >= self.opt.high_iter*25 and step_no % self.opt.low_iter == 0):
+            self.optimizer_G.zero_grad()
 
-        self.optimizer_G.zero_grad()
+            if not self.opt.discrete_only or self.opt.div_only:
+                self.optimizer_G_DIV.zero_grad()
 
-        if not self.opt.discrete_only or self.opt.div_only:
-            self.optimizer_G_DIV.zero_grad()
+                if not self.opt.div_only:
+                    self.optimizer_G_Vx.zero_grad()
+                    self.optimizer_G_Vy.zero_grad()
+            
+            self.backward_G()
+            
+            self.optimizer_G.step()
+            
+            if not self.opt.discrete_only or self.opt.div_only:
+                self.optimizer_G_DIV.step()
 
-            if not self.opt.div_only:
-                self.optimizer_G_Vx.zero_grad()
-                self.optimizer_G_Vy.zero_grad()
-        
-        self.backward_G()
-        
-        self.optimizer_G.step()
-        
-        if not self.opt.discrete_only or self.opt.div_only:
-            self.optimizer_G_DIV.step()
-
-            if not self.opt.div_only:
-                self.optimizer_G_Vx.step()
-                self.optimizer_G_Vy.step()
+                if not self.opt.div_only:
+                    self.optimizer_G_Vx.step()
+                    self.optimizer_G_Vy.step()
 
 
     def get_current_errors(self):
@@ -766,8 +766,8 @@ class Pix2PixGeoModel(BaseModel):
 
         if self.opt.num_discrims > 0:
             errors += [
-                ('G_GAN_D1', self.loss_G_GAN1.data[0]),
-                ('D1_real', self.loss_D1_real.data[0]),
+                ('G_GAN_D1', -self.loss_G_GAN1.data[0]),
+                ('D1_real', -self.loss_D1_real.data[0]),
                 ('D1_fake', self.loss_D1_fake.data[0]),
                 ('D1_grad_pen', self.loss_D1_grad_pen.data[0])
             ]
@@ -779,8 +779,8 @@ class Pix2PixGeoModel(BaseModel):
 
             if self.opt.num_discrims > 0:
                 errors += [
-                    ('G_GAN_D2', self.loss_G_GAN2.data[0]),
-                    ('D2_real', self.loss_D2_real.data[0]),
+                    ('G_GAN_D2', -self.loss_G_GAN2.data[0]),
+                    ('D2_real', -self.loss_D2_real.data[0]),
                     ('D2_fake', self.loss_D2_fake.data[0]),
                     ('D2_grad_pen', self.loss_D2_grad_pen.data[0])
                 ]
@@ -889,9 +889,9 @@ class Pix2PixGeoModel(BaseModel):
         mask_tl =(mask_coords[0][0], mask_coords[1][0])
         mask_br =(mask_coords[0][-1], mask_coords[1][-1])
 
-        d_h_recall = 0.0
-        d_h_precision = 0.0
-        d_h_symmetric = 0.0
+        # d_h_recall = 0.0
+        # d_h_precision = 0.0
+        # d_h_symmetric = 0.0
 
         d_h_recall_exc = 0.0
         d_h_precision_exc = 0.0
@@ -920,21 +920,21 @@ class Pix2PixGeoModel(BaseModel):
 
                 # d_h_s = max(d_h_s, max(d_h_fr, d_h_rf))
 
-            d_h_p, d_h_r, d_h_s = get_hausdorff(fake_channel, real_channel)
+            # d_h_p, d_h_r, d_h_s = get_hausdorff(fake_channel, real_channel)
             
             d_h_p_exc, d_h_r_exc, d_h_s_exc = get_hausdorff_exc(fake_channel, real_channel)
 
-            d_h_recall = max(d_h_recall, d_h_r)
-            d_h_precision = max(d_h_precision, d_h_p)
-            d_h_symmetric = max(d_h_symmetric, d_h_s)
+            # d_h_recall = max(d_h_recall, d_h_r)
+            # d_h_precision = max(d_h_precision, d_h_p)
+            # d_h_symmetric = max(d_h_symmetric, d_h_s)
 
             d_h_recall_exc = max(d_h_recall_exc, d_h_r_exc)
             d_h_precision_exc = max(d_h_precision_exc, d_h_p_exc)
             d_h_symmetric_exc = max(d_h_symmetric_exc, d_h_s_exc)
 
-        metrics.append(('Hausdorff distance (R)', d_h_recall))
-        metrics.append(('Hausdorff distance (P)', d_h_precision))
-        metrics.append(('Hausdorff distance (S)', d_h_symmetric))
+        # metrics.append(('Hausdorff distance (R)', d_h_recall))
+        # metrics.append(('Hausdorff distance (P)', d_h_precision))
+        # metrics.append(('Hausdorff distance (S)', d_h_symmetric))
 
         metrics.append(('Hausdorff distance (R - exc)', d_h_recall_exc))
         metrics.append(('Hausdorff distance (P - exc)', d_h_precision_exc))
@@ -950,9 +950,9 @@ class Pix2PixGeoModel(BaseModel):
 
 
     def accumulate_metrics(self, metrics):
-        d_h_recall = []
-        d_h_precision = []
-        d_h_s = []
+        # d_h_recall = []
+        # d_h_precision = []
+        # d_h_s = []
         
         d_h_recall_exc = []
         d_h_precision_exc = []
@@ -962,9 +962,9 @@ class Pix2PixGeoModel(BaseModel):
         ot_s = []
 
         for metric in metrics:
-            d_h_recall.append(metric['Hausdorff distance (R)'])
-            d_h_precision.append(metric['Hausdorff distance (P)'])
-            d_h_s.append(metric['Hausdorff distance (S)'])
+            # d_h_recall.append(metric['Hausdorff distance (R)'])
+            # d_h_precision.append(metric['Hausdorff distance (P)'])
+            # d_h_s.append(metric['Hausdorff distance (S)'])
             
             d_h_recall_exc.append(metric['Hausdorff distance (R - exc)'])
             d_h_precision_exc.append(metric['Hausdorff distance (P - exc)'])
@@ -975,9 +975,9 @@ class Pix2PixGeoModel(BaseModel):
 
 
         return OrderedDict([
-            ('Hausdorff distance (R)', np.mean(d_h_recall)),
-            ('Hausdorff distance (P)', np.mean(d_h_precision)),
-            ('Hausdorff distance (S)', np.mean(d_h_s)),
+            # ('Hausdorff distance (R)', np.mean(d_h_recall)),
+            # ('Hausdorff distance (P)', np.mean(d_h_precision)),
+            # ('Hausdorff distance (S)', np.mean(d_h_s)),
             
             ('Hausdorff distance (R - exc)', np.mean(d_h_recall_exc)),
             ('Hausdorff distance (P - exc)', np.mean(d_h_precision_exc)),
