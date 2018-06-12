@@ -19,6 +19,9 @@ class HTML:
             with self.doc.head:
                 meta(http_equiv="reflesh", content=str(reflesh))
 
+        with self.doc:
+            h1(title)
+
     def get_image_dir(self):
         return self.img_dir
 
