@@ -75,11 +75,11 @@ class GeoUnpickler(object):
 			# Layer to remove
 			layer = int(round(random.random())*2)
 
-			# Fill in just that layer in the plate channel
-			B[:, :, 1][np.where(np.logical_and(mask, B[:, :, layer]))] = 1
+			# Kill just that layer and the plate channel
+			B[:, :, 1][np.where(mask)] = 0
 			B[:, :, layer][np.where(mask)] = 0
 		else:
-			B[np.where(mask)] = [0, 1, 0]
+			B[np.where(mask)] = [0, 0, 0]
 
 		data_dict['B'] = B
 
@@ -103,7 +103,13 @@ class GeoUnpickler(object):
 
 
 	def process_continents(self, data_dict):
-		data_dict['cont'] = (data_dict['A_cont'] > 0).astype(np.uint8)
+		if 'cont' in data_dict.keys():
+			return
+
+		if 'A_cont' in data_dict.keys():			
+			data_dict['cont'] = (data_dict['A_cont'] > 0).astype(np.uint8)
+		else:
+			data_dict['cont'] = np.zeros(data_dict['A_DIV'].shape, dtype=np.uint8)
 
 
 
