@@ -38,7 +38,7 @@ python train.py --dataroot $DATAROOT --name circle_div_non_filled_global_batch_1
 	--input_nc 3 --output_nc 1 \
 	--lambda_A 1 --lambda_D 100 \
 	--which_model_netG unet_256 \
-	--pool_size 0 --no_html --batchSize 1000 --nThreads 2 $OPTIONS
+	--pool_size 0 --no_html --batchSize 100 --nThreads 2 $OPTIONS
 
 kill %1
 

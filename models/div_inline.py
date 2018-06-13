@@ -521,11 +521,13 @@ class DivInlineModel(BaseModel):
 
         step_no = kwargs['step_no']
         if ((step_no < self.opt.high_iter*25 and step_no % self.opt.high_iter == 0) or (step_no >= self.opt.high_iter*25 and step_no % self.opt.low_iter == 0)) or self.opt.num_discrims == 0:
-            self.optimizer_G.zero_grad()
+            if step_no % 10 == 0:
+                self.optimizer_G.zero_grad()
 
             self.backward_G()
         
-            self.optimizer_G.step()
+            if step_no % 10 == 0:
+                self.optimizer_G.step()
         
 
     def get_current_errors(self):
