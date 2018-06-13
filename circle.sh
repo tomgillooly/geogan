@@ -31,14 +31,14 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --continue_train --which_epoch 100 --epoch_count 101 --niter 300 --niter_decay 100 \
 	# --high_iter 25 --low_iter 5 \
-python train.py --dataroot $DATAROOT --name circle_div_non_filled_global_loss \
+python train.py --dataroot $DATAROOT --name circle_div_non_filled_global_batch_1000_no_mask_bias \
 	--model div_inline --which_direction BtoA \
 	--num_discrims 0 --alpha 0 \
 	--no_lsgan --norm batch \
 	--input_nc 3 --output_nc 1 \
 	--lambda_A 1 --lambda_D 100 \
 	--which_model_netG unet_256 \
-	--pool_size 0 --no_html --batchSize 100 --nThreads 2 $OPTIONS
+	--pool_size 0 --no_html --batchSize 1000 --nThreads 2 $OPTIONS
 
 kill %1
 
