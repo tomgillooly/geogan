@@ -105,8 +105,9 @@ class GeoUnpickler(object):
 			data_dict['mask_x2'] = data_dict['mask_x1'] + data_dict['mask_size']
 		# If masks don't exist yet, redo mask locations so they'll be in the right place
 		else:
-			for i, (y, x) in enumerate(data_dict['mask_locs']):
-				data_dict['mask_locs'][i] = (y, im_width - x - data_dict['mask_size'])
+			if 'mask_locs' in data_dict.keys():
+				for i, (y, x) in enumerate(data_dict['mask_locs']):
+					data_dict['mask_locs'][i] = (y, im_width - x - data_dict['mask_size'])
 
 
 	def process_continents(self, data_dict):
