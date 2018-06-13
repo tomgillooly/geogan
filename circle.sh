@@ -32,7 +32,7 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 	# --high_iter 25 --low_iter 5 \
 python train.py --dataroot $DATAROOT --name circle_div_non_filled_global_batch_1000_no_mask_bias \
 	--model div_inline --which_direction BtoA \
-	--continue_train --which_epoch 1 --epoch_count 1 \
+	--continue_train --which_epoch latest --epoch_count 1 \
 	--num_discrims 0 --alpha 0 \
 	--no_lsgan --norm batch \
 	--input_nc 3 --output_nc 1 \
