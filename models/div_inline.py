@@ -115,6 +115,21 @@ class DivInlineModel(BaseModel):
         self.netG = networks.define_G(input_channels, opt.output_nc, opt.ngf,
                                       opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
 
+        self.sobel_layer_y = torch.nn.Conv2d(1, 1, 3, padding=1)
+        self.sobel_layer_y.weight.data = torch.FloatTensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]).unsqueeze(0).unsqueeze(0)
+        self.sobel_layer_y.weight.requires_grad = False
+
+
+        self.sobel_layer_x = torch.nn.Conv2d(1, 1, 3, padding=1)
+        self.sobel_layer_x.weight.data = torch.FloatTensor([[-1, -2, -1], [0, 0, 0], [1, 2, 1]]).unsqueeze(0).unsqueeze(0)
+        self.sobel_layer_x.weight.requires_grad = False
+
+
+        if len(self.gpu_ids) > 0:
+            self.sobel_layer_y.cuda(self.gpu_ids[0])
+            self.sobel_layer_x.cuda(self.gpu_ids[0])
+
+
         if self.isTrain and opt.num_folders > 1 and self.opt.folder_pred:
             self.netG.inner_layer = get_innermost(self.netG, 'UnetSkipConnectionBlock')
             self.netG.inner_layer.register_forward_hook(save_output_hook)
@@ -486,7 +501,18 @@ class DivInlineModel(BaseModel):
 
         self.loss_G_L2_DIV = (weight_mask * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
-        self.loss_G_L2 = self.loss_G_L2_DIV
+
+        real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV_ROI)
+        real_B_DIV_grad_y = self.sobel_layer_y(self.real_B_DIV_ROI)
+
+        fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV_ROI)
+        fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV_ROI)
+
+
+        self.loss_L2_DIV_grad_x = self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+        self.loss_L2_DIV_grad_y = self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+
+        self.loss_G_L2 = self.loss_G_L2_DIV + self.loss_L2_DIV_grad_x + self.loss_L2_DIV_grad_y
         self.loss_G = self.loss_G_GAN + self.loss_G_L2
 
 
@@ -534,6 +560,8 @@ class DivInlineModel(BaseModel):
         errors = [
             ('G', self.loss_G.data.item()),
             ('G_L2', self.loss_G_L2.data.item()),
+            ('G_L2_grad_x', self.loss_L2_DIV_grad_x.data.item()),
+            ('G_L2_grad_y', self.loss_L2_DIV_grad_y.data.item()),
             ]
 
         if self.opt.num_discrims > 0:
