@@ -611,19 +611,15 @@ class DivInlineModel(BaseModel):
         visuals.append(('output_divergence', fake_B_DIV))
 
         real_B_DIV_grad_x = util.tensor2im(self.real_B_DIV_grad_x.data)
-        real_B_DIV_grad_x[mask_edge_coords] = np.max(real_B_DIV_grad_x)
         visuals.append(('ground_truth_x_gradient', real_B_DIV_grad_x))
 
         real_B_DIV_grad_y = util.tensor2im(self.real_B_DIV_grad_y.data)
-        real_B_DIV_grad_y[mask_edge_coords] = np.max(real_B_DIV_grad_y)
         visuals.append(('ground_truth_y_gradient', real_B_DIV_grad_y))
 
         fake_B_DIV_grad_x = util.tensor2im(self.fake_B_DIV_grad_x.data)
-        fake_B_DIV_grad_x[mask_edge_coords] = np.max(fake_B_DIV_grad_x)
         visuals.append(('output_x_gradient', fake_B_DIV_grad_x))
 
         fake_B_DIV_grad_y = util.tensor2im(self.fake_B_DIV_grad_y.data)
-        fake_B_DIV_grad_y[mask_edge_coords] = np.max(fake_B_DIV_grad_y)
         visuals.append(('output_y_gradient', fake_B_DIV_grad_y))
 
         fake_B_discrete = self.fake_B_discrete
