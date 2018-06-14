@@ -31,7 +31,7 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --high_iter 25 --low_iter 5 \
 	# --continue_train --which_epoch latest --epoch_count 1 \
-python train.py --dataroot $DATAROOT --name circle_div_non_filled_grad_loss \
+python train.py --dataroot $DATAROOT --name circle_div_non_filled_grad_loss_local \
 	--model div_inline --which_direction BtoA \
 	--num_discrims 0 --alpha 0 \
 	--no_lsgan --norm batch \

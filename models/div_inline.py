@@ -502,6 +502,9 @@ class DivInlineModel(BaseModel):
         self.loss_G_L2_DIV = (weight_mask * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
 
+        self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, (self.mask_size, self.mask_size))
+        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, (self.mask_size, self.mask_size))
+
         self.real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV_ROI)
         self.real_B_DIV_grad_y = self.sobel_layer_y(self.real_B_DIV_ROI)
 
