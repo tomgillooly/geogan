@@ -502,15 +502,15 @@ class DivInlineModel(BaseModel):
         self.loss_G_L2_DIV = (weight_mask * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
 
-        real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV_ROI)
-        real_B_DIV_grad_y = self.sobel_layer_y(self.real_B_DIV_ROI)
+        self.real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV_ROI)
+        self.real_B_DIV_grad_y = self.sobel_layer_y(self.real_B_DIV_ROI)
 
-        fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV_ROI)
-        fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV_ROI)
+        self.fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV_ROI)
+        self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV_ROI)
 
 
-        self.loss_L2_DIV_grad_x = self.criterionL2(fake_B_DIV_grad_x, real_B_DIV_grad_x.detach()).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
-        self.loss_L2_DIV_grad_y = self.criterionL2(fake_B_DIV_grad_y, real_B_DIV_grad_y.detach()).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+        self.loss_L2_DIV_grad_x = self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach()).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+        self.loss_L2_DIV_grad_y = self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach()).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
         self.loss_G_L2 = self.loss_G_L2_DIV + self.loss_L2_DIV_grad_x + self.loss_L2_DIV_grad_y
         self.loss_G = self.loss_G_GAN + self.loss_G_L2
@@ -606,6 +606,22 @@ class DivInlineModel(BaseModel):
         fake_B_DIV = util.tensor2im(self.fake_B_DIV.data)
         fake_B_DIV[mask_edge_coords] = np.max(fake_B_DIV)
         visuals.append(('output_divergence', fake_B_DIV))
+
+        real_B_DIV_grad_x = util.tensor2im(self.real_B_DIV_grad_x.data)
+        real_B_DIV_grad_x[mask_edge_coords] = np.max(real_B_DIV_grad_x)
+        visuals.append(('ground_truth_x_gradient', real_B_DIV_grad_x))
+
+        real_B_DIV_grad_y = util.tensor2im(self.real_B_DIV_grad_y.data)
+        real_B_DIV_grad_y[mask_edge_coords] = np.max(real_B_DIV_grad_y)
+        visuals.append(('ground_truth_y_gradient', real_B_DIV_grad_y))
+
+        fake_B_DIV_grad_x = util.tensor2im(self.fake_B_DIV_grad_x.data)
+        fake_B_DIV_grad_x[mask_edge_coords] = np.max(fake_B_DIV_grad_x)
+        visuals.append(('output_x_gradient', fake_B_DIV_grad_x))
+
+        fake_B_DIV_grad_y = util.tensor2im(self.fake_B_DIV_grad_y.data)
+        fake_B_DIV_grad_y[mask_edge_coords] = np.max(fake_B_DIV_grad_y)
+        visuals.append(('output_y_gradient', fake_B_DIV_grad_y))
 
         fake_B_discrete = self.fake_B_discrete
         fake_B_discrete = np.interp(fake_B_discrete, [np.min(fake_B_discrete), np.max(fake_B_discrete)], [0, 255]).astype(np.uint8)
