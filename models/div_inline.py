@@ -607,9 +607,8 @@ class DivInlineModel(BaseModel):
         fake_B_DIV_grad_y = util.tensor2im(self.fake_B_DIV_grad_y.data)
         visuals.append(('output_y_gradient', fake_B_DIV_grad_y))
 
-        fake_B_discrete = self.fake_B_discrete[0].cpu().numpy().transpose(1, 2, 0)
-        fake_B_discrete = np.interp(fake_B_discrete, [0, 1], [0, 255]).astype(np.uint8)
-        fake_B_discrete[mask_edge_coords] = np.max(self.fake_B_discrete)
+        fake_B_discrete = util.tensor2im(self.fake_B_discrete.data)
+        fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
         visuals.append(('output_discrete', fake_B_discrete))
         
         if self.isTrain:
