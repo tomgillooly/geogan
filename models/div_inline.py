@@ -616,16 +616,6 @@ class DivInlineModel(BaseModel):
             if not self.opt.local_loss:
                 weight_mask[mask_edge_coords] = np.max(weight_mask)
             visuals.append(('L2 weight mask', weight_mask))
-
-            grad_x_weight_mask = util.tensor2im(self.grad_x_weight_mask.data)
-            if not self.opt.local_loss:
-                grad_x_weight_mask[mask_edge_coords] = np.max(grad_x_weight_mask)
-            visuals.append(('Gradient x weight mask', grad_x_weight_mask))
-
-            grad_y_weight_mask = util.tensor2im(self.grad_y_weight_mask.data)
-            if not self.opt.local_loss:
-                grad_y_weight_mask[mask_edge_coords] = np.max(grad_y_weight_mask)
-            visuals.append(('Gradient y weight mask', grad_y_weight_mask))
             
 
         if self.opt.continent_data:
