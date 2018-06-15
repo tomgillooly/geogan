@@ -496,11 +496,8 @@ class DivInlineModel(BaseModel):
         self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV_ROI)
 
 
-        self.loss_L2_DIV_grad_x = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach()).sum(dim=2).sum(dim=2).mean(dim=0)) * self.opt.lambda_A
-        self.loss_L2_DIV_grad_y = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach()).sum(dim=2).sum(dim=2).mean(dim=0)) * self.opt.lambda_A
-
-        print('grad loss shape', self.loss_L2_DIV_grad_x.shape)
-        print('grad loss shape', self.loss_L2_DIV_grad_y.shape)
+        self.loss_L2_DIV_grad_x = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach())).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+        self.loss_L2_DIV_grad_y = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach())).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
 
         self.loss_G_L2 = self.loss_G_L2_DIV + self.loss_L2_DIV_grad_x + self.loss_L2_DIV_grad_y
