@@ -279,14 +279,16 @@ class DivInlineModel(BaseModel):
 
 
         self.fake_B_DIV = self.netG(self.G_input)
+        self.fake_B_DIV = self.fake_B_DIV.cuda() if len(self.gpu_ids) > 0 else self.fake_B_DIV
 
-        A_DIV = self.fake_B_DIV[0].data.cpu().numpy().squeeze()
-        A_DIV = np.interp(A_DIV, [np.min(A_DIV), np.max(A_DIV)], [self.div_min, self.div_max])
+        
+        A_DIV = self.fake_B_DIV.data.numpy().squeeze()
+        A_DIV = np.interp(A_DIV, [np.min(A_DIV), 0, np.max(A_DIV)], [self.div_min, 0, self.div_max])
+
         tmp_dict = {'A_DIV': A_DIV}
         self.p.create_one_hot(tmp_dict, self.div_thresh, skel=False)
         self.fake_B_discrete = tmp_dict['A']
 
-        self.fake_B_DIV = self.fake_B_DIV.cuda() if len(self.gpu_ids) > 0 else self.fake_B_DIV
 
         if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             self.fake_folder = self.folder_fc(self.netG.inner_layer.output.view(self.batch_size, -1))
@@ -473,33 +475,11 @@ class DivInlineModel(BaseModel):
         self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
         self.real_B_DIV_ROI = self.real_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
         self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
+        self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
 
-        num_ridge_pixels = torch.sum(torch.sum(self.real_B_discrete_ROI[:, 0, :, :].unsqueeze(1),
-            dim=2, keepdim=True), dim=3, keepdim=True).float()
-        num_plate_pixels = torch.sum(torch.sum(self.real_B_discrete_ROI[:, 1, :, :].unsqueeze(1),
-            dim=2, keepdim=True), dim=3, keepdim=True).float()
-        num_subduction_pixels = torch.sum(torch.sum(self.real_B_discrete_ROI[:, 2, :, :].unsqueeze(1),
-            dim=2, keepdim=True), dim=3, keepdim=True).float()
+        self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI, self.opt.diff_in_numerator)
 
-        ridge_weight = total_pixels / num_ridge_pixels + self.opt.alpha
-        plate_weight = total_pixels / num_plate_pixels + self.opt.alpha
-        subduction_weight = total_pixels / num_subduction_pixels + self.opt.alpha
-
-        # ridge_weight = ridge_weight.mean(dim=0, keepdim=True)
-        # plate_weight = plate_weight.mean(dim=0, keepdim=True)
-        # subduction_weight = subduction_weight.mean(dim=0, keepdim=True)
-        
-        pixel_weights = torch.cat((ridge_weight, plate_weight, subduction_weight), dim=1)
-        pixel_weights /= torch.sum(pixel_weights + 1e-8, dim=1, keepdim=True)
-
-        weight_mask = torch.max(pixel_weights * self.real_B_discrete_ROI, dim=1, keepdim=True)[0]
-
-        self.weight_mask = weight_mask
-
-        weighted_div_predicted = self.fake_B_DIV_ROI * weight_mask
-        weighted_div_target = self.real_B_DIV_ROI * weight_mask
-
-        self.loss_G_L2_DIV = (weight_mask * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+        self.loss_G_L2_DIV = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
 
         self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, (self.mask_size, self.mask_size))
@@ -512,8 +492,8 @@ class DivInlineModel(BaseModel):
         self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV_ROI)
 
 
-        self.loss_L2_DIV_grad_x = self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach()).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
-        self.loss_L2_DIV_grad_y = self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach()).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+        self.loss_L2_DIV_grad_x = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach()).sum(dim=2).sum(dim=2).mean(dim=0)) * self.opt.lambda_A
+        self.loss_L2_DIV_grad_y = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach()).sum(dim=2).sum(dim=2).mean(dim=0)) * self.opt.lambda_A
 
         self.loss_G_L2 = self.loss_G_L2_DIV + self.loss_L2_DIV_grad_x + self.loss_L2_DIV_grad_y
         self.loss_G = self.loss_G_GAN + self.loss_G_L2

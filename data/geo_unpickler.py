@@ -53,7 +53,7 @@ class GeoUnpickler(object):
 		if 'mask_locs' in data_dict.keys():
 			data_dict.pop('mask_locs')
 
-		mask = np.zeros((im_size_x, im_size_y))
+		mask = np.zeros((im_size_y, im_size_x))
 		mask[y:y+mask_size, x:x+mask_size] = 1
 
 		data_dict['mask'] = mask

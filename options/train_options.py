@@ -36,5 +36,6 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--low_iter', type=int, default=5, help='Number of critic iterations after initial phase')
         self.parser.add_argument('--no_mask_to_critic', action='store_true', help="Don't pass mask to discriminator/critic")
         self.parser.add_argument('--alpha', type=int, default=0, help="Weighting value of pixel class weightings")
+        self.parser.add_argument('--diff_in_numerator', action='store_true', help='Use frequency diff in numerator when creating weight mask')
 
         self.isTrain = True
