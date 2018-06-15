@@ -282,7 +282,7 @@ class DivInlineModel(BaseModel):
         # self.fake_B_DIV = self.fake_B_DIV.cuda() if len(self.gpu_ids) > 0 else self.fake_B_DIV
 
         
-        A_DIV = self.fake_B_DIV.clone().numpy().squeeze()
+        A_DIV = self.fake_B_DIV.data.clone().numpy().squeeze()
         A_DIV = np.interp(A_DIV, [np.min(A_DIV), 0, np.max(A_DIV)], [self.div_min, 0, self.div_max])
 
         tmp_dict = {'A_DIV': A_DIV}
