@@ -499,21 +499,32 @@ class DivInlineModel(BaseModel):
         weighted_div_predicted = self.fake_B_DIV_ROI * weight_mask
         weighted_div_target = self.real_B_DIV_ROI * weight_mask
 
-        self.loss_G_L2_DIV = (weight_mask * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+        self.loss_G_L2_DIV = (weight_mask.detach() * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
 
-        self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
-        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
+        # self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
+        # self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
 
         self.real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV_ROI)
         self.real_B_DIV_grad_y = self.sobel_layer_y(self.real_B_DIV_ROI)
 
+        self.real_B_DIV_grad_x_weight_mask = torch.abs(self.real_B_DIV_grad_x) > torch.max(torch.abs(self.real_B_DIV_grad_x.view(-1, 1)))*0.7
+        self.real_B_DIV_grad_y_weight_mask = torch.abs(self.real_B_DIV_grad_y) > torch.max(torch.abs(self.real_B_DIV_grad_y.view(-1, 1)))*0.7
+
+        # self.real_B_grad_mag = torch.norm(torch.cat((self.real_B_DIV_grad_x, self.real_B_DIV_grad_y), dim=1), dim=1)
+        # self.fake_B_grad_mag = torch.norm(torch.cat((self.real_B_DIV_grad_x, self.real_B_DIV_grad_y), dim=1), dim=1)
+
         self.fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV_ROI)
         self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV_ROI)
 
+        self.fake_B_DIV_grad_x_weight_mask = torch.abs(self.fake_B_DIV_grad_x) > torch.max(torch.abs(self.fake_B_DIV_grad_x.view(-1, 1)))*0.7
+        self.fake_B_DIV_grad_y_weight_mask = torch.abs(self.fake_B_DIV_grad_y) > torch.max(torch.abs(self.fake_B_DIV_grad_y.view(-1, 1)))*0.7
 
-        self.loss_L2_DIV_grad_x = self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach()).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
-        self.loss_L2_DIV_grad_y = self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach()).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+        self.grad_x_weight_mask = torch.max(torch.cat((self.real_B_DIV_grad_x_weight_mask, self.fake_B_DIV_grad_x_weight_mask), dim=1), dim=1)
+        self.grad_y_weight_mask = torch.max(torch.cat((self.real_B_DIV_grad_y_weight_mask, self.fake_B_DIV_grad_y_weight_mask), dim=1), dim=1)
+
+        self.loss_L2_DIV_grad_x = (self.grad_x_weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach()).sum(dim=2).sum(dim=2).mean(dim=0)) * self.opt.lambda_A
+        self.loss_L2_DIV_grad_y = (self.grad_y_weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach()).sum(dim=2).sum(dim=2).mean(dim=0)) * self.opt.lambda_A
 
         self.loss_G_L2 = self.loss_G_L2_DIV + self.loss_L2_DIV_grad_x + self.loss_L2_DIV_grad_y
         self.loss_G = self.loss_G_GAN + self.loss_G_L2
@@ -632,6 +643,16 @@ class DivInlineModel(BaseModel):
             if not self.opt.local_loss:
                 weight_mask[mask_edge_coords] = np.max(weight_mask)
             visuals.append(('L2 weight mask', weight_mask))
+
+            grad_x_weight_mask = util.tensor2im(self.grad_x_weight_mask.data)
+            if not self.opt.local_loss:
+                grad_x_weight_mask[mask_edge_coords] = np.max(grad_x_weight_mask)
+            visuals.append(('Gradient x weight mask', grad_x_weight_mask))
+
+            grad_y_weight_mask = util.tensor2im(self.grad_y_weight_mask.data)
+            if not self.opt.local_loss:
+                grad_y_weight_mask[mask_edge_coords] = np.max(grad_y_weight_mask)
+            visuals.append(('Gradient y weight mask', grad_y_weight_mask))
             
 
         if self.opt.continent_data:
