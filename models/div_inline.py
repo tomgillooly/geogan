@@ -280,7 +280,7 @@ class DivInlineModel(BaseModel):
 
         self.fake_B_DIV = self.netG(self.G_input)
         
-        self.fake_B_discrete = torch.autograd.Varable(torch.zeros(self.real_B_discrete.shape))
+        self.fake_B_discrete = torch.autograd.Variable(torch.zeros(self.real_B_discrete.shape))
 
         for i in range(self.fake_B_discrete.shape[0]):
             A_DIV = self.fake_B_DIV[i].data.cpu().numpy().squeeze()
