@@ -39,28 +39,22 @@ class GeoUnpickler(object):
 
 
 	def create_mask(self, data_dict):
-		mask_size = data_dict['mask_size']
-		im_size = data_dict['A_DIV'].shape
-
-		im_size_y, im_size_x = data_dict['A_DIV'].shape
-		x_range = range(im_size_x - mask_size - 1)
-		y_range = range(im_size_y - mask_size - 1)
-
-		x = random.sample(x_range, 1)[0]
-		y = random.sample(y_range, 1)[0]
-
+		mask_loc = random.sample(data_dict['mask_locs'], 1)[0]
 		# Remove these or it creates chaos when we're unpickling
 		if 'mask_locs' in data_dict.keys():
 			data_dict.pop('mask_locs')
 
-		mask = np.zeros((im_size_y, im_size_x))
-		mask[y:y+mask_size, x:x+mask_size] = 1
+		mask_size = data_dict['mask_size']
+		im_size = data_dict['A_DIV'].shape
+
+		mask = np.zeros(im_size)
+		mask[mask_loc[0]:mask_loc[0]+mask_size, mask_loc[1]:mask_loc[1]+mask_size] = 1
 
 		data_dict['mask'] = mask
-		data_dict['mask_x1'] = x
-		data_dict['mask_y1'] = y
-		data_dict['mask_x2'] = x + mask_size
-		data_dict['mask_y2'] = y + mask_size
+		data_dict['mask_x1'] = mask_loc[1]
+		data_dict['mask_y1'] = mask_loc[0]
+		data_dict['mask_x2'] = mask_loc[1] + mask_size
+		data_dict['mask_y2'] = mask_loc[0] + mask_size
 
 
 	def create_masked_images(self, data_dict):
