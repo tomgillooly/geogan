@@ -280,7 +280,7 @@ class DivInlineModel(BaseModel):
 
         self.fake_B_DIV = self.netG(self.G_input)
         
-        self.fake_B_discrete = torch.zeros(self.real_B_discrete.shape)
+        self.fake_B_discrete = torch.autograd.Varable(torch.zeros(self.real_B_discrete.shape))
 
         for i in range(self.fake_B_discrete.shape[0]):
             A_DIV = self.fake_B_DIV[i].data.cpu().numpy().squeeze()
@@ -288,7 +288,7 @@ class DivInlineModel(BaseModel):
 
             tmp_dict = {'A_DIV': A_DIV}
             self.p.create_one_hot(tmp_dict, self.div_thresh, skel=False)
-            self.fake_B_discrete[i] = tmp_dict['A']
+            self.fake_B_discrete[i].data.copy_(torch.FloatTensor(tmp_dict['A']))
 
             self.fake_B_DIV = self.fake_B_DIV.cuda() if len(self.gpu_ids) > 0 else self.fake_B_DIV
             
