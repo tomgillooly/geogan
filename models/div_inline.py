@@ -288,9 +288,7 @@ class DivInlineModel(BaseModel):
 
             tmp_dict = {'A_DIV': A_DIV}
             self.p.create_one_hot(tmp_dict, self.div_thresh, skel=False)
-            fake_b_tensor = torch.from_numpy(tmp_dict['A'])
-            print('fake b tensor shape', fake_b_tensor.shape)
-            self.fake_B_discrete.data[i] = fake_b_tensor
+            self.fake_B_discrete[i].data = torch.from_numpy(tmp_dict['A'].transpose(2, 0, 1))
 
             self.fake_B_DIV = self.fake_B_DIV.cuda() if len(self.gpu_ids) > 0 else self.fake_B_DIV
             
