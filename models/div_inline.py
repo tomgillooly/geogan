@@ -279,16 +279,15 @@ class DivInlineModel(BaseModel):
 
 
         self.fake_B_DIV = self.netG(self.G_input)
-        # self.fake_B_DIV = self.fake_B_DIV.cuda() if len(self.gpu_ids) > 0 else self.fake_B_DIV
-
         
-        A_DIV = self.fake_B_DIV.clone().detach().numpy().squeeze()
+        A_DIV = self.fake_B_DIV.cpu().numpy().squeeze()
         A_DIV = np.interp(A_DIV, [np.min(A_DIV), 0, np.max(A_DIV)], [self.div_min, 0, self.div_max])
 
         tmp_dict = {'A_DIV': A_DIV}
         self.p.create_one_hot(tmp_dict, self.div_thresh, skel=False)
         self.fake_B_discrete = tmp_dict['A']
 
+        self.fake_B_DIV = self.fake_B_DIV.cuda() if len(self.gpu_ids) > 0 else self.fake_B_DIV
 
         if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             self.fake_folder = self.folder_fc(self.netG.inner_layer.output.view(self.batch_size, -1))
