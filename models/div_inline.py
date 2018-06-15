@@ -279,6 +279,12 @@ class DivInlineModel(BaseModel):
 
 
         self.fake_B_DIV = self.netG(self.G_input)
+
+        self.real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV)
+        self.real_B_DIV_grad_y = self.sobel_layer_y(self.real_B_DIV)
+
+        self.fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV)
+        self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV)
         
         self.fake_B_discrete = torch.autograd.Variable(torch.zeros(self.real_B_discrete.shape))
 
@@ -477,7 +483,9 @@ class DivInlineModel(BaseModel):
         total_pixels = torch.sum(torch.sum(loss_mask > 0, dim=2, keepdim=True), dim=3, keepdim=True).float()
 
         self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+
         self.real_B_DIV_ROI = self.real_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+
         self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
         self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
 
@@ -485,24 +493,25 @@ class DivInlineModel(BaseModel):
 
         self.loss_G_L2_DIV = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
+        self.loss_G_L2 = self.loss_G_L2_DIV
 
         # self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
         # self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
+        
+        if self.opt.grad_loss:
+            self.real_B_DIV_grad_x = self.real_B_DIV_grad_x.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+            self.real_B_DIV_grad_y = self.real_B_DIV_grad_y.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
 
-        self.real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV_ROI)
-        self.real_B_DIV_grad_y = self.sobel_layer_y(self.real_B_DIV_ROI)
+            self.fake_B_DIV_grad_x = self.fake_B_DIV_grad_x.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+            self.fake_B_DIV_grad_y = self.fake_B_DIV_grad_y.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
 
-        self.fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV_ROI)
-        self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV_ROI)
+            self.loss_L2_DIV_grad_x = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach())).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+            self.loss_L2_DIV_grad_y = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach())).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
-
-        self.loss_L2_DIV_grad_x = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach())).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
-        self.loss_L2_DIV_grad_y = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach())).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+            self.loss_G_L2 += self.loss_L2_DIV_grad_x + self.loss_L2_DIV_grad_y
 
 
-        self.loss_G_L2 = self.loss_G_L2_DIV + self.loss_L2_DIV_grad_x + self.loss_L2_DIV_grad_y
         self.loss_G = self.loss_G_GAN + self.loss_G_L2
-
 
         if self.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             ce_fun = self.criterionCE()
@@ -548,9 +557,13 @@ class DivInlineModel(BaseModel):
         errors = [
             ('G', self.loss_G.data.item()),
             ('G_L2', self.loss_G_L2.data.item()),
-            ('G_L2_grad_x', self.loss_L2_DIV_grad_x.data.item()),
-            ('G_L2_grad_y', self.loss_L2_DIV_grad_y.data.item()),
             ]
+
+        if self.opt.grad_loss:
+            errors += [
+                ('G_L2_grad_x', self.loss_L2_DIV_grad_x.data.item()),
+                ('G_L2_grad_y', self.loss_L2_DIV_grad_y.data.item())
+                ]
 
         if self.opt.num_discrims > 0:
             errors += [
