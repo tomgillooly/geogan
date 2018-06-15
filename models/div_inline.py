@@ -482,11 +482,17 @@ class DivInlineModel(BaseModel):
         self.loss_G_L2_DIV = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
 
-        self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, (self.mask_size, self.mask_size))
-        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, (self.mask_size, self.mask_size))
+        # self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
+        # self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
 
         self.real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV_ROI)
         self.real_B_DIV_grad_y = self.sobel_layer_y(self.real_B_DIV_ROI)
+
+        self.real_B_DIV_grad_x_weight_mask = torch.abs(self.real_B_DIV_grad_x) > torch.max(torch.abs(self.real_B_DIV_grad_x.view(-1, 1)))*0.7
+        self.real_B_DIV_grad_y_weight_mask = torch.abs(self.real_B_DIV_grad_y) > torch.max(torch.abs(self.real_B_DIV_grad_y.view(-1, 1)))*0.7
+
+        # self.real_B_grad_mag = torch.norm(torch.cat((self.real_B_DIV_grad_x, self.real_B_DIV_grad_y), dim=1), dim=1)
+        # self.fake_B_grad_mag = torch.norm(torch.cat((self.real_B_DIV_grad_x, self.real_B_DIV_grad_y), dim=1), dim=1)
 
         self.fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV_ROI)
         self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV_ROI)
@@ -494,6 +500,7 @@ class DivInlineModel(BaseModel):
 
         self.loss_L2_DIV_grad_x = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach()).sum(dim=2).sum(dim=2).mean(dim=0)) * self.opt.lambda_A
         self.loss_L2_DIV_grad_y = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach()).sum(dim=2).sum(dim=2).mean(dim=0)) * self.opt.lambda_A
+
 
         self.loss_G_L2 = self.loss_G_L2_DIV + self.loss_L2_DIV_grad_x + self.loss_L2_DIV_grad_y
         self.loss_G = self.loss_G_GAN + self.loss_G_L2
@@ -591,19 +598,15 @@ class DivInlineModel(BaseModel):
         visuals.append(('output_divergence', fake_B_DIV))
 
         real_B_DIV_grad_x = util.tensor2im(self.real_B_DIV_grad_x.data)
-        real_B_DIV_grad_x[mask_edge_coords] = np.max(real_B_DIV_grad_x)
         visuals.append(('ground_truth_x_gradient', real_B_DIV_grad_x))
 
         real_B_DIV_grad_y = util.tensor2im(self.real_B_DIV_grad_y.data)
-        real_B_DIV_grad_y[mask_edge_coords] = np.max(real_B_DIV_grad_y)
         visuals.append(('ground_truth_y_gradient', real_B_DIV_grad_y))
 
         fake_B_DIV_grad_x = util.tensor2im(self.fake_B_DIV_grad_x.data)
-        fake_B_DIV_grad_x[mask_edge_coords] = np.max(fake_B_DIV_grad_x)
         visuals.append(('output_x_gradient', fake_B_DIV_grad_x))
 
         fake_B_DIV_grad_y = util.tensor2im(self.fake_B_DIV_grad_y.data)
-        fake_B_DIV_grad_y[mask_edge_coords] = np.max(fake_B_DIV_grad_y)
         visuals.append(('output_y_gradient', fake_B_DIV_grad_y))
 
         fake_B_discrete = self.fake_B_discrete
@@ -616,6 +619,16 @@ class DivInlineModel(BaseModel):
             if not self.opt.local_loss:
                 weight_mask[mask_edge_coords] = np.max(weight_mask)
             visuals.append(('L2 weight mask', weight_mask))
+
+            grad_x_weight_mask = util.tensor2im(self.grad_x_weight_mask.data)
+            if not self.opt.local_loss:
+                grad_x_weight_mask[mask_edge_coords] = np.max(grad_x_weight_mask)
+            visuals.append(('Gradient x weight mask', grad_x_weight_mask))
+
+            grad_y_weight_mask = util.tensor2im(self.grad_y_weight_mask.data)
+            if not self.opt.local_loss:
+                grad_y_weight_mask[mask_edge_coords] = np.max(grad_y_weight_mask)
+            visuals.append(('Gradient y weight mask', grad_y_weight_mask))
             
 
         if self.opt.continent_data:
