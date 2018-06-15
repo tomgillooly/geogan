@@ -283,7 +283,7 @@ class DivInlineModel(BaseModel):
         self.fake_B_discrete = torch.zeros(self.real_B_discrete.shape)
 
         for i in range(self.fake_B_discrete.shape[0]):
-            A_DIV = self.fake_B_DIV[i].cpu().numpy().squeeze()
+            A_DIV = self.fake_B_DIV[i].data.cpu().numpy().squeeze()
             A_DIV = np.interp(A_DIV, [np.min(A_DIV), 0, np.max(A_DIV)], [self.div_min, 0, self.div_max])
 
             tmp_dict = {'A_DIV': A_DIV}
