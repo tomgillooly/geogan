@@ -30,13 +30,12 @@ source $HOME/$VIRTUALENV_NAME/bin/activate
 python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --high_iter 25 --low_iter 5 \
-python train.py --dataroot $DATAROOT --name circle_div_non_filled_new_weight_old_batch \
+	# --continue_train --which_epoch latest --epoch_count 4 \
+python train.py --dataroot $DATAROOT --name circle_div_non_filled_new_weight_no_numerator_old_batch \
 	--model div_inline --which_direction BtoA \
-	--continue_train --which_epoch latest --epoch_count 4 \
 	--num_discrims 0 --alpha 0 \
 	--no_lsgan --norm batch \
-	--diff_in_numerator \
-	--lr 0.00002 \
+	--lr 0.0002 \
 	--input_nc 3 --output_nc 1 \
 	--lambda_A 1 --lambda_D 100 \
 	--which_model_netG unet_256 \
