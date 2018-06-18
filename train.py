@@ -57,7 +57,7 @@ def train():
 
             if total_steps % opt.print_freq == 0:
                 average_errors = {}
-                for key, error_list in running_errors:
+                for key, error_list in running_errors.items():
                     average_errors[key] = sum(error_list) / len(error_list)
                 
                 running_errors = defaultdict(list)
