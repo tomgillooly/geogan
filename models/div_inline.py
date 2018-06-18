@@ -608,22 +608,24 @@ class DivInlineModel(BaseModel):
         fake_B_DIV[mask_edge_coords] = np.max(fake_B_DIV)
         visuals.append(('output_divergence', fake_B_DIV))
 
-        real_B_DIV_grad_x = util.tensor2im(self.real_B_DIV_grad_x.data)
-        visuals.append(('ground_truth_x_gradient', real_B_DIV_grad_x))
-
-        real_B_DIV_grad_y = util.tensor2im(self.real_B_DIV_grad_y.data)
-        visuals.append(('ground_truth_y_gradient', real_B_DIV_grad_y))
-
-        fake_B_DIV_grad_x = util.tensor2im(self.fake_B_DIV_grad_x.data)
-        visuals.append(('output_x_gradient', fake_B_DIV_grad_x))
-
-        fake_B_DIV_grad_y = util.tensor2im(self.fake_B_DIV_grad_y.data)
-        visuals.append(('output_y_gradient', fake_B_DIV_grad_y))
-
         fake_B_discrete = util.tensor2im(self.fake_B_discrete.data)
         fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
         visuals.append(('output_discrete', fake_B_discrete))
+
         
+        if self.opt.grad_loss:
+            real_B_DIV_grad_x = util.tensor2im(self.real_B_DIV_grad_x.data)
+            visuals.append(('ground_truth_x_gradient', real_B_DIV_grad_x))
+
+            real_B_DIV_grad_y = util.tensor2im(self.real_B_DIV_grad_y.data)
+            visuals.append(('ground_truth_y_gradient', real_B_DIV_grad_y))
+
+            fake_B_DIV_grad_x = util.tensor2im(self.fake_B_DIV_grad_x.data)
+            visuals.append(('output_x_gradient', fake_B_DIV_grad_x))
+
+            fake_B_DIV_grad_y = util.tensor2im(self.fake_B_DIV_grad_y.data)
+            visuals.append(('output_y_gradient', fake_B_DIV_grad_y))
+            
         if self.isTrain:
             weight_mask = util.tensor2im(self.weight_mask.data)
             if not self.opt.local_loss:
