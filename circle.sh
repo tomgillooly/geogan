@@ -31,10 +31,11 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --high_iter 25 --low_iter 5 \
 	# --continue_train --which_epoch latest --epoch_count 4 \
-python train.py --dataroot $DATAROOT --name circle_div_non_filled_new_weight_no_numerator_old_batch \
+python train.py --dataroot $DATAROOT --name circle_div_non_filled_new_weight_no_numerator_old_batch_local_loss \
 	--model div_inline --which_direction BtoA \
 	--num_discrims 0 --alpha 0 \
 	--no_lsgan --norm batch \
+	--local_loss \
 	--lr 0.0002 \
 	--input_nc 3 --output_nc 1 \
 	--lambda_A 1 --lambda_D 100 \
