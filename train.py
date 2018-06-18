@@ -49,7 +49,7 @@ def train():
             total_steps += opt.batchSize
             epoch_iter += opt.batchSize
 
-            for key, item in model.get_current_errors():
+            for key, item in model.get_current_errors().items():
                 running_errors[key].append(item)
 
             if total_steps % opt.display_freq == 0:
