@@ -31,7 +31,7 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --high_iter 25 --low_iter 5 \
 	# --continue_train --which_epoch latest --epoch_count 1 \
-python train.py --dataroot $DATAROOT --name circle_div_non_filled_new_weight_numerator_mask_loc \
+python train.py --dataroot $DATAROOT --name circle_div_non_filled_new_weight_old_batch \
 	--model div_inline --which_direction BtoA \
 	--num_discrims 0 --alpha 0 \
 	--no_lsgan --norm batch \
@@ -39,7 +39,7 @@ python train.py --dataroot $DATAROOT --name circle_div_non_filled_new_weight_num
 	--input_nc 3 --output_nc 1 \
 	--lambda_A 1 --lambda_D 100 \
 	--which_model_netG unet_256 \
-	--pool_size 0 --no_html --batchSize 50 --nThreads 2 $OPTIONS
+	--pool_size 0 --no_html --batchSize 10 --nThreads 2 $OPTIONS
 
 kill %1
 
