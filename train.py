@@ -48,7 +48,7 @@ def train():
             model.set_input(data)
             model.optimize_parameters(step_no=total_steps)
 
-            for key, item in model.get_current_errors():
+            for key, item in model.get_current_errors().items():
                 running_errors[key].append(item)
 
             if total_steps % opt.display_freq == 0:
