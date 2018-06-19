@@ -325,14 +325,20 @@ class DivInlineModel(BaseModel):
             self.G_input = torch.cat((self.G_input, self.continents.float()), dim=1)
         
         self.fake_B_DIV = self.netG(self.G_input)
+        
+        self.fake_B_discrete = torch.autograd.Variable(torch.zeros(self.real_B_discrete.shape))
 
-        A_DIV = self.fake_B_DIV.data.numpy().squeeze()
-        A_DIV = np.interp(A_DIV, [np.min(A_DIV), 0, np.max(A_DIV)], [self.div_min, 0, self.div_max])
+        for i in range(self.fake_B_discrete.shape[0]):
+            A_DIV = self.fake_B_DIV[i].data.cpu().numpy().squeeze()
+            A_DIV = np.interp(A_DIV, [np.min(A_DIV), 0, np.max(A_DIV)], [self.div_min, 0, self.div_max])
 
-        tmp_dict = {'A_DIV': A_DIV}
-        self.p.create_one_hot(tmp_dict, self.div_thresh, skel=False)
-        self.fake_B_discrete = tmp_dict['A']
+            tmp_dict = {'A_DIV': A_DIV}
+            self.p.create_one_hot(tmp_dict, self.div_thresh, skel=False)
+            self.fake_B_discrete[i].data.copy_(torch.from_numpy(tmp_dict['A'].transpose(2, 0, 1)))
 
+            self.fake_B_DIV = self.fake_B_DIV.cuda() if len(self.gpu_ids) > 0 else self.fake_B_DIV
+            
+        self.fake_B_discrete = self.fake_B_discrete.cuda() if len(self.gpu_ids) > 0 else self.fake_B_discrete
 
         # Work out the threshold from quantification factor
         # tmp_dict = {'A_DIV': self.fake_B_DIV.data[0].numpy().squeeze()}

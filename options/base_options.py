@@ -49,6 +49,8 @@ class BaseOptions():
         self.parser.add_argument('--folder_pred', action='store_true', help="Include folder prediction in model and loss")
         self.parser.add_argument('--deep_div', action='store_true', help="Generate DIV from deeper layers")
         self.parser.add_argument('--div_depth', type=int, default=3, help="Number of upconv layers to walk back to connect DIV head")
+        self.parser.add_argument('--grad_loss', action='store_true', help='Include L2 loss of gradient image')
+
         
         continuous_data = self.parser.add_mutually_exclusive_group()
         continuous_data.add_argument('--discrete_only', action='store_true', help="Disregard continuous data (divergence and vector fields)")
