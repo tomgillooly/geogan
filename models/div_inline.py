@@ -446,6 +446,7 @@ class DivInlineModel(BaseModel):
 
     def backward_G(self):
         self.loss_G_GAN = 0
+        self.loss_G_L2 = 0
 
         if self.opt.num_discrims > 0:
             # Conditional data (input with chunk missing + mask) + fake data
@@ -500,7 +501,7 @@ class DivInlineModel(BaseModel):
 
         self.loss_G_L2_DIV = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
-        self.loss_G_L2 = self.loss_G_L2_DIV
+        self.loss_G_L2 += self.loss_G_L2_DIV
 
         # self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
         # self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
@@ -523,7 +524,8 @@ class DivInlineModel(BaseModel):
             self.loss_L2_DIV_grad_y = (grad_y_L2_img).sum(dim=2).sum(dim=2).mean(dim=0)
 
             print("Adding gradient losses")
-            self.loss_G_L2 += self.loss_L2_DIV_grad_x + self.loss_L2_DIV_grad_y
+            self.loss_G_L2 += self.loss_L2_DIV_grad_x
+            self.loss_G_L2 += self.loss_L2_DIV_grad_y
 
 
         self.loss_G = self.loss_G_GAN + self.loss_G_L2
