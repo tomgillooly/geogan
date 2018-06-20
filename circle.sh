@@ -39,7 +39,7 @@ python train.py --dataroot $DATAROOT --name circle_div_nf_numerator_local_grad \
 	--local_loss \
 	--grad_loss \
 	--input_nc 3 --output_nc 1 \
-	--lambda_A 1 --lambda_D 100 \
+	--lambda_A 20 --lambda_D 100 \
 	--which_model_netG unet_256 \
 	--pool_size 0 --no_html --batchSize 50 --nThreads 2 $OPTIONS
 

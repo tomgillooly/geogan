@@ -518,8 +518,8 @@ class DivInlineModel(BaseModel):
                 grad_x_L2_img = self.weight_mask.detach() * grad_x_L2_img
                 grad_y_L2_img = self.weight_mask.detach() * grad_y_L2_img
 
-            self.loss_L2_DIV_grad_x = (grad_x_L2_img).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
-            self.loss_L2_DIV_grad_y = (grad_y_L2_img).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+            self.loss_L2_DIV_grad_x = (grad_x_L2_img).sum(dim=2).sum(dim=2).mean(dim=0)
+            self.loss_L2_DIV_grad_y = (grad_y_L2_img).sum(dim=2).sum(dim=2).mean(dim=0)
 
             self.loss_G_L2 += self.loss_L2_DIV_grad_x + self.loss_L2_DIV_grad_y
 
@@ -569,7 +569,7 @@ class DivInlineModel(BaseModel):
     def get_current_errors(self):
         errors = [
             ('G', self.loss_G.data.item()),
-            ('G_L2', self.loss_G_L2.data.item()),
+            ('G_L2', self.loss_G_L2_DIV.data.item()),
             ]
 
         if self.opt.grad_loss:
