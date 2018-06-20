@@ -511,8 +511,15 @@ class DivInlineModel(BaseModel):
             self.fake_B_DIV_grad_x = self.fake_B_DIV_grad_x.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
             self.fake_B_DIV_grad_y = self.fake_B_DIV_grad_y.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
 
-            self.loss_L2_DIV_grad_x = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach())).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
-            self.loss_L2_DIV_grad_y = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach())).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+            grad_x_L2_img =  self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach())
+            grad_y_L2_img =  self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach())
+
+            if self.opt.weighted_grad:
+                grad_x_L2_img = self.weight_mask.detach() * grad_x_L2_img
+                grad_y_L2_img = self.weight_mask.detach() * grad_y_L2_img
+
+            self.loss_L2_DIV_grad_x = (grad_x_L2_img).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+            self.loss_L2_DIV_grad_y = (grad_y_L2_img).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
             self.loss_G_L2 += self.loss_L2_DIV_grad_x + self.loss_L2_DIV_grad_y
 
