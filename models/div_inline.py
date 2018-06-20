@@ -248,6 +248,7 @@ class DivInlineModel(BaseModel):
         self.batch_size = input_A.shape[0]
 
         self.mask_size = input['mask_size'].numpy()[0]
+        print('mask size in set_input', self.mask_size)
         self.div_thresh = input['DIV_thresh'].numpy()[0][0]
         self.div_min = input['DIV_min'].numpy()[0][0]
         self.div_max = input['DIV_max'].numpy()[0][0]
