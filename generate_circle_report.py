@@ -17,11 +17,13 @@ data_desc_lookup = {
 # models = sys.argv[1:]
 
 models = open('models_to_test').read().split('\n')
-models = models[1:]
+models = models
 
 
 weight_fun_re = re.compile('diff_in_numerator: (\w+)')
 local_loss_re = re.compile('local_loss: (\w+)')
+grad_loss_re = re.compile('grad_loss: (\w+)')
+num_discrims_re = re.compile('num_discrims: (\d+)')
 batch_size_re = re.compile('batchSize: (\d+)')
 learning_rate_re = re.compile('lr: ([\d\.e-]+)')
 dataroot_re = re.compile('dataroot: ([\w/-]+)')
@@ -54,21 +56,49 @@ with open('circle_results_report.tex', 'w') as out_file:
 		))
 	out_file.write('\\clearpage\n')
 
+	model_params = [{}]*len(models)
+
+	out_file.write('\\begin{table}[h]\n')
+	# out_file.write('\\begin{tabular}{|p{5cm}|p{10cm}|}\n')
+	out_file.write('\\begin{tabular}{|c|c|c|c|c|c|}\n')
+	out_file.write('\t\\hline\n')
+	out_file.write(' & Batch Size & Loss & Weight Fn & Gradient Loss & Critic \\\\\n')
+	out_file.write('\t\\hline\n')
+
 	for j, model in enumerate(models):
 		options = open(os.path.join('checkpoints', model, 'opt.txt')).read()
 
 		weight_fun_match = weight_fun_re.search(options)
+
+		weight_fun_match = weight_fun_re.search(options)
 		if weight_fun_match:
 			diff_in_numerator = weight_fun_match.group(1) == 'True'
-			weight_fn = ''.join(['$\\frac', '{\\lvert F_k - F_{k\'} \\rvert}' if diff_in_numerator else '{1}', '{F_k + F_{k\'}}$'])
+			model_params[j]['weight_fn'] = ''.join(['$\\frac', '{\\lvert F_k - F_{k\'} \\rvert}' if diff_in_numerator else '{1}', '{F_k + F_{k\'}}$'])
 		else:
-			weight_fn = ''.join(['$\\frac', '{\\lvert T \\rvert}', '{\\lvert {F_k} \\rvert}$'])
+			model_params[j]['weight_fn'] = ''.join(['$\\frac', '{\\lvert T \\rvert}', '{\\lvert {F_k} \\rvert}$'])
 
+		model_params[j]['local_loss'] = local_loss_re.search(options).group(1) == 'True'
+		model_params[j]['batch_size'] = int(batch_size_re.search(options).group(1))*10
+		model_params[j]['learning_rate'] = float(learning_rate_re.search(options).group(1))
+		model_params[j]['dataroot'] = dataroot_re.search(options).group(1)
+		model_params[j]['grad_loss'] = grad_loss_re.search(options).group(1) == 'True' if grad_loss_re.search(options) else False
+		model_params[j]['critic'] = int(num_discrims_re.search(options).group(1)) > 0
 
-		local_loss = local_loss_re.search(options).group(1) == 'True'
-		batch_size = int(batch_size_re.search(options).group(1))
-		learning_rate = float(learning_rate_re.search(options).group(1))
-		dataroot = dataroot_re.search(options).group(1)
+		out_file.write('\tExperiment {} & {} & {} & {} & {} & {} \\\\\n'.format(
+			j+1,
+			model_params[j]['batch_size'],
+			'Local' if model_params[j]['local_loss'] else 'Global',
+			model_params[j]['weight_fn'],
+			'Yes' if model_params[j]['grad_loss'] else 'No',
+			'Yes' if model_params[j]['critic'] else 'No'))
+		out_file.write('\t\\hline\n')
+
+	out_file.write('\\end{tabular}\n')
+	out_file.write('\\end{table}\n')
+		
+
+	for j, model in enumerate(models):
+		options = open(os.path.join('checkpoints', model, 'opt.txt')).read()
 
 		# num_training_data_images = int(subprocess.check_output(
 		# 	['ssh', 'oggy', 'find {} -name *.pkl | wc'.format(dataroot)]
@@ -88,15 +118,15 @@ with open('circle_results_report.tex', 'w') as out_file:
 		out_file.write('\\begin{table}[h]\n')
 		out_file.write('\\begin{tabular}{|p{5cm}|p{10cm}|}\n')
 		out_file.write('\t\\hline\n')
-		out_file.write('\tWeighting function & {} \\\\\n'.format(weight_fn))
+		out_file.write('\tWeighting function & {} \\\\\n'.format(model_params[j]['weight_fn']))
 		out_file.write('\t\\hline\n')
-		out_file.write('\tLoss & {} \\\\\n'.format('Local' if local_loss else 'Global'))
+		out_file.write('\tLoss & {} \\\\\n'.format('Local' if model_params[j]['local_loss'] else 'Global'))
 		out_file.write('\t\\hline\n')
 		out_file.write('\tNum training images & {} \\\\\n'.format(num_training_data_images))
 		out_file.write('\t\\hline\n')
-		out_file.write('\tBatch size & {} \\\\\n'.format(batch_size*10))
+		out_file.write('\tBatch size & {} \\\\\n'.format(model_params[j]['batch_size']))
 		out_file.write('\t\\hline\n')
-		out_file.write('\tLearning rate & {} \\\\\n'.format(learning_rate))
+		out_file.write('\tLearning rate & {} \\\\\n'.format(model_params[j]['learning_rate']))
 		out_file.write('\t\\hline\n')
 		out_file.write('\tDataset description & {} \\\\\n'.format(data_desc_lookup[os.path.basename(dataroot)]))
 		out_file.write('\t\\hline\n')

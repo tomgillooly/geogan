@@ -21,6 +21,6 @@
 for model in `cat models_to_test`
 do
 	echo $model
-	# bash test_circle.sh latest $model
+	sed -e 's/$1/latest/' test_circle.sh | sed -e "s/\$2/$model/" | sbatch
 	python assorted_test/plot_loss.py $model
 done
