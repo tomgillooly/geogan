@@ -281,7 +281,7 @@ class DivInlineModel(BaseModel):
 
         self.fake_B_DIV = self.netG(self.G_input)
 
-        if opt.grad_loss:
+        if self.opt.grad_loss:
             self.real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV)
             self.real_B_DIV_grad_y = self.sobel_layer_y(self.real_B_DIV)
 
