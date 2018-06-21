@@ -249,9 +249,9 @@ class DivInlineModel(BaseModel):
 
         self.mask_size = input['mask_size'].numpy()[0]
         print('mask size in set_input', self.mask_size)
-        self.div_thresh = input['DIV_thresh'].numpy()[0][0]
-        self.div_min = input['DIV_min'].numpy()[0][0]
-        self.div_max = input['DIV_max'].numpy()[0][0]
+        self.div_thresh = input['DIV_thresh']
+        self.div_min = input['DIV_min']
+        self.div_max = input['DIV_max']
 
     def forward(self):
         # Thresholded, one-hot divergence map with chunk missing
@@ -281,25 +281,19 @@ class DivInlineModel(BaseModel):
 
         self.fake_B_DIV = self.netG(self.G_input)
 
-        self.real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV)
-        self.real_B_DIV_grad_y = self.sobel_layer_y(self.real_B_DIV)
+        if opt.grad_loss:
+            self.real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV)
+            self.real_B_DIV_grad_y = self.sobel_layer_y(self.real_B_DIV)
 
-        self.fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV)
-        self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV)
-        
-        self.fake_B_discrete = torch.autograd.Variable(torch.zeros(self.real_B_discrete.shape))
+            self.fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV)
+            self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV)
 
-        for i in range(self.fake_B_discrete.shape[0]):
-            A_DIV = self.fake_B_DIV[i].data.cpu().numpy().squeeze()
-            A_DIV = np.interp(A_DIV, [np.min(A_DIV), 0, np.max(A_DIV)], [self.div_min, 0, self.div_max])
+        scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat((self.div_max, torch.ones(self.div_max.shape), -self.div_min), dim=1)
+        scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
+        self.fake_B_discrete = (torch.cat((self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape), -self.fake_B_DIV), dim=1) > scaled_thresh)
+        plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
-            tmp_dict = {'A_DIV': A_DIV}
-            self.p.create_one_hot(tmp_dict, self.div_thresh, skel=False)
-            self.fake_B_discrete[i].data.copy_(torch.from_numpy(tmp_dict['A'].transpose(2, 0, 1)))
-
-            self.fake_B_DIV = self.fake_B_DIV.cuda() if len(self.gpu_ids) > 0 else self.fake_B_DIV
-            
-        self.fake_B_discrete = self.fake_B_discrete.cuda() if len(self.gpu_ids) > 0 else self.fake_B_discrete
+        self.fake_B_discrete[:, 1, :, :].copy_(plate)
 
         if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             self.fake_folder = self.folder_fc(self.netG.inner_layer.output.view(self.batch_size, -1))
@@ -326,20 +320,13 @@ class DivInlineModel(BaseModel):
             self.G_input = torch.cat((self.G_input, self.continents.float()), dim=1)
         
         self.fake_B_DIV = self.netG(self.G_input)
-        
-        self.fake_B_discrete = torch.autograd.Variable(torch.zeros(self.real_B_discrete.shape))
 
-        for i in range(self.fake_B_discrete.shape[0]):
-            A_DIV = self.fake_B_DIV[i].data.cpu().numpy().squeeze()
-            A_DIV = np.interp(A_DIV, [np.min(A_DIV), 0, np.max(A_DIV)], [self.div_min, 0, self.div_max])
+        scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat((self.DIV_max, torch.ones(self.div_max.shape), -self.div_min), dim=1)
+        scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
+        self.fake_B_discrete = (torch.cat((self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape), -self.fake_B_DIV), dim=1) > scaled_thresh)
+        plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
-            tmp_dict = {'A_DIV': A_DIV}
-            self.p.create_one_hot(tmp_dict, self.div_thresh, skel=False)
-            self.fake_B_discrete[i].data.copy_(torch.from_numpy(tmp_dict['A'].transpose(2, 0, 1)))
-
-            self.fake_B_DIV = self.fake_B_DIV.cuda() if len(self.gpu_ids) > 0 else self.fake_B_DIV
-            
-        self.fake_B_discrete = self.fake_B_discrete.cuda() if len(self.gpu_ids) > 0 else self.fake_B_discrete
+        self.fake_B_discrete[:, 1, :, :].copy_(plate)
 
         # Work out the threshold from quantification factor
         # tmp_dict = {'A_DIV': self.fake_B_DIV.data[0].numpy().squeeze()}
