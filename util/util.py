@@ -98,6 +98,9 @@ def create_weight_mask(tensor1, tensor2, diff_in_numerator=False):
     pixel_weights = torch.cat((ridge_weight, plate_weight, subduction_weight), dim=1)
     pixel_weights /= torch.sum(pixel_weights + 1e-8, dim=1, keepdim=True)
 
+    if tensor1.device.type != 'cpu':
+        pixel_weights = pixel_weights.cuda()
+
     weight_mask = torch.max(pixel_weights * torch.max(tensor1, tensor2), dim=1, keepdim=True)[0]
 
     return weight_mask
