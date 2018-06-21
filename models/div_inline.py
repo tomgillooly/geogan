@@ -289,12 +289,12 @@ class DivInlineModel(BaseModel):
             self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV)
 
         scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
-            (self.div_max, torch.ones(self.div_max.shape).cuda() if len(self.gpu_ids) > 0 else torch.ones(self.div_max.shape), -self.div_min),
+            (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
             dim=1)
         scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
         scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
         self.fake_B_discrete = (torch.cat(
-            (self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape).cuda() if len(self.gpu_ids) > 0 else torch.ones(self.fake_B_DIV.shape), -self.fake_B_DIV)
+            (self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), -self.fake_B_DIV)
             , dim=1) > scaled_thresh)
         plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
