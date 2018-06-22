@@ -37,6 +37,5 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--no_mask_to_critic', action='store_true', help="Don't pass mask to discriminator/critic")
         self.parser.add_argument('--alpha', type=int, default=0, help="Weighting value of pixel class weightings")
         self.parser.add_argument('--diff_in_numerator', action='store_true', help='Use frequency diff in numerator when creating weight mask')
-        self.parser.add_argument('--grad_loss', action='store_true', help='Include L2 loss of gradient image')
-
+        self.parser.add_argument('--weighted_grad', action='store_true', help='Apply weight mask to gradient')
         self.isTrain = True

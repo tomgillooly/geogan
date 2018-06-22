@@ -248,9 +248,10 @@ class DivInlineModel(BaseModel):
         self.batch_size = input_A.shape[0]
 
         self.mask_size = input['mask_size'].numpy()[0]
-        self.div_thresh = input['DIV_thresh'].numpy()[0][0]
-        self.div_min = input['DIV_min'].numpy()[0][0]
-        self.div_max = input['DIV_max'].numpy()[0][0]
+        print('mask size in set_input', self.mask_size)
+        self.div_thresh = input['DIV_thresh']
+        self.div_min = input['DIV_min']
+        self.div_max = input['DIV_max']
 
     def forward(self):
         # Thresholded, one-hot divergence map with chunk missing
@@ -280,25 +281,24 @@ class DivInlineModel(BaseModel):
 
         self.fake_B_DIV = self.netG(self.G_input)
 
-        self.real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV)
-        self.real_B_DIV_grad_y = self.sobel_layer_y(self.real_B_DIV)
+        if self.opt.grad_loss:
+            self.real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV)
+            self.real_B_DIV_grad_y = self.sobel_layer_y(self.real_B_DIV)
 
-        self.fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV)
-        self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV)
-        
-        self.fake_B_discrete = torch.autograd.Variable(torch.zeros(self.real_B_discrete.shape))
+            self.fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV)
+            self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV)
 
-        for i in range(self.fake_B_discrete.shape[0]):
-            A_DIV = self.fake_B_DIV[i].data.cpu().numpy().squeeze()
-            A_DIV = np.interp(A_DIV, [np.min(A_DIV), 0, np.max(A_DIV)], [self.div_min, 0, self.div_max])
+        scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
+            (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
+            dim=1)
+        scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
+        scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
+        self.fake_B_discrete = (torch.cat(
+            (self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), -self.fake_B_DIV)
+            , dim=1) > scaled_thresh)
+        plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
-            tmp_dict = {'A_DIV': A_DIV}
-            self.p.create_one_hot(tmp_dict, self.div_thresh, skel=False)
-            self.fake_B_discrete[i].data.copy_(torch.from_numpy(tmp_dict['A'].transpose(2, 0, 1)))
-
-            self.fake_B_DIV = self.fake_B_DIV.cuda() if len(self.gpu_ids) > 0 else self.fake_B_DIV
-            
-        self.fake_B_discrete = self.fake_B_discrete.cuda() if len(self.gpu_ids) > 0 else self.fake_B_discrete
+        self.fake_B_discrete[:, 1, :, :].copy_(plate)
 
         if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             self.fake_folder = self.folder_fc(self.netG.inner_layer.output.view(self.batch_size, -1))
@@ -326,13 +326,12 @@ class DivInlineModel(BaseModel):
         
         self.fake_B_DIV = self.netG(self.G_input)
 
-        A_DIV = self.fake_B_DIV.data.numpy().squeeze()
-        A_DIV = np.interp(A_DIV, [np.min(A_DIV), 0, np.max(A_DIV)], [self.div_min, 0, self.div_max])
+        scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat((self.DIV_max, torch.ones(self.div_max.shape), -self.div_min), dim=1)
+        scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
+        self.fake_B_discrete = (torch.cat((self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape), -self.fake_B_DIV), dim=1) > scaled_thresh)
+        plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
-        tmp_dict = {'A_DIV': A_DIV}
-        self.p.create_one_hot(tmp_dict, self.div_thresh, skel=False)
-        self.fake_B_discrete = tmp_dict['A']
-
+        self.fake_B_discrete[:, 1, :, :].copy_(plate)
 
         # Work out the threshold from quantification factor
         # tmp_dict = {'A_DIV': self.fake_B_DIV.data[0].numpy().squeeze()}
@@ -439,6 +438,7 @@ class DivInlineModel(BaseModel):
 
     def backward_G(self):
         self.loss_G_GAN = 0
+        self.loss_G_L2 = 0
 
         if self.opt.num_discrims > 0:
             # Conditional data (input with chunk missing + mask) + fake data
@@ -489,11 +489,11 @@ class DivInlineModel(BaseModel):
         self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
         self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
 
-        self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI, self.opt.diff_in_numerator)
+        self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI.float(), self.opt.diff_in_numerator)
 
         self.loss_G_L2_DIV = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
-        self.loss_G_L2 = self.loss_G_L2_DIV
+        self.loss_G_L2 += self.loss_G_L2_DIV
 
         # self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
         # self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
@@ -505,10 +505,19 @@ class DivInlineModel(BaseModel):
             self.fake_B_DIV_grad_x = self.fake_B_DIV_grad_x.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
             self.fake_B_DIV_grad_y = self.fake_B_DIV_grad_y.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
 
-            self.loss_L2_DIV_grad_x = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach())).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
-            self.loss_L2_DIV_grad_y = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach())).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+            grad_x_L2_img =  self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach())
+            grad_y_L2_img =  self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach())
 
-            self.loss_G_L2 += self.loss_L2_DIV_grad_x + self.loss_L2_DIV_grad_y
+            if self.opt.weighted_grad:
+                grad_x_L2_img = self.weight_mask.detach() * grad_x_L2_img
+                grad_y_L2_img = self.weight_mask.detach() * grad_y_L2_img
+
+            self.loss_L2_DIV_grad_x = (grad_x_L2_img).sum(dim=2).sum(dim=2).mean(dim=0)
+            self.loss_L2_DIV_grad_y = (grad_y_L2_img).sum(dim=2).sum(dim=2).mean(dim=0)
+
+            print("Adding gradient losses")
+            self.loss_G_L2 += self.loss_L2_DIV_grad_x
+            self.loss_G_L2 += self.loss_L2_DIV_grad_y
 
 
         self.loss_G = self.loss_G_GAN + self.loss_G_L2
@@ -557,6 +566,7 @@ class DivInlineModel(BaseModel):
         errors = [
             ('G', self.loss_G.data.item()),
             ('G_L2', self.loss_G_L2.data.item()),
+            ('G_L2_DIV', self.loss_G_L2_DIV.data.item()),
             ]
 
         if self.opt.grad_loss:

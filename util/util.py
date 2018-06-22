@@ -87,9 +87,9 @@ def create_weight_mask(tensor1, tensor2, diff_in_numerator=False):
     subduction_freq_2 = num_subduction_pixels_2 / total_pixels
 
     if diff_in_numerator:
-        ridge_weight = 2.0 * torch.abs(ridge_freq_1 - ridge_freq_2) / (ridge_freq_1 + ridge_freq_2)
-        plate_weight = 2.0 * torch.abs(plate_freq_1 - plate_freq_2) / (plate_freq_1 + plate_freq_2)
-        subduction_weight = 2.0 * torch.abs(subduction_freq_1 - subduction_freq_2) / (subduction_freq_1 + subduction_freq_2)
+        ridge_weight = 2.0 + torch.abs(ridge_freq_1 - ridge_freq_2) / (ridge_freq_1 + ridge_freq_2)
+        plate_weight = 2.0 + torch.abs(plate_freq_1 - plate_freq_2) / (plate_freq_1 + plate_freq_2)
+        subduction_weight = 2.0 + torch.abs(subduction_freq_1 - subduction_freq_2) / (subduction_freq_1 + subduction_freq_2)
     else:
         ridge_weight = 2 * 1.0 / (ridge_freq_1 + ridge_freq_2)
         plate_weight = 2 * 1.0 / (plate_freq_1 + plate_freq_2)
@@ -97,6 +97,9 @@ def create_weight_mask(tensor1, tensor2, diff_in_numerator=False):
 
     pixel_weights = torch.cat((ridge_weight, plate_weight, subduction_weight), dim=1)
     pixel_weights /= torch.sum(pixel_weights + 1e-8, dim=1, keepdim=True)
+
+    if tensor1.device.type != 'cpu':
+        pixel_weights = pixel_weights.cuda()
 
     weight_mask = torch.max(pixel_weights * torch.max(tensor1, tensor2), dim=1, keepdim=True)[0]
 

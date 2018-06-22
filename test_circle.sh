@@ -2,7 +2,7 @@
 
 if [ "$HOSTNAME" == "tomoplata-OptiPlex-790" ]; then
 	VIRTUALENV_NAME=pytorch3
-	DATAROOT=~/data/geo_data_pkl
+	DATAROOT=~/data/circle_data_non_filled
 	HOME=~
 	OPTIONS="--gpu_ids -1 --display_id 0"
 else
