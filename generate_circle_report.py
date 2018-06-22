@@ -155,7 +155,7 @@ with open('circle_results_report.tex', 'w') as out_file:
 		weight_fun_match = weight_fun_re.search(options)
 		if weight_fun_match:
 			diff_in_numerator = weight_fun_match.group(1) == 'True'
-			model_params[j]['weight_fn'] = ''.join(['$\\frac', '{\\lvert F_k - F_{k\'} \\rvert}' if diff_in_numerator else '{1}', '{F_k + F_{k\'}}$'])
+			model_params[j]['weight_fn'] = ''.join(['$\\frac', '{2 + \\lvert F_k - F_{k\'} \\rvert}' if diff_in_numerator else '{2}', '{F_k + F_{k\'}}$'])
 		else:
 			model_params[j]['weight_fn'] = ''.join(['$\\frac', '{\\lvert T \\rvert}', '{\\lvert {F_k} \\rvert}$'])
 
