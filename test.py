@@ -130,7 +130,6 @@ with open(results_file_name, 'a') as results_file:
     if text:
         webpage.add_text(text)
 
-
     for (visuals, img_path), metrics in zip(img_data, metric_data):
 
         text = []
@@ -144,6 +143,7 @@ with open(results_file_name, 'a') as results_file:
             results.append(str(value))
 
         results_file.write(', '.join(results) + '\n')
+        # results_file.write(', '.join(text) + '\n')
         
         if len(visuals) < 6:
             row_lengths = [len(visuals)]

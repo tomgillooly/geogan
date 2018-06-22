@@ -31,10 +31,13 @@ better_legend_lookup = {
 	"G_GAN_D1": NameOrder("-D1(fake) (G training)", 8),
 	"G_GAN_D2": NameOrder("-D2(fake) (G training)", 9),
 	"G_L2": NameOrder("Continuous L2", 10),
+	"G_L2_DIV": NameOrder("Continuous L2", 10),
 	"G_CE": NameOrder("Discrete CE", 11),
 	"G": NameOrder("G (Adversarial + CE + L2)", 12),
 	"folder_CE": NameOrder("Folder prediction CE", 13),
 	"D": NameOrder("Critic loss", 14),
+	"G_L2_grad_y": NameOrder("L2 Y gradient", 15),
+	"G_L2_grad_x": NameOrder("L2 X gradient", 16),
 }
 
 

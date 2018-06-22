@@ -248,7 +248,6 @@ class DivInlineModel(BaseModel):
         self.batch_size = input_A.shape[0]
 
         self.mask_size = input['mask_size'].numpy()[0]
-        print('mask size in set_input', self.mask_size)
         self.div_thresh = input['DIV_thresh']
         self.div_min = input['DIV_min']
         self.div_max = input['DIV_max']
@@ -326,7 +325,7 @@ class DivInlineModel(BaseModel):
         
         self.fake_B_DIV = self.netG(self.G_input)
 
-        scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat((self.DIV_max, torch.ones(self.div_max.shape), -self.div_min), dim=1)
+        scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat((self.div_max, torch.ones(self.div_max.shape), -self.div_min), dim=1)
         scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
         self.fake_B_discrete = (torch.cat((self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape), -self.fake_B_DIV), dim=1) > scaled_thresh)
         plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
@@ -654,14 +653,28 @@ class DivInlineModel(BaseModel):
     def get_current_metrics(self):
         # import skimage.io as io
         # import matplotlib.pyplot as plt
+        real_DIV = self.real_B_DIV.data.numpy().squeeze()
+        fake_DIV = self.fake_B_DIV.data.numpy().squeeze()
 
-        metrics = []
+        real_DIV_local = real_DIV[np.where(self.mask.numpy().squeeze())]
+        fake_DIV_local = fake_DIV[np.where(self.mask.numpy().squeeze())]
+
+        L2_error = np.mean((real_DIV - fake_DIV)**2)
+        L2_local_error = np.mean((real_DIV_local - fake_DIV_local)**2)
+
+        metrics = [('L2_global', L2_error)]
+        metrics.append(('L2_local', L2_local_error))
 
         return OrderedDict(metrics)
 
 
     def accumulate_metrics(self, metrics):
-        return OrderedDict([])
+        # all_L2 = [metric['L2'] for metric in metrics]
+
+        # metrics = ('L2', np.mean(all_L2))
+        metrics = []
+
+        return OrderedDict()
 
 
     def save(self, label):
