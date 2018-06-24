@@ -38,5 +38,5 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--diff_in_numerator', action='store_true', help='Use frequency diff in numerator when creating weight mask')
         self.parser.add_argument('--weighted_grad', action='store_true', help='Apply weight mask to gradient')
         self.parser.add_argument('--optim_type', type=str, default='adam', help='Type of optimiser to use adam|rmsprop')
-        self.parser.add_argument('--alpha', type=int, default=0.99, help="Smoothing value for rms prop")
+        self.parser.add_argument('--alpha', type=float, default=0.99, help="Smoothing value for rms prop")
         self.isTrain = True
