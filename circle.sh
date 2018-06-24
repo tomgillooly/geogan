@@ -31,7 +31,7 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --high_iter 25 --low_iter 5 \
 	# --continue_train --which_epoch latest --epoch_count 4 \
-python train.py --dataroot $DATAROOT --name ellipse_wgrad \
+python train.py --dataroot $DATAROOT --name ellipse_wgrad_b1_09 \
 	--model div_inline --which_direction BtoA \
 	--num_discrims 0 --alpha 0 \
 	--no_lsgan --norm batch \
@@ -39,6 +39,7 @@ python train.py --dataroot $DATAROOT --name ellipse_wgrad \
 	--local_loss \
 	--grad_loss \
 	--weighted_grad \
+	--beta1 0.9 \
 	--input_nc 3 --output_nc 1 \
 	--lambda_A 20 --lambda_D 100 \
 	--which_model_netG unet_256 \
