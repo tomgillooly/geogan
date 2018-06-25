@@ -77,7 +77,7 @@ def train():
             model.step_optimisers()
           
             total_steps += 1
-            epoch_iter += opt.batchSize
+            epoch_iter += opt.batchSize*10
 
             if total_steps % opt.display_freq == 0:
                 save_result = total_steps % opt.update_html_freq == 0

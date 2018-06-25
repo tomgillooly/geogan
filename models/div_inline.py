@@ -147,7 +147,12 @@ class DivInlineModel(BaseModel):
             discrim_input_channels = opt.output_nc
 
 
-            self.netDs = [DiscriminatorWGANGP(discrim_input_channels, (64, 64), opt.ndf) for _ in range(self.opt.num_discrims)]
+            if opt.local_loss:
+                self.critic_im_size = (64, 64)
+            else:
+                self.critic_im_size = (256, 256)
+
+            self.netDs = [DiscriminatorWGANGP(discrim_input_channels, self.critic_im_size, opt.ndf) for _ in range(self.opt.num_discrims)]
 
             # Apply is in-place, we don't need to return into anything
             [netD.apply(weights_init) for netD in self.netDs]
@@ -212,6 +217,9 @@ class DivInlineModel(BaseModel):
         input_A_DIV = input['A_DIV' if AtoB else 'B_DIV']
         input_B_DIV = input['B_DIV' if AtoB else 'A_DIV']
         mask        = input['mask']
+
+        if self.opt.num_discrims > 0:
+            assert input_A.shape[2:] == self.critic_im_size, "Fix im dimensions in critic"
 
         if self.opt.continent_data:
             continents = input['cont']
