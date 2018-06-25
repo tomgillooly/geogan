@@ -464,17 +464,8 @@ class DivInlineModel(BaseModel):
         if self.opt.num_discrims > 0:
             # Conditional data (input with chunk missing + mask) + fake data
             # Remember self.fake_B_discrete is the generator output
-            fake_AB = self.real_A_discrete
+            fake_AB = self.fake_B_DIV
             
-            if not self.opt.no_mask_to_critic:
-                fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
-            
-            if self.opt.continent_data:
-                fake_AB = torch.cat((fake_AB, self.continents.float()), dim=1)
-            
-            # Append fake data
-            fake_AB = torch.cat((fake_AB, self.fake_B_DIV), dim=1)
-        
             # Mean across batch, then across discriminators
             # We only optimise with respect to the fake prediction because
             # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
