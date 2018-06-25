@@ -306,6 +306,29 @@ class DivInlineModel(BaseModel):
         if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             self.fake_folder = self.folder_fc(self.netG.inner_layer.output.view(self.batch_size, -1))
             self.fake_folder = torch.nn.functional.log_softmax(self.fake_folder, dim=1)
+
+
+        # if we aren't taking local loss, use entire image
+        loss_mask = torch.ones(self.mask.shape).byte()
+        loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
+        loss_mask = torch.autograd.Variable(loss_mask)
+
+        im_dims = self.mask.shape[2:]
+
+        if self.opt.local_loss:
+            loss_mask = self.mask.byte()
+
+            # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
+            im_dims = self.mask_size, self.mask_size
+            # im_dims = (100, 100)
+        
+
+        self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+
+        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+
+        self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
+        self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
         
 
     # no backprop gradients
@@ -383,13 +406,13 @@ class DivInlineModel(BaseModel):
     def backward_single_D(self, net_D, cond_data, real_data, fake_data):
         # Fake
         # In this case real_A, the input, is our conditional vector
-        fake_AB = torch.cat((cond_data, fake_data), dim=1)
+        fake_AB = fake_data
         # stop backprop to the generator by detaching fake_B
         fake_loss = net_D(fake_AB.detach()).mean(dim=0, keepdim=True)
         # self.loss_D2_fake = self.criterionGAN(pred_fake, False)
 
         # Real
-        real_AB = torch.cat((cond_data, real_data), dim=1)
+        real_AB = real_data
         # Mean across batch
         real_loss = net_D(real_AB).mean(dim=0, keepdim=True)
         # self.loss_D2_real = self.criterionGAN(pred_real, True)
@@ -471,30 +494,6 @@ class DivInlineModel(BaseModel):
                     p.requires_grad = True
 
 
-        # if we aren't taking local loss, use entire image
-        loss_mask = torch.ones(self.mask.shape).byte()
-        loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
-        loss_mask = torch.autograd.Variable(loss_mask)
-
-        im_dims = self.mask.shape[2:]
-
-        if self.opt.local_loss:
-            loss_mask = self.mask.byte()
-
-            # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
-            im_dims = self.mask_size, self.mask_size
-            # im_dims = (100, 100)
-        
-
-        total_pixels = torch.sum(torch.sum(loss_mask > 0, dim=2, keepdim=True), dim=3, keepdim=True).float()
-
-        self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
-
-        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
-
-        self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
-        self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
-
         self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI.float(), self.opt.diff_in_numerator)
 
         self.loss_G_L2_DIV = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
@@ -543,7 +542,7 @@ class DivInlineModel(BaseModel):
              
             self.loss_D, self.loss_D_real, self.loss_D_fake, self.loss_D_grad_pen = self.backward_D(self.netDs, self.optimizer_Ds,
                 cond_data,
-                self.real_B_DIV, self.fake_B_DIV)
+                self.real_B_DIV_ROI, self.fake_B_DIV_ROI)
 
             if not self.D_has_run:
                 self.D_has_run = True
