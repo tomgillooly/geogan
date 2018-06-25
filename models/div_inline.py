@@ -218,9 +218,6 @@ class DivInlineModel(BaseModel):
         input_B_DIV = input['B_DIV' if AtoB else 'A_DIV']
         mask        = input['mask']
 
-        if self.opt.num_discrims > 0:
-            assert input_A.shape[2:] == self.critic_im_size, "Fix im dimensions in critic {} -> {}".format(self.critic_im_size, input_A.shape[2:])
-
         if self.opt.continent_data:
             continents = input['cont']
         
@@ -259,10 +256,16 @@ class DivInlineModel(BaseModel):
         self.batch_size = input_A.shape[0]
 
         self.mask_size = input['mask_size'].numpy()[0]
-        print('mask size in set_input', self.mask_size)
         self.div_thresh = input['DIV_thresh']
         self.div_min = input['DIV_min']
         self.div_max = input['DIV_max']
+
+        if self.opt.num_discrims > 0:
+            if self.opt.local_loss:
+                assert (mask_size, mask_size) == self.critic_im_size, "Fix im dimensions in critic {} -> {}".format(self.critic_im_size, (mask_size, mask_size))
+            else:
+                assert input_A.shape[2:] == self.critic_im_size, "Fix im dimensions in critic {} -> {}".format(self.critic_im_size, input_A.shape[2:])
+
 
     def forward(self):
         # Thresholded, one-hot divergence map with chunk missing
