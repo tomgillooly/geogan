@@ -103,6 +103,8 @@ class DivInlineModel(BaseModel):
         BaseModel.initialize(self, opt)
         self.isTrain = opt.isTrain
 
+        self.D_has_run = False
+
         self.p = GeoPickler('')
 
         # load/define networks
@@ -141,17 +143,11 @@ class DivInlineModel(BaseModel):
                 self.folder_fc.cuda(self.gpu_ids[0])
 
         if self.isTrain:
-            # Inputs: 3 channels of one-hot input (with chunk missing) + divergence output data
-            discrim_input_channels = opt.input_nc + opt.output_nc
+            # Inputs: 3 channels of one-hot input (with chunk missing) + divergence output data + mask
+            discrim_input_channels = opt.input_nc + opt.output_nc + 1
 
-            # Add extra channel for mask if we need it
-            if not self.opt.no_mask_to_critic:
-                discrim_input_channels += 1
 
-            if self.opt.continent_data:
-                discrim_input_channels += 1
-
-            self.netDs = [DiscriminatorWGANGP(discrim_input_channels, (256, 512), opt.ndf) for _ in range(self.opt.num_discrims)]
+            self.netDs = [DiscriminatorWGANGP(discrim_input_channels, (256, 256), opt.ndf) for _ in range(self.opt.num_discrims)]
 
             # Apply is in-place, we don't need to return into anything
             [netD.apply(weights_init) for netD in self.netDs]
@@ -229,6 +225,7 @@ class DivInlineModel(BaseModel):
             
             if self.opt.continent_data:
                 continents = continents.cuda(self.gpu_ids[0], async=True)
+
         
         self.input_A        = input_A
         self.input_B        = input_B
@@ -300,7 +297,7 @@ class DivInlineModel(BaseModel):
         scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
         scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
         self.fake_B_discrete = (torch.cat(
-            (self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), -self.fake_B_DIV)
+            (-self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV)
             , dim=1) > scaled_thresh)
         plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
@@ -420,17 +417,10 @@ class DivInlineModel(BaseModel):
 
 
     def backward_D(self, net_Ds, optimisers, cond_data, real_data, fake_data):
-
-        for optimiser in optimisers:
-            optimiser.zero_grad()
-
         # We get back full loss, real loss and fake loss, along axis 1
         # Concatenate the results from each discriminator along axis 2
         loss = torch.cat([self.backward_single_D(net_D, cond_data, real_data, fake_data) for net_D in net_Ds], dim=2)
-
-        for optimiser in optimisers:
-            optimiser.step()
-
+        
         # loss[:, 0, :].backward()        
 
         # We take the different loss tyes (along axis 1) and take their average across all discriminators (axis 2 before selecting index on axis 1)
@@ -463,12 +453,22 @@ class DivInlineModel(BaseModel):
             # Mean across batch, then across discriminators
             # We only optimise with respect to the fake prediction because
             # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
+
+            for netD in self.netDs:
+                for p in netD.parameters():
+                    p.requires_grad = False
+
             pred_fake1 = torch.cat([netD(fake_AB).mean(dim=0, keepdim=True) for netD in self.netDs]).mean(dim=0, keepdim=True)
             
             self.loss_G_GAN1 = -pred_fake1
  
             # Trying to incentivise making this big, so it's mistaken for real
             self.loss_G_GAN = self.loss_G_GAN1
+
+
+            for netD in self.netDs:
+                for p in netD.parameters():
+                    p.requires_grad = True
 
 
         # if we aren't taking local loss, use entire image
@@ -537,36 +537,31 @@ class DivInlineModel(BaseModel):
         self.loss_G.backward()
 
 
-    def optimize_parameters(self, **kwargs):
-        # Doesn't do anything with discriminator, just populates input (conditional), 
-        # target and generated data in object
-        self.forward()
-
+    def optimize_D(self):
         if self.opt.num_discrims > 0:
-            cond_data = self.real_A_discrete
-
-            if not self.opt.no_mask_to_critic:
-                cond_data = torch.cat((cond_data, self.mask.float()), dim=1)
- 
-            if self.opt.continent_data:
-                cond_data = torch.cat((cond_data, self.continents.float()), dim=1)
-
-
-
+            cond_data = torch.cat((self.real_A_discrete, self.mask.float()), dim=1)
+             
             self.loss_D, self.loss_D_real, self.loss_D_fake, self.loss_D_grad_pen = self.backward_D(self.netDs, self.optimizer_Ds,
                 cond_data,
                 self.real_B_DIV, self.fake_B_DIV)
 
-        step_no = kwargs['step_no']
-        if ((step_no < self.opt.high_iter*25 and step_no % self.opt.high_iter == 0) or (step_no >= self.opt.high_iter*25 and step_no % self.opt.low_iter == 0)) or self.opt.num_discrims == 0:
-            if step_no % 10 == 0:
-                self.optimizer_G.zero_grad()
+            if not self.D_has_run:
+                self.D_has_run = True
 
-            self.backward_G()
-        
-            if step_no % 10 == 0:
-                self.optimizer_G.step()
-        
+
+    def optimize_G(self):
+        self.backward_G()
+
+
+    def zero_optimisers(self):
+        for optimiser in self.optimizers:
+            optimiser.zero_grad()
+
+
+    def step_optimisers(self):
+        for optimiser in self.optimizers:
+            optimiser.step()
+                
 
     def get_current_errors(self):
         errors = [
@@ -581,7 +576,7 @@ class DivInlineModel(BaseModel):
                 ('G_L2_grad_y', self.loss_L2_DIV_grad_y.data.item())
                 ]
 
-        if self.opt.num_discrims > 0:
+        if self.opt.num_discrims  > 0 and self.D_has_run:
             errors += [
                 ('G_GAN_D', self.loss_G_GAN.data[0]),
                 ('D_real', self.loss_D_real.data[0]),

@@ -11,6 +11,8 @@ import sys
 
 import torch.utils.data
 
+from math import ceil
+
 def train():
     opt = TrainOptions().parse()
 
@@ -24,8 +26,9 @@ def train():
         num_workers=opt.nThreads)
 
 
-    dataset_size = len(dataset)
+    dataset_size = len(unpickler)
     print('#training images = %d' % dataset_size)
+    print('#batches = %d' % len(dataset))
 
 
     model = create_model(opt)
@@ -34,23 +37,47 @@ def train():
     total_steps = 0
 
     running_errors = defaultdict(list)
+    optimiser_step_interval = 10
 
     for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
+        data_iter = iter(dataset)
+        
         epoch_start_time = time.time()
         epoch_iter = 0
 
-        for i, data in enumerate(dataset):
+
+        # If there's a fractional batch at the end, make sure we get it
+        for i in range(int(ceil(1.0 * len(dataset) / optimiser_step_interval))):
             iter_start_time = time.time()
             visualizer.reset()
-            
-            model.set_input(data)
-            model.optimize_parameters(step_no=total_steps)
-            
-            total_steps += opt.batchSize
-            epoch_iter += opt.batchSize
 
+            model.zero_optimisers()
+
+            # Pass a full batch to either the generator or discriminator
+            for j in range(optimiser_step_interval):
+                try:
+                    data = next(data_iter)
+
+                    model.set_input(data)
+                    # Doesn't do anything with discriminator, just populates input (conditional), 
+                    # target and generated data in object
+                    model.forward()
+
+                    if ((total_steps <= (opt.high_iter+1)*5 and total_steps % (opt.high_iter+1) == 0) or (total_steps >= (opt.high_iter+1)*5 and total_steps % (opt.low_iter+1) == 0)) or opt.num_discrims == 0:
+                        model.optimize_G()
+                    else:
+                        model.optimize_D()
+        
+                except StopIteration:
+                    break
+            
             for key, item in model.get_current_errors().items():
                 running_errors[key].append(item)
+
+            model.step_optimisers()
+          
+            total_steps += 1
+            epoch_iter += opt.batchSize
 
             if total_steps % opt.display_freq == 0:
                 save_result = total_steps % opt.update_html_freq == 0
