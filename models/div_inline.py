@@ -219,7 +219,7 @@ class DivInlineModel(BaseModel):
         mask        = input['mask']
 
         if self.opt.num_discrims > 0:
-            assert input_A.shape[2:] == self.critic_im_size, "Fix im dimensions in critic"
+            assert input_A.shape[2:] == self.critic_im_size, "Fix im dimensions in critic {} -> {}".format(self.critic_im_size, input_A.shape[2:])
 
         if self.opt.continent_data:
             continents = input['cont']
