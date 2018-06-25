@@ -485,12 +485,10 @@ class DivInlineModel(BaseModel):
                 for p in netD.parameters():
                     p.requires_grad = False
 
-            pred_fake1 = torch.cat([netD(fake_AB).mean(dim=0, keepdim=True) for netD in self.netDs], dim=0).mean()
-            
-            self.loss_G_GAN1 = -pred_fake1
+            self.loss_G_GAN1 = torch.cat([netD(fake_AB).mean(dim=0, keepdim=True) for netD in self.netDs], dim=0).mean()
  
             # Trying to incentivise making this big, so it's mistaken for real
-            self.loss_G_GAN = self.loss_G_GAN1
+            self.loss_G_GAN = -self.loss_G_GAN1
 
 
             for netD in self.netDs:
