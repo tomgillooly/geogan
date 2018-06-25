@@ -11,7 +11,7 @@ else
 	VIRTUALENV_NAME=cyclegan3
 	# DATAROOT=/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT
 	# DATAROOT=/storage/Datasets/Geology-NicolasColtice/pytorch_records_new_thresh
-	DATAROOT=/storage/Datasets/Geology-NicolasColtice/ellipses
+	DATAROOT=/storage/Datasets/Geology-NicolasColtice/ellipses_overfit
 	HOME=/home/tgillooly/
 
 	source find_free_port.sh
@@ -41,7 +41,7 @@ python train.py --dataroot $DATAROOT --name ellipse_critic_local_A_0_1 \
 	--input_nc 3 --output_nc 1 \
 	--lambda_A 0.1 \
 	--which_model_netG unet_256 \
-	--pool_size 0 --no_html --batchSize 10 --nThreads 2 $OPTIONS
+	--pool_size 0 --no_html --batchSize 5 --nThreads 2 $OPTIONS
 
 kill %1
 
