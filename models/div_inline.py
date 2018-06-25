@@ -179,15 +179,17 @@ class DivInlineModel(BaseModel):
 
             if opt.optim_type == 'adam':
                 optim = torch.optim.Adam
-                optim_kwargs = {'lr': opt.lr, 'betas': (opt.beta1, 0.999)}
+                G_optim_kwargs = {'lr': opt.lr/2, 'betas': (opt.beta1, 0.999)}
+                D_optim_kwargs = {'lr': opt.lr, 'betas': (opt.beta1, 0.999)}
             elif opt.optim_type == 'rmsprop':
                 optim = torch.optim.RMSprop
-                optim_kwargs = {'lr': opt.lr, 'alpha': opt.alpha}
+                G_optim_kwargs = {'lr': opt.lr, 'alpha': opt.alpha}
+                D_optim_kwargs = {'lr': opt.lr, 'alpha': opt.alpha}
 
-            self.optimizer_G = optim(self.netG.parameters(), **optim_kwargs)
+            self.optimizer_G = optim(self.netG.parameters(), **G_optim_kwargs)
             self.optimizers.append(self.optimizer_G)
 
-            self.optimizer_Ds = [optim(netD.parameters(), **optim_kwargs) for netD in self.netDs]
+            self.optimizer_Ds = [optim(netD.parameters(), **D_optim_kwargs) for netD in self.netDs]
             self.optimizers += self.optimizer_Ds
            
             
