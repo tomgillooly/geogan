@@ -262,7 +262,7 @@ class DivInlineModel(BaseModel):
 
         if self.opt.num_discrims > 0:
             if self.opt.local_loss:
-                assert (mask_size, mask_size) == self.critic_im_size, "Fix im dimensions in critic {} -> {}".format(self.critic_im_size, (mask_size, mask_size))
+                assert (self.mask_size, self.mask_size) == self.critic_im_size, "Fix im dimensions in critic {} -> {}".format(self.critic_im_size, (self.mask_size, self.mask_size))
             else:
                 assert input_A.shape[2:] == self.critic_im_size, "Fix im dimensions in critic {} -> {}".format(self.critic_im_size, input_A.shape[2:])
 
