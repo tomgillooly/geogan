@@ -329,6 +329,8 @@ class DivInlineModel(BaseModel):
 
         self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
         self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
+
+        self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI.float(), self.opt.diff_in_numerator)
         
 
     # no backprop gradients
@@ -493,8 +495,6 @@ class DivInlineModel(BaseModel):
                 for p in netD.parameters():
                     p.requires_grad = True
 
-
-        self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI.float(), self.opt.diff_in_numerator)
 
         self.loss_G_L2_DIV = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
 
