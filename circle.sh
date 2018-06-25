@@ -31,12 +31,13 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --high_iter 25 --low_iter 5 \
 	# --continue_train --which_epoch 55 --epoch_count 56 \
-python train.py --dataroot $DATAROOT --name ellipse_critic_local_A_10 \
+python train.py --dataroot $DATAROOT --name ellipse_critic_local_A_10_lr_001 \
 	--model div_inline --which_direction BtoA \
 	--num_discrims 1 --high_iter 25 --low_iter 5 \
 	--no_lsgan --norm batch \
 	--diff_in_numerator \
 	--local_loss \
+	--lr 0.001 \
 	--display_freq 10 --print_freq 10 \
 	--input_nc 3 --output_nc 1 \
 	--lambda_A 10 \
