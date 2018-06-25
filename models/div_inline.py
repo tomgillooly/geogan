@@ -475,7 +475,7 @@ class DivInlineModel(BaseModel):
         if self.opt.num_discrims > 0:
             # Conditional data (input with chunk missing + mask) + fake data
             # Remember self.fake_B_discrete is the generator output
-            fake_AB = self.fake_B_DIV
+            fake_AB = self.fake_B_DIV_ROI
             
             # Mean across batch, then across discriminators
             # We only optimise with respect to the fake prediction because
@@ -485,7 +485,7 @@ class DivInlineModel(BaseModel):
                 for p in netD.parameters():
                     p.requires_grad = False
 
-            pred_fake1 = torch.cat([netD(fake_AB).mean(dim=0, keepdim=True) for netD in self.netDs]).mean(dim=0, keepdim=True)
+            pred_fake1 = torch.cat([netD(fake_AB).mean(dim=0, keepdim=True) for netD in self.netDs], dim=0).mean()
             
             self.loss_G_GAN1 = -pred_fake1
  
