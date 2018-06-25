@@ -144,7 +144,7 @@ class DivInlineModel(BaseModel):
 
         if self.isTrain:
             # Inputs: 3 channels of one-hot input (with chunk missing) + divergence output data + mask
-            discrim_input_channels = opt.input_nc + opt.output_nc + 1
+            discrim_input_channels = opt.output_nc
 
 
             self.netDs = [DiscriminatorWGANGP(discrim_input_channels, (256, 256), opt.ndf) for _ in range(self.opt.num_discrims)]
