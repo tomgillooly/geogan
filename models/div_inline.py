@@ -327,7 +327,7 @@ class DivInlineModel(BaseModel):
 
         scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat((self.div_max, torch.ones(self.div_max.shape), -self.div_min), dim=1)
         scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
-        self.fake_B_discrete = (torch.cat((self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape), -self.fake_B_DIV), dim=1) > scaled_thresh)
+        self.fake_B_discrete = (torch.cat((-self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape), self.fake_B_DIV), dim=1) > scaled_thresh)
         plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
         self.fake_B_discrete[:, 1, :, :].copy_(plate)
