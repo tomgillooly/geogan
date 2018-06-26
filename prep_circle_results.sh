@@ -36,7 +36,12 @@ fi
 for model in `cat models_to_test`
 do
 	echo $model
-	bash test_circle.sh latest $model
+	if [ $HOSTNAME == 'liris501-r073' ]; then
+		sed -e "s/\$1/$model/" test_circle.sh | sbatch
+	else
+		bash test_circle.sh $model
+	fi
+
 	python assorted_test/plot_loss.py $model
 done
 
