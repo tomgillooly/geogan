@@ -7,6 +7,8 @@ import re
 from collections import defaultdict, namedtuple
 from operator import itemgetter
 
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
