@@ -22,12 +22,22 @@
 # 		exit 1
 # 	fi
 # done
+if [ $HOSTNAME == 'liris501-r073' ]; then
+	for model in `cat models_to_test`
+	do
+		# echo $model
+
+		egrep -l $model slurm* | xargs -n1 -I{} cp {} checkpoints/$model/
+
+		cp checkpoints/$model/opt.txt{,.train}
+	done
+fi
 
 for model in `cat models_to_test`
 do
 	echo $model
 	bash test_circle.sh latest $model
-	# python assorted_test/plot_loss.py $model
+	python assorted_test/plot_loss.py $model
 done
 
 # for model in `cat models_to_test`
