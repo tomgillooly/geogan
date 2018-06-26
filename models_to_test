@@ -1,5 +1,4 @@
 ellipse_critic_local_A_10_lr_001
-ellipse_critic
 ellipse_critic_local
 ellipse_rmsprop
 ellipse_wgrad
