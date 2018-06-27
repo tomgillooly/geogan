@@ -250,7 +250,7 @@ with open('circle_results_report.tex', 'w') as out_file:
 
 		
 		for series_no in series_numbers:
-			filename_base = 'serie_{}_{:05}'.format(series_no / 10000, series_no % 10000)
+			filename_base = 'serie_{}_{:05}'.format(int(series_no / 10000), series_no % 10000)
 			
 			out_file.write('\\begin{figure}[h]\n')
 			
