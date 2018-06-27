@@ -1,7 +1,4 @@
-ellipse_critic_local_A_10_lr_001
-ellipse_critic_local
-ellipse_rmsprop
-ellipse_wgrad
-ellipse_wgrad_b1_09
 ellipse_base
 ellipse_circle_restart
+ellipse_wgrad
+ellipse_critic_local
