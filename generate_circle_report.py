@@ -198,9 +198,16 @@ with open('circle_results_report.tex', 'w') as out_file:
 		# 	).split()[0])
 
 		last_slurm_file = sorted(glob.glob(os.path.join('checkpoints', model, 'slurm*')))[0]
-		num_batches_re = re.compile('#training images = (\d+)')
+		num_training_images_re = re.compile('#training images = (\d+)')
+		num_batches_re = re.compile('#batches = (\d+)')
 		num_batches_match = num_batches_re.search(open(last_slurm_file).read())
-		num_training_data_images = int(num_batches_match.group(1)) * model_params[j]['batch_size']/10
+
+		if num_batches_match == None:
+			num_training_images_match = num_training_images_re.search(open(last_slurm_file).read())
+			num_training_data_images = int(num_training_images_match.group(1)) * model_params[j]['batch_size']/10
+		else:
+			num_training_data_images = int(num_batches_match.group(1)) * model_params[j]['batch_size']/10
+
 
 
 		# out_file.write('\\section{%s}\n' % ' '.join(model.split('_')))
