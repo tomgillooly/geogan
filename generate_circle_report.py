@@ -13,7 +13,7 @@ data_desc_lookup = {
 	'circles_non_filled_mask_loc': 'Non-filled circles, at least 10 pixels guaranteed in mask region',
 	'circles_non_filled_mixed': 'Non-filled circles, 50\% with at least 10 pixels guaranteed in mask region, 50\% with nothing in mask region',
 	'circles_non_filled': 'First 10000 guaranteed maximum 1 circle missing, 10 pixels minimum. Remaining 90000, masks placed arbitrarily',
-	'ellipses': 'Ten pixels minimum in masked region, ellipses with major/minor aes ranging from 3 to 20 pixels',
+	'ellipses': 'Ten pixels minimum in masked region, ellipses with major/minor axes ranging from 3 to 20 pixels',
 	'ellipses_overfit': 'First 1000 data points from ellipses set, for testing whether a model can overfit'
 }
 
