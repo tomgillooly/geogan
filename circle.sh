@@ -11,7 +11,7 @@ else
 	VIRTUALENV_NAME=cyclegan3
 	# DATAROOT=/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT
 	# DATAROOT=/storage/Datasets/Geology-NicolasColtice/pytorch_records_new_thresh
-	DATAROOT=/storage/Datasets/Geology-NicolasColtice/circles_non_filled_mask_loc
+	DATAROOT=/storage/Datasets/Geology-NicolasColtice/ellipses
 	HOME=/home/tgillooly/
 
 	source find_free_port.sh
@@ -30,15 +30,14 @@ source $HOME/$VIRTUALENV_NAME/bin/activate
 python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --high_iter 25 --low_iter 5 \
-	# --continue_train --which_epoch latest --epoch_count 4 \
-python train.py --dataroot $DATAROOT --name circle_div_nf_numerator_local_weighted_grad \
+python train.py --dataroot $DATAROOT --name ellipse_circle_restart \
 	--model div_inline --which_direction BtoA \
-	--num_discrims 0 --alpha 0 \
+	--continue_train --which_epoch 55 --epoch_count 56 \
+	--num_discrims 0 \
 	--no_lsgan --norm batch \
 	--diff_in_numerator \
 	--local_loss \
 	--grad_loss \
-	--weighted_grad \
 	--input_nc 3 --output_nc 1 \
 	--lambda_A 20 --lambda_D 100 \
 	--which_model_netG unet_256 \

@@ -175,12 +175,18 @@ class DivInlineModel(BaseModel):
             # initialize optimizers
             self.schedulers = []
             self.optimizers = []
-            self.optimizer_G = torch.optim.Adam(self.netG.parameters(),
-                                                lr=opt.lr, betas=(opt.beta1, 0.999))
+
+            if opt.optim_type == 'adam':
+                optim = torch.optim.Adam
+                optim_kwargs = {'lr': opt.lr, 'betas': (opt.beta1, 0.999)}
+            elif opt.optim_type == 'rmsprop':
+                optim = torch.optim.RMSprop
+                optim_kwargs = {'lr': opt.lr, 'alpha': opt.alpha}
+
+            self.optimizer_G = optim(self.netG.parameters(), **optim_kwargs)
             self.optimizers.append(self.optimizer_G)
 
-            self.optimizer_Ds = [torch.optim.Adam(netD.parameters(),
-                                                lr=opt.lr, betas=(opt.beta1, 0.999)) for netD in self.netDs]
+            self.optimizer_Ds = [optim(netD.parameters(), **optim_kwargs) for netD in self.netDs]
             self.optimizers += self.optimizer_Ds
            
             
