@@ -132,9 +132,6 @@ class DivInlineModel(BaseModel):
                 opt.norm, use_sigmoid, opt.init_type, self.gpu_ids, critic_im_size=self.critic_im_size) for _ in range(self.opt.num_discrims)]
             
 
-            # Apply is in-place, we don't need to return into anything
-            [netD.apply(weights_init) for netD in self.netDs]
-
             if len(self.gpu_ids) > 0:
                 [netD.cuda() for netD in self.netDs]
 
