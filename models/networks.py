@@ -153,7 +153,7 @@ def define_D(input_nc, ndf, which_model_netD,
     elif which_model_netD == 'wgan-gp':
         netD = DiscriminatorWGANGP(input_nc, kwargs['critic_im_size'], dim=ndf, gpu_ids=[])
     elif which_model_netD == 'self-attn':
-        netD = SelfAttnDiscriminator(kwargs['critic_im_size'][0], conv_dim=ndf):
+        netD = SelfAttnDiscriminator(kwargs['critic_im_size'][0], conv_dim=ndf)
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' %
                                   which_model_netD)
@@ -596,7 +596,7 @@ class SelfAttnDiscriminator(nn.Module):
     """Discriminator, Auxiliary Classifier."""
 
     def __init__(self, image_size=64, conv_dim=64):
-        super(Discriminator, self).__init__()
+        super(SelfAttnDiscriminator, self).__init__()
         self.imsize = image_size
         layer1 = []
         layer2 = []
