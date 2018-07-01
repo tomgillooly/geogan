@@ -67,7 +67,7 @@ def save_output_hook(module, input, output):
 
 
 def wgan_criterionGAN(loss, real_label):
-    return loss.mean(dim=0, keepdim=True) * -1 if real_label else 1
+    return loss.mean(dim=0) * -1 if real_label else 1
 
 
 class DivInlineModel(BaseModel):
@@ -118,6 +118,7 @@ class DivInlineModel(BaseModel):
                 self.folder_fc.cuda(self.gpu_ids[0])
 
         if self.isTrain:
+            use_sigmoid = opt.no_lsgan
             # Inputs: 3 channels of one-hot input (with chunk missing) + divergence output data + mask
             discrim_input_channels = opt.output_nc
 
@@ -150,7 +151,7 @@ class DivInlineModel(BaseModel):
             self.criterionL2 = torch.nn.MSELoss(reduce=False)
             self.criterionCE = torch.nn.NLLLoss2d
 
-            if if self.opt.which_model_netD == 'wgan-gp':
+            if self.opt.which_model_netD == 'wgan-gp':
                 self.criterionGAN = wgan_criterionGAN
             else:
                 self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
@@ -405,7 +406,7 @@ class DivInlineModel(BaseModel):
         # In this case real_A, the input, is our conditional vector
         fake_AB = fake_data
         # stop backprop to the generator by detaching fake_B
-        fake_loss = self.criterionGAN(net_D(fake_AB.detach()), False).mean(dim=0, keepdim=True)
+        fake_loss = self.criterionGAN(net_D(fake_AB.detach()), False)
         # self.loss_D2_fake = self.criterionGAN(pred_fake, False)
 
         # Real
@@ -421,13 +422,12 @@ class DivInlineModel(BaseModel):
 
         # Combined loss
         # self.loss_D2 = (self.loss_D2_fake + self.loss_D2_real) * 0.5
-        loss = fake_loss - real_loss + grad_pen
 
         loss.backward()
 
         # We could use view, but it looks like it just causes memory overflow
         # return torch.cat((loss, real_loss, fake_loss), dim=0).view(-1, 3, 1)
-        output = torch.cat((loss, real_loss, fake_loss), dim=0)
+        output = torch.cat((loss.unsqueeze(0), real_loss.unsqueeze(0), fake_loss.unsqueeze(0)), dim=0)
         output = output.unsqueeze(0)
         output = output.unsqueeze(-1)
 
@@ -466,10 +466,10 @@ class DivInlineModel(BaseModel):
                 for p in netD.parameters():
                     p.requires_grad = False
 
-            self.loss_G_GAN1 = torch.cat([netD(fake_AB).mean(dim=0, keepdim=True) for netD in self.netDs], dim=0).mean()
+            self.loss_G_GAN1 = torch.cat([self.criterionGAN(netD(fake_AB), True).unsqueeze(0) for netD in self.netDs], dim=0).mean()
  
             # Trying to incentivise making this big, so it's mistaken for real
-            self.loss_G_GAN = -self.loss_G_GAN1
+            self.loss_G_GAN = self.loss_G_GAN1
 
 
             for netD in self.netDs:
@@ -477,7 +477,7 @@ class DivInlineModel(BaseModel):
                     p.requires_grad = True
 
 
-        self.loss_G_L2_DIV = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).sum(dim=2).sum(dim=2).mean(dim=0) * self.opt.lambda_A
+        self.loss_G_L2_DIV = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).mean() * self.opt.lambda_A
 
         self.loss_G_L2 += self.loss_G_L2_DIV
 
@@ -560,8 +560,7 @@ class DivInlineModel(BaseModel):
             errors += [
                 ('G_GAN_D', self.loss_G_GAN.data[0]),
                 ('D_real', self.loss_D_real.data[0]),
-                ('D_fake', self.loss_D_fake.data[0]),
-                ('D_grad_pen', self.loss_D_grad_pen.data[0])
+                ('D_fake', self.loss_D_fake.data[0])
             ]
 
         if self.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
