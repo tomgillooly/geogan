@@ -262,7 +262,7 @@ class DivInlineModel(BaseModel):
         self.div_min = input['DIV_min']
         self.div_max = input['DIV_max']
 
-        if self.opt.num_discrims > 0:
+        if not self.isTrain and self.opt.num_discrims > 0:
             if self.opt.local_loss:
                 assert (self.mask_size, self.mask_size) == self.critic_im_size, "Fix im dimensions in critic {} -> {}".format(self.critic_im_size, (self.mask_size, self.mask_size))
             else:
