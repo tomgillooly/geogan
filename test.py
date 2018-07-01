@@ -38,7 +38,7 @@ unpickler.initialise(opt)
 dataset = torch.utils.data.DataLoader(
         unpickler,
         batch_size=opt.batchSize,
-        shuffle=not opt.serial_batches,
+        shuffle=False,
         num_workers=opt.nThreads)
 
 dataset_size = len(dataset)

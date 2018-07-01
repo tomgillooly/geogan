@@ -41,7 +41,7 @@ do
 		bash test_circle.sh $model
 	fi
 
-	sbatch "#!/bin/bash; source ~/cyclegan3/bin/activate; python assorted_test/plot_loss.py $model; deactivate"
+	echo '#!/bin/bash; source ~/cyclegan3/bin/activate; python assorted_test/plot_loss.py' "$model; deactivate" | sbatch
 done
 
 # for model in `cat models_to_test`
