@@ -639,7 +639,7 @@ class SelfAttnDiscriminator(nn.Module):
         layer3.append(nn.LeakyReLU(0.1))
         curr_dim = curr_dim * 2
 
-        if self.imsize == 64:
+        if self.imsize >= 64:
             layer4 = []
             layer4.append(SpectralNorm(nn.Conv2d(curr_dim, curr_dim * 2, 4, 2, 1)))
             layer4.append(nn.LeakyReLU(0.1))
@@ -649,13 +649,13 @@ class SelfAttnDiscriminator(nn.Module):
         self.l2 = nn.Sequential(*layer2)
         self.l3 = nn.Sequential(*layer3)
 
-        last.append(nn.Conv2d(curr_dim, 1, 4))
+        last.append(nn.Conv2d(curr_dim, 1, 4, 2, 1))
         self.last = nn.Sequential(*last)
 
         self.attn1 = Self_Attn(256, 'relu')
         self.attn2 = Self_Attn(512, 'relu')
 
-        out_dim = int(self.imsize / (2*2*2*2*4))
+        out_dim = int(self.imsize / (2*2*2*2*2))
         self.linear = nn.Linear(1*out_dim*out_dim, 1)
 
 
@@ -667,8 +667,10 @@ class SelfAttnDiscriminator(nn.Module):
         out=self.l4(out)
         out,p2 = self.attn2(out)
         out=self.last(out)
+        out = self.linear(out.view(x.shape[0], -1))
 
-        out = self.linear(out_dim.view(1, -1))
+        #self.attn1 = p1
+        #self.attn2 = p2
 
-        return out.squeeze(), p1, p2
+        return out
 
