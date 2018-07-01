@@ -173,7 +173,7 @@ def define_D(input_nc, ndf, which_model_netD,
     elif which_model_netD == 'wgan-gp':
         netD = DiscriminatorWGANGP(input_nc, kwargs['critic_im_size'], dim=ndf, gpu_ids=[])
     elif which_model_netD == 'self-attn':
-        netD = SelfAttnDiscriminator(kwargs['critic_im_size'][0], conv_dim=ndf)
+        netD = SelfAttnDiscriminator(input_nc, kwargs['critic_im_size'][0], conv_dim=ndf, gpu_ids=[])
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' %
                                   which_model_netD)
@@ -615,15 +615,18 @@ class Self_Attn(nn.Module):
 class SelfAttnDiscriminator(nn.Module):
     """Discriminator, Auxiliary Classifier."""
 
-    def __init__(self, image_size=64, conv_dim=64):
+    def __init__(self, input_nc, image_size=64, conv_dim=64, gpu_ids=[]):
         super(SelfAttnDiscriminator, self).__init__()
         self.imsize = image_size
+
+        self.gpu_ids = gpu_ids
+
         layer1 = []
         layer2 = []
         layer3 = []
         last = []
 
-        layer1.append(SpectralNorm(nn.Conv2d(3, conv_dim, 4, 2, 1)))
+        layer1.append(SpectralNorm(nn.Conv2d(input_nc, conv_dim, 4, 2, 1)))
         layer1.append(nn.LeakyReLU(0.1))
 
         curr_dim = conv_dim
