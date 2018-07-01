@@ -5,6 +5,7 @@ import functools
 from torch.autograd import Variable
 from torch.optim import lr_scheduler
 
+from .spectral import SpectralNorm
 from .non_local import NONLocalBlock2D
 
 ###############################################################################
