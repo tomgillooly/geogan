@@ -123,7 +123,7 @@ class DivInlineModel(BaseModel):
             discrim_input_channels = opt.output_nc
 
 
-            if opt.local_loss:
+            if opt.local_critic:
                 self.critic_im_size = (64, 64)
             else:
                 self.critic_im_size = (256, 256)
@@ -246,7 +246,7 @@ class DivInlineModel(BaseModel):
         self.div_max = input['DIV_max']
 
         if self.isTrain and self.opt.num_discrims > 0:
-            if self.opt.local_loss:
+            if self.opt.local_critic:
                 assert (self.mask_size, self.mask_size) == self.critic_im_size, "Fix im dimensions in critic {} -> {}".format(self.critic_im_size, (self.mask_size, self.mask_size))
             else:
                 assert input_A.shape[2:] == self.critic_im_size, "Fix im dimensions in critic {} -> {}".format(self.critic_im_size, input_A.shape[2:])
@@ -456,7 +456,10 @@ class DivInlineModel(BaseModel):
         if self.opt.num_discrims > 0:
             # Conditional data (input with chunk missing + mask) + fake data
             # Remember self.fake_B_discrete is the generator output
-            fake_AB = self.fake_B_DIV_ROI
+            if self.opt.local_critic:
+                fake_AB = self.fake_B_DIV_ROI
+            else:
+                fake_AB = self.fake_B_DIV
             
             # Mean across batch, then across discriminators
             # We only optimise with respect to the fake prediction because
@@ -520,10 +523,17 @@ class DivInlineModel(BaseModel):
     def optimize_D(self):
         if self.opt.num_discrims > 0:
             cond_data = torch.cat((self.real_A_discrete, self.mask.float()), dim=1)
+
+            if self.opt.local_critic:
+                fake_AB = self.fake_B_DIV_ROI
+                real_AB = self.real_B_DIV_ROI
+            else:
+                fake_AB = self.fake_B_DIV
+                real_AB = self.real_B_DIV
              
             self.loss_D, self.loss_D_real, self.loss_D_fake = self.backward_D(self.netDs, self.optimizer_Ds,
                 cond_data,
-                self.real_B_DIV_ROI, self.fake_B_DIV_ROI)
+                fake_AB, real_AB)
 
             if not self.D_has_run:
                 self.D_has_run = True

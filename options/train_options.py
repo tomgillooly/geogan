@@ -25,13 +25,14 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--lambda_D', type=float, default=10.0, help='weight for folder predictor')
         self.parser.add_argument('--pool_size', type=int, default=50, help='the size of image buffer that stores previously generated images')
         self.parser.add_argument('--no_html', action='store_true', help='do not save intermediate training results to [opt.checkpoints_dir]/[opt.name]/web/')
-        self.parser.add_argument('--local_loss', action='store_true', help='do not save intermediate training results to [opt.checkpoints_dir]/[opt.name]/web/')
         self.parser.add_argument('--lr_policy', type=str, default='lambda', help='learning rate policy: lambda|step|plateau')
         self.parser.add_argument('--lr_decay_iters', type=int, default=50, help='multiply by a gamma every lr_decay_iters iterations')
-        self.parser.add_argument('--num_discrims', type=int, default=5, help='multiply by a gamma every lr_decay_iters iterations')
         self.parser.add_argument('--identity', type=float, default=0.5,
                                  help='use identity mapping. Setting identity other than 1 has an effect of scaling the weight of the identity mapping loss.'
                                       'For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set optidentity = 0.1')
+        self.parser.add_argument('--local_loss', action='store_true', help='do not save intermediate training results to [opt.checkpoints_dir]/[opt.name]/web/')
+        self.parser.add_argument('--local_critic', action='store_true', help='Whether to use critic only on masked region, or global')
+        self.parser.add_argument('--num_discrims', type=int, default=5, help='multiply by a gamma every lr_decay_iters iterations')
         self.parser.add_argument('--high_iter', type=int, default=25, help='Number of critic iterations at beginning of training')
         self.parser.add_argument('--low_iter', type=int, default=5, help='Number of critic iterations after initial phase')
         self.parser.add_argument('--no_mask_to_critic', action='store_true', help="Don't pass mask to discriminator/critic")
