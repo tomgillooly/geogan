@@ -166,7 +166,7 @@ class DivInlineModel(BaseModel):
                 G_optim_kwargs = {'lr': opt.lr, 'alpha': opt.alpha}
                 D_optim_kwargs = {'lr': opt.lr, 'alpha': opt.alpha}
 
-            self.optimizer_G = optim(filter(lambda p: p.requires_grad, self.G.parameters()), **G_optim_kwargs)
+            self.optimizer_G = optim(filter(lambda p: p.requires_grad, self.netG.parameters()), **G_optim_kwargs)
             self.optimizers.append(self.optimizer_G)
 
             self.optimizer_Ds = [optim(filter(lambda p: p.requires_grad, netD.parameters()), **D_optim_kwargs) for netD in self.netDs]

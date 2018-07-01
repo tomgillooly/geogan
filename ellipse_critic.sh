@@ -31,7 +31,7 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 	# --continue_train --which_epoch 55 --epoch_count 56 \
 python train.py --dataroot $DATAROOT --name ellipse_critic_old_discrim \
 	--model div_inline --which_direction BtoA \
-	--num_discrims 1 --which_model_netD n_layers \
+	--num_discrims 1 --which_model_netD self-attn \
 	--no_lsgan --norm batch \
 	--high_iter 2 --low_iter 2 \
 	--diff_in_numerator \
