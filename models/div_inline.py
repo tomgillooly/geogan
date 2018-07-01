@@ -151,7 +151,7 @@ class DivInlineModel(BaseModel):
             self.criterionL2 = torch.nn.MSELoss(reduce=False)
             self.criterionCE = torch.nn.NLLLoss2d
 
-            if self.opt.which_model_netD == 'wgan-gp':
+            if self.opt.which_model_netD == 'wgan-gp' or self.opt.which_model_netD == 'self-attn':
                 self.criterionGAN = wgan_criterionGAN
             else:
                 self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
