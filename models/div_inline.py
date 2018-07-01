@@ -62,37 +62,12 @@ def get_downsample(net):
     return downsample
 
 
-class DiscriminatorWGANGP(torch.nn.Module):
-
-    def __init__(self, in_dim, image_dims, dim=64):
-        super(DiscriminatorWGANGP, self).__init__()
-
-        def conv_ln_lrelu(in_dim, out_dim):
-            return torch.nn.Sequential(
-                torch.nn.Conv2d(in_dim, out_dim, 5, 2, 2),
-                # Since there is no effective implementation of LayerNorm,
-                # we use InstanceNorm2d instead of LayerNorm here.
-                # Gulrajanis code uses TensorFlow batch normalisation
-                torch.nn.InstanceNorm2d(out_dim, affine=True),
-                torch.nn.LeakyReLU(0.2))
-
-        self.ls = torch.nn.Sequential(
-            torch.nn.Conv2d(in_dim, dim, 5, 2, 2), torch.nn.LeakyReLU(0.2),         # (b, c, x, y) -> (b, dim, x/2, y/2)
-            conv_ln_lrelu(dim, dim * 2),                                # (b, dim, x/2, y/2) -> (b, dim*2, x/4, y/4)
-            conv_ln_lrelu(dim * 2, dim * 4),                            # (b, dim*2, x/4, y/4) -> (b, dim*4, x/8, y/8)
-            conv_ln_lrelu(dim * 4, dim * 8),                            # (b, dim*4, x/8, y/8) -> (b, dim*8, x/16, y/16)
-            torch.nn.Conv2d(dim * 8, 1, 
-                (int(image_dims[0]/16 + 0.5), int(image_dims[1]/16 + 0.5)))) # (b, dim*8, x/16, y/16) -> (b, 1, 1, 1)
-
-
-    def forward(self, x):
-        y = self.ls(x)
-
-        return y.view(-1)
-
-
 def save_output_hook(module, input, output):
     module.output = output
+
+
+def wgan_criterionGAN(loss, real_label):
+    return loss.mean(dim=0, keepdim=True) * -1 if real_label else 1
 
 
 class DivInlineModel(BaseModel):
@@ -152,7 +127,9 @@ class DivInlineModel(BaseModel):
             else:
                 self.critic_im_size = (256, 256)
 
-            self.netDs = [DiscriminatorWGANGP(discrim_input_channels, self.critic_im_size, opt.ndf) for _ in range(self.opt.num_discrims)]
+            self.netDs = [networks.define_D(discrim_input_channels, opt.ndf, opt.which_model_netD, opt.n_layers_D, 
+                opt.norm, use_sigmoid, opt.init_type, self.gpu_ids, critic_im_size=self.critic_im_size) for _ in range(self.opt.num_discrims)]
+            
 
             # Apply is in-place, we don't need to return into anything
             [netD.apply(weights_init) for netD in self.netDs]
@@ -172,6 +149,11 @@ class DivInlineModel(BaseModel):
 
             self.criterionL2 = torch.nn.MSELoss(reduce=False)
             self.criterionCE = torch.nn.NLLLoss2d
+
+            if if self.opt.which_model_netD == 'wgan-gp':
+                self.criterionGAN = wgan_criterionGAN
+            else:
+                self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
 
             # initialize optimizers
             self.schedulers = []
@@ -423,31 +405,29 @@ class DivInlineModel(BaseModel):
         # In this case real_A, the input, is our conditional vector
         fake_AB = fake_data
         # stop backprop to the generator by detaching fake_B
-        fake_loss = net_D(fake_AB.detach()).mean(dim=0, keepdim=True)
+        fake_loss = self.criterionGAN(net_D(fake_AB.detach()), False).mean(dim=0, keepdim=True)
         # self.loss_D2_fake = self.criterionGAN(pred_fake, False)
 
         # Real
         real_AB = real_data
         # Mean across batch
-        real_loss = net_D(real_AB).mean(dim=0, keepdim=True)
+        real_loss = self.criterionGAN(net_D(real_AB), True)
         # self.loss_D2_real = self.criterionGAN(pred_real, True)
 
-        grad_pen = torch.zeros((1,))
-        grad_pen = grad_pen.cuda() if len(self.gpu_ids) > 0 else grad_pen
-        grad_pen = torch.autograd.Variable(grad_pen, requires_grad=False)
+        loss = fake_loss + real_loss
 
         if self.opt.which_model_netD == 'wgan-gp':
-            grad_pen = self.calc_gradient_penalty(net_D, real_AB.data, fake_AB.data)
+            loss += self.calc_gradient_penalty(net_D, real_AB.data, fake_AB.data) * self.opt.lambda_C
 
         # Combined loss
         # self.loss_D2 = (self.loss_D2_fake + self.loss_D2_real) * 0.5
-        loss = fake_loss - real_loss + grad_pen * self.opt.lambda_C
+        loss = fake_loss - real_loss + grad_pen
 
         loss.backward()
 
         # We could use view, but it looks like it just causes memory overflow
         # return torch.cat((loss, real_loss, fake_loss), dim=0).view(-1, 3, 1)
-        output = torch.cat((loss, real_loss, fake_loss, grad_pen), dim=0)
+        output = torch.cat((loss, real_loss, fake_loss), dim=0)
         output = output.unsqueeze(0)
         output = output.unsqueeze(-1)
 
@@ -464,8 +444,7 @@ class DivInlineModel(BaseModel):
         # We take the different loss tyes (along axis 1) and take their average across all discriminators (axis 2 before selecting index on axis 1)
         output = (torch.mean(loss[:, 0, :], dim=1, keepdim=True),
             torch.mean(loss[:, 1, :], dim=1, keepdim=True),
-            torch.mean(loss[:, 2, :], dim=1, keepdim=True),
-            torch.mean(loss[:, 3, :], dim=1, keepdim=True))
+            torch.mean(loss[:, 2, :], dim=1, keepdim=True))
 
         return output
 
@@ -542,7 +521,7 @@ class DivInlineModel(BaseModel):
         if self.opt.num_discrims > 0:
             cond_data = torch.cat((self.real_A_discrete, self.mask.float()), dim=1)
              
-            self.loss_D, self.loss_D_real, self.loss_D_fake, self.loss_D_grad_pen = self.backward_D(self.netDs, self.optimizer_Ds,
+            self.loss_D, self.loss_D_real, self.loss_D_fake = self.backward_D(self.netDs, self.optimizer_Ds,
                 cond_data,
                 self.real_B_DIV_ROI, self.fake_B_DIV_ROI)
 

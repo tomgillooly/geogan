@@ -149,8 +149,8 @@ def define_D(input_nc, ndf, which_model_netD,
         netD = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids)
     elif which_model_netD == 'pixel':
         netD = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids)
-    elif which_model_netD == 'wgan':
-        netD = WGANNLayerDiscriminator(input_nc, kwargs['n_linear'], ndf, norm_layer=norm_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids)
+    elif which_model_netD == 'wgan-gp':
+        netD = DiscriminatorWGANGP(input_nc, kwargs['critic_im_size'], dim=ndf, gpu_ids=[])
     else:
         raise NotImplementedError('Discriminator model name [%s] is not recognized' %
                                   which_model_netD)
@@ -493,21 +493,37 @@ class NLayerDiscriminator(nn.Module):
         else:
             return self.model(input)
 
-class WGANNLayerDiscriminator(NLayerDiscriminator):
-    def __init__(self, input_nc, n_linear, ndf=64, n_layers=3, norm_layer=None, use_sigmoid=False, gpu_ids=[]):
-        super(WGANNLayerDiscriminator, self).__init__(input_nc, ndf, n_layers, norm_layer, use_sigmoid, gpu_ids)
 
-        self.n_linear = n_linear
-        self.linear = nn.Linear(n_linear, 1)
+class DiscriminatorWGANGP(torch.nn.Module):
+    def __init__(self, in_dim, image_dims, dim=64, gpu_ids=[]):
+        super(DiscriminatorWGANGP, self).__init__()
+
+        self.gpu_ids = gpu_ids
+
+        def conv_ln_lrelu(in_dim, out_dim):
+            return torch.nn.Sequential(
+                torch.nn.Conv2d(in_dim, out_dim, 5, 2, 2),
+                # Since there is no effective implementation of LayerNorm,
+                # we use InstanceNorm2d instead of LayerNorm here.
+                # Gulrajanis code uses TensorFlow batch normalisation
+                torch.nn.InstanceNorm2d(out_dim, affine=True),
+                torch.nn.LeakyReLU(0.2))
+
+        self.ls = torch.nn.Sequential(
+            torch.nn.Conv2d(in_dim, dim, 5, 2, 2), torch.nn.LeakyReLU(0.2),         # (b, c, x, y) -> (b, dim, x/2, y/2)
+            conv_ln_lrelu(dim, dim * 2),                                # (b, dim, x/2, y/2) -> (b, dim*2, x/4, y/4)
+            conv_ln_lrelu(dim * 2, dim * 4),                            # (b, dim*2, x/4, y/4) -> (b, dim*4, x/8, y/8)
+            conv_ln_lrelu(dim * 4, dim * 8),                            # (b, dim*4, x/8, y/8) -> (b, dim*8, x/16, y/16)
+            torch.nn.Conv2d(dim * 8, 1, 
+                (int(image_dims[0]/16 + 0.5), int(image_dims[1]/16 + 0.5)))) # (b, dim*8, x/16, y/16) -> (b, 1, 1, 1)
 
 
-    def forward(self, input):
+    def forward(self, x):
         if len(self.gpu_ids) and isinstance(input.data, torch.cuda.FloatTensor):
-            output =  nn.parallel.data_parallel(self.model, input, self.gpu_ids)
-            return nn.parallel.data_parallel(self.linear, output.view(-1, self.n_linear), self.gpu_ids)
+            return nn.parallel.data_parallel(self.ls, x, self.gpu_ids).view(-1)
         else:
             output = self.model(input)
-            return self.linear(output.view(-1, self.n_linear))
+            return self.ls(x).view(-1)
 
 
 class PixelDiscriminator(nn.Module):

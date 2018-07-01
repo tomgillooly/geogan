@@ -77,7 +77,7 @@ def train():
             model.step_optimisers()
           
             total_steps += 1
-            epoch_iter += opt.batchSize*10
+            epoch_iter += opt.batchSize*optimiser_step_interval
 
             if total_steps % opt.display_freq == 0:
                 save_result = total_steps % opt.update_html_freq == 0
@@ -93,7 +93,7 @@ def train():
                 t = (time.time() - iter_start_time) / opt.batchSize
                 visualizer.print_current_errors(epoch, epoch_iter, average_errors, t)
                 if opt.display_id > 0:
-                    visualizer.plot_current_errors(epoch, float(epoch_iter) / (dataset_size * opt.batchSize), opt, average_errors)
+                    visualizer.plot_current_errors(epoch, float(epoch_iter) / dataset_size, opt, average_errors)
 
             if total_steps % opt.save_latest_freq == 0:
                 print('saving the latest model (epoch %d, total_steps %d)' %
