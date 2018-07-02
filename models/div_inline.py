@@ -24,47 +24,6 @@ from metrics.hausdorff import get_hausdorff, get_hausdorff_exc
 
 import sys
 
-# Weight init procedure taken from  https://github.com/pytorch/examples/blob/master/dcgan/main.py#L131
-def weights_init(m):
-    classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
-        m.weight.data.normal_(0.0, 0.02)
-    elif classname.find('InstanceNorm') != -1:
-        m.weight.data.normal_(1.0, 0.02)
-        m.bias.data.fill_(0)
-    elif classname.find('Linear') != -1:
-        m.weight.data.normal_(0.0, 0.02)
-    elif classname.find('BatchNorm2d') != -1:
-        m.weight.data.normal_(1.0, 0.02)
-        m.bias.data.fill_(0.0)
-
-
-def get_innermost(module, block_name=None):
-    module_name_re = re.compile('(.*?)\(')
-    parent_name = block_name if block_name else module_name_re.match(repr(module)).group(1)
-
-    children_list = list(module.children())
-    child_names = [module_name_re.match(repr(m)).group(1) for m in children_list]
-
-    if parent_name in child_names:
-        return get_innermost(children_list[child_names.index(parent_name)])
-    elif 'Sequential' in child_names:
-        return get_innermost(children_list[child_names.index('Sequential')], parent_name)
-    else:
-        # Just assume the innermost block is right in the middle at this stage
-        return children_list[int(len(children_list)/2)]
-
-
-def get_downsample(net):
-    downsample = [m.stride[0] for m in net.modules() if repr(m).startswith('Conv2d')]
-    downsample = reduce(lambda x, y: x*y, downsample)
-
-    return downsample
-
-
-def save_output_hook(module, input, output):
-    module.output = output
-
 
 def wgan_criterionGAN(loss, real_label):
     return loss.mean(dim=0, keepdim=True) * (-1 if real_label else 1)
@@ -99,30 +58,22 @@ class DivInlineModel(BaseModel):
         self.netG = networks.define_G(input_channels, opt.output_nc, opt.ngf,
                                       opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
 
-        self.sobel_layer_y = torch.nn.Conv2d(1, 1, 3, padding=1)
-        self.sobel_layer_y.weight.data = torch.FloatTensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]).unsqueeze(0).unsqueeze(0)
-        self.sobel_layer_y.weight.requires_grad = False
+
+        if self.opt.grad_loss:
+            self.sobel_layer_y = torch.nn.Conv2d(1, 1, 3, padding=1)
+            self.sobel_layer_y.weight.data = torch.FloatTensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]).unsqueeze(0).unsqueeze(0)
+            self.sobel_layer_y.weight.requires_grad = False
 
 
-        self.sobel_layer_x = torch.nn.Conv2d(1, 1, 3, padding=1)
-        self.sobel_layer_x.weight.data = torch.FloatTensor([[-1, -2, -1], [0, 0, 0], [1, 2, 1]]).unsqueeze(0).unsqueeze(0)
-        self.sobel_layer_x.weight.requires_grad = False
+            self.sobel_layer_x = torch.nn.Conv2d(1, 1, 3, padding=1)
+            self.sobel_layer_x.weight.data = torch.FloatTensor([[-1, -2, -1], [0, 0, 0], [1, 2, 1]]).unsqueeze(0).unsqueeze(0)
+            self.sobel_layer_x.weight.requires_grad = False
 
-
-        if len(self.gpu_ids) > 0:
-            self.sobel_layer_y.cuda(self.gpu_ids[0])
-            self.sobel_layer_x.cuda(self.gpu_ids[0])
-
-
-        if self.isTrain and opt.num_folders > 1 and self.opt.folder_pred:
-            self.netG.inner_layer = get_innermost(self.netG, 'UnetSkipConnectionBlock')
-            self.netG.inner_layer.register_forward_hook(save_output_hook)
-
-            # Image size downsampled, times number of filters
-            self.folder_fc = torch.nn.Linear(2*opt.fineSize**2 / get_downsample(self.netG)**2 * opt.ngf*8, opt.num_folders)
 
             if len(self.gpu_ids) > 0:
-                self.folder_fc.cuda(self.gpu_ids[0])
+                self.sobel_layer_y.cuda(self.gpu_ids[0])
+                self.sobel_layer_x.cuda(self.gpu_ids[0])
+
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
@@ -135,18 +86,18 @@ class DivInlineModel(BaseModel):
             else:
                 self.critic_im_size = (256, 256)
 
-            self.netDs = [networks.define_D(discrim_input_channels, opt.ndf, opt.which_model_netD, opt.n_layers_D, 
-                opt.norm, use_sigmoid, opt.init_type, self.gpu_ids, critic_im_size=self.critic_im_size) for _ in range(self.opt.num_discrims)]
+            self.netD = networks.define_D(discrim_input_channels, opt.ndf, opt.which_model_netD, opt.n_layers_D, 
+                opt.norm, use_sigmoid, opt.init_type, self.gpu_ids, critic_im_size=self.critic_im_size)
             
 
             if len(self.gpu_ids) > 0:
-                [netD.cuda() for netD in self.netDs]
+                self.netD.cuda()
 
         if not self.isTrain or opt.continue_train:
             self.load_network(self.netG, 'G', opt.which_epoch)
 
             if self.isTrain:
-                [self.load_network(self.netDs[i], 'D_%d' % i, opt.which_epoch) for i in range(len(self.netDs))]
+                self.load_network(self.netD, 'D', opt.which_epoch)
 
 
         if self.isTrain:
@@ -178,8 +129,8 @@ class DivInlineModel(BaseModel):
             self.optimizer_G = optim(filter(lambda p: p.requires_grad, self.netG.parameters()), **G_optim_kwargs)
             self.optimizers.append(self.optimizer_G)
 
-            self.optimizer_Ds = [optim(filter(lambda p: p.requires_grad, netD.parameters()), **D_optim_kwargs) for netD in self.netDs]
-            self.optimizers += self.optimizer_Ds
+            self.optimizer_D = optim(filter(lambda p: p.requires_grad, self.netD.parameters()), **D_optim_kwargs)
+            self.optimizers.append(self.optimizer_D)
            
             
             # Just a linear decay over the last 100 iterations, by default
@@ -236,13 +187,6 @@ class DivInlineModel(BaseModel):
             
         if self.opt.continent_data:
             self.continent_img = continents
-        
-
-        if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
-            self.real_folder = input['folder_id']
-
-            if len(self.gpu_ids) > 0:
-                self.real_folder = self.real_folder.cuda(self.gpu_ids[0])
 
         self.batch_size = input_A.shape[0]
 
@@ -304,11 +248,6 @@ class DivInlineModel(BaseModel):
         plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
         self.fake_B_discrete[:, 1, :, :].copy_(plate)
-
-        if self.opt.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
-            self.fake_folder = self.folder_fc(self.netG.inner_layer.output.view(self.batch_size, -1))
-            self.fake_folder = torch.nn.functional.log_softmax(self.fake_folder, dim=1)
-
 
         # if we aren't taking local loss, use entire image
         loss_mask = torch.ones(self.mask.shape).byte()
@@ -407,56 +346,6 @@ class DivInlineModel(BaseModel):
         return gradient_penalty
 
 
-    def backward_single_D(self, net_D, cond_data, real_data, fake_data):
-        # Fake
-        # In this case real_A, the input, is our conditional vector
-        fake_AB = fake_data
-        # stop backprop to the generator by detaching fake_B
-        fake_loss = self.criterionGAN(net_D(fake_AB.detach()), False)
-        # self.loss_D2_fake = self.criterionGAN(pred_fake, False)
-
-        # Real
-        real_AB = real_data
-        # Mean across batch
-        real_loss = self.criterionGAN(net_D(real_AB), True)
-        # self.loss_D2_real = self.criterionGAN(pred_real, True)
-
-        loss = fake_loss + real_loss
-
-        if self.opt.which_model_netD == 'wgan-gp' or self.opt.which_model_netD == 'self-attn':
-            self.grad_pen_loss = self.calc_gradient_penalty(net_D, real_AB.data, fake_AB.data) * self.opt.lambda_C
-            loss += self.grad_pen_loss
-
-
-        # Combined loss
-        # self.loss_D2 = (self.loss_D2_fake + self.loss_D2_real) * 0.5
-
-        loss.backward()
-        
-        # We could use view, but it looks like it just causes memory overflow
-        # return torch.cat((loss, real_loss, fake_loss), dim=0).view(-1, 3, 1)
-        output = torch.cat((loss.unsqueeze(0), real_loss.unsqueeze(0), fake_loss.unsqueeze(0)), dim=0)
-        output = output.unsqueeze(0)
-        output = output.unsqueeze(-1)
-
-        return output
-
-
-    def backward_D(self, net_Ds, optimisers, cond_data, real_data, fake_data):
-        # We get back full loss, real loss and fake loss, along axis 1
-        # Concatenate the results from each discriminator along axis 2
-        loss = torch.cat([self.backward_single_D(net_D, cond_data, real_data, fake_data) for net_D in net_Ds], dim=2)
-        
-        # loss[:, 0, :].backward()        
-
-        # We take the different loss tyes (along axis 1) and take their average across all discriminators (axis 2 before selecting index on axis 1)
-        output = (torch.mean(loss[:, 0, :], dim=1, keepdim=True),
-            torch.mean(loss[:, 1, :], dim=1, keepdim=True),
-            torch.mean(loss[:, 2, :], dim=1, keepdim=True))
-
-        return output
-
-
     def backward_G(self):
         self.loss_G_GAN = 0
         self.loss_G_L2 = 0
@@ -473,23 +362,19 @@ class DivInlineModel(BaseModel):
             # We only optimise with respect to the fake prediction because
             # the first term (i.e. the real one) is independent of the generator i.e. it is just a constant term
 
-            for netD in self.netDs:
-                for p in netD.parameters():
-                    p.requires_grad = False
+            for p in self.netD.parameters():
+                p.requires_grad = False
             
             if self.opt.use_hinge:
-                    g_loss_fake = - g_out_fake.mean()
-                self.loss_G_GAN1 = torch.cat([-netD(fake_AB).mean(dim=0, keepdim=True) for netD in self.netDs], dim=0).mean()
+                self.loss_G_GAN1 = -self.netD(fake_AB)
             else:
-                self.loss_G_GAN1 = torch.cat([self.criterionGAN(netD(fake_AB), True).unsqueeze(0) for netD in self.netDs], dim=0).mean()
+                self.loss_G_GAN1 = self.criterionGAN(self.netD(fake_AB), True)
  
             # Trying to incentivise making this big, so it's mistaken for real
             self.loss_G_GAN = self.loss_G_GAN1
 
-
-            for netD in self.netDs:
-                for p in netD.parameters():
-                    p.requires_grad = True
+            for p in self.netD.parameters():
+                p.requires_grad = True
 
 
         self.loss_G_L2_DIV = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).mean() * self.opt.lambda_A
@@ -523,12 +408,7 @@ class DivInlineModel(BaseModel):
 
         self.loss_G = self.loss_G_GAN + self.loss_G_L2
 
-        if self.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
-            ce_fun = self.criterionCE()
-            self.folder_pred_CE = ce_fun(self.fake_folder, self.real_folder) * self.opt.lambda_D
-
-            self.loss_G += self.folder_pred_CE
-
+        self.loss_G.mean()
         self.loss_G.backward()
 
 
@@ -543,9 +423,21 @@ class DivInlineModel(BaseModel):
                 fake_AB = self.fake_B_DIV
                 real_AB = self.real_B_DIV
              
-            self.loss_D, self.loss_D_real, self.loss_D_fake = self.backward_D(self.netDs, self.optimizer_Ds,
-                cond_data,
-                fake_AB, real_AB)
+            # stop backprop to the generator by detaching fake_B
+            self.loss_D_fake = self.criterionGAN(self.netD(fake_AB.detach()), False)
+
+            # Real
+            self.loss_D_real = self.criterionGAN(self.netD(real_AB), True)
+
+            loss = self.loss_D_fake + self.loss_D_real
+
+            if self.opt.which_model_netD == 'wgan-gp' or self.opt.which_model_netD == 'self-attn':
+                if not self.opt.use_hinge:
+                    self.grad_pen_loss = self.calc_gradient_penalty(self.netD, real_AB.data, fake_AB.data) * self.opt.lambda_C
+                    loss += self.grad_pen_loss
+
+            loss.mean()
+            loss.backward()
 
             if not self.D_has_run:
                 self.D_has_run = True
@@ -687,6 +579,5 @@ class DivInlineModel(BaseModel):
     def save(self, label):
         self.save_network(self.netG, 'G', label, self.gpu_ids)
         
-        for i in range(len(self.netDs)):
-            self.save_network(self.netDs[i], 'D_%d' % i, label, self.gpu_ids)
+        self.save_network(self.netD, 'D', label, self.gpu_ids)
 
