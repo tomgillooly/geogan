@@ -9,7 +9,7 @@ else
 	VIRTUALENV_NAME=cyclegan3
 	# DATAROOT=/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT
 	# DATAROOT=/storage/Datasets/Geology-NicolasColtice/pytorch_records_new_thresh
-	DATAROOT=/storage/Datasets/Geology-NicolasColtice/ellipses3
+	DATAROOT=/storage/Datasets/Geology-NicolasColtice/ellipses3_overfit
 	HOME=/home/tgillooly/
 
 	source find_free_port.sh
@@ -29,18 +29,19 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --high_iter 25 --low_iter 5 \
 	# --continue_train --which_epoch 55 --epoch_count 56 \
-python train.py --dataroot $DATAROOT --name ellipse_critic_old_discrim \
+python train.py --dataroot $DATAROOT --name ellipse_critic_patchgan_ttur \
 	--model div_inline --which_direction BtoA \
-	--num_discrims 1 --which_model_netD self-attn \
+	--num_discrims 1 --which_model_netD n_layers \
 	--no_lsgan --norm batch \
-	--high_iter 2 --low_iter 2 \
+	--high_iter 1 --low_iter 1 \
 	--diff_in_numerator \
 	--local_loss \
 	--input_nc 3 --output_nc 1 \
-	--lambda_A 100 --lambda_D 100 \
+        --lr 0.0004 \
+	--lambda_A 0.1 --lambda_D 100 \
 	--which_model_netG unet_256 \
 	--display_freq 10 --print_freq 10 \
-	--pool_size 0 --no_html --batchSize 1 --nThreads 2 $OPTIONS
+	--pool_size 0 --no_html --batchSize 5 --nThreads 2 $OPTIONS
 
 kill %1
 

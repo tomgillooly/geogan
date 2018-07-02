@@ -656,7 +656,6 @@ class SelfAttnDiscriminator(nn.Module):
         self.attn2 = Self_Attn(512, 'relu')
 
         out_dim = int(self.imsize / (2*2*2*2*2))
-        self.linear = nn.Linear(1*out_dim*out_dim, 1)
 
 
     def forward(self, x):
@@ -667,7 +666,9 @@ class SelfAttnDiscriminator(nn.Module):
         out=self.l4(out)
         out,p2 = self.attn2(out)
         out=self.last(out)
-        out = self.linear(out.view(x.shape[0], -1))
+
+        # GAP
+        out = out.view(x.shape[0], 1, -1).mean(dim=2)
 
         #self.attn1 = p1
         #self.attn2 = p2

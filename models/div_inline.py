@@ -31,9 +31,9 @@ def wgan_criterionGAN(loss, real_label):
 
 def hinge_criterionGAN(loss, real_label):
     if real_label:
-        d_loss_real = torch.nn.ReLU()(1.0 - loss).mean()
+        return torch.nn.ReLU()(1.0 - loss).mean()
     else:
-        d_loss_fake = torch.nn.ReLU()(1.0 + loss).mean()
+        return torch.nn.ReLU()(1.0 + loss).mean()
 
 
 class DivInlineModel(BaseModel):
@@ -119,8 +119,8 @@ class DivInlineModel(BaseModel):
 
             if opt.optim_type == 'adam':
                 optim = torch.optim.Adam
-                G_optim_kwargs = {'lr': opt.lr/2, 'betas': (opt.beta1, 0.999)}
-                D_optim_kwargs = {'lr': opt.lr, 'betas': (opt.beta1, 0.999)}
+                G_optim_kwargs = {'lr': opt.lr/4, 'betas': (opt.beta1, 0.999)}
+                D_optim_kwargs = {'lr': opt.lr, 'betas': (0, 0.9)}
             elif opt.optim_type == 'rmsprop':
                 optim = torch.optim.RMSprop
                 G_optim_kwargs = {'lr': opt.lr, 'alpha': opt.alpha}
@@ -141,8 +141,7 @@ class DivInlineModel(BaseModel):
         networks.print_network(self.netG)
         if self.isTrain:
             if self.opt.num_discrims > 0:
-                networks.print_network(self.netDs[0])
-            print("#discriminators", len(self.netDs))
+                networks.print_network(self.netD)
         print('-----------------------------------------------')
 
     def set_input(self, input):
@@ -377,7 +376,8 @@ class DivInlineModel(BaseModel):
                 p.requires_grad = True
 
 
-        self.loss_G_L2_DIV = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)).mean() * self.opt.lambda_A
+        self.loss_G_L2_DIV_weighted = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI))
+        self.loss_G_L2_DIV = self.loss_G_L2_DIV_weighted.sum(dim=2).sum(dim=2) * self.opt.lambda_A
 
         self.loss_G_L2 += self.loss_G_L2_DIV
 
@@ -398,8 +398,8 @@ class DivInlineModel(BaseModel):
                 grad_x_L2_img = self.weight_mask.detach() * grad_x_L2_img
                 grad_y_L2_img = self.weight_mask.detach() * grad_y_L2_img
 
-            self.loss_L2_DIV_grad_x = (grad_x_L2_img).sum(dim=2).sum(dim=2).mean(dim=0)
-            self.loss_L2_DIV_grad_y = (grad_y_L2_img).sum(dim=2).sum(dim=2).mean(dim=0)
+            self.loss_L2_DIV_grad_x = (grad_x_L2_img).sum(dim=2).sum(dim=2)
+            self.loss_L2_DIV_grad_y = (grad_y_L2_img).sum(dim=2).sum(dim=2)
 
             print("Adding gradient losses")
             self.loss_G_L2 += self.loss_L2_DIV_grad_x
@@ -408,7 +408,7 @@ class DivInlineModel(BaseModel):
 
         self.loss_G = self.loss_G_GAN + self.loss_G_L2
 
-        self.loss_G.mean()
+        self.loss_G = self.loss_G.mean()
         self.loss_G.backward()
 
 
@@ -436,7 +436,7 @@ class DivInlineModel(BaseModel):
                     self.grad_pen_loss = self.calc_gradient_penalty(self.netD, real_AB.data, fake_AB.data) * self.opt.lambda_C
                     loss += self.grad_pen_loss
 
-            loss.mean()
+            loss = loss.mean()
             loss.backward()
 
             if not self.D_has_run:
@@ -459,10 +459,9 @@ class DivInlineModel(BaseModel):
 
     def get_current_errors(self):
         errors = [
-            ('G', self.loss_G.data.item()),
-            ('G_L2', self.loss_G_L2.data.item()),
-            ('G_L2_DIV', self.loss_G_L2_DIV.data.item()),
-            ]
+            ('G', self.loss_G.data[0]),
+            ('G_L2', self.loss_G_L2.data[0]),
+            ('G_L2_DIV', self.loss_G_L2_DIV.data[0])]
 
         if self.opt.grad_loss:
             errors += [
@@ -516,6 +515,11 @@ class DivInlineModel(BaseModel):
         fake_B_DIV[mask_edge_coords] = np.max(fake_B_DIV)
         visuals.append(('output_divergence', fake_B_DIV))
 
+        weighted_DIV = util.tensor2im(self.loss_G_L2_DIV_weighted.data)
+        if not self.opt.local_loss:
+            weighted_DIV[mask_edge_coords] = np.max(weighted_DIV)
+        visuals.append(('weighted_L2_loss', weighted_DIV))
+
         fake_B_discrete = util.tensor2im(self.fake_B_discrete.data)
         fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
         visuals.append(('output_discrete', fake_B_discrete))
@@ -539,7 +543,6 @@ class DivInlineModel(BaseModel):
             if not self.opt.local_loss:
                 weight_mask[mask_edge_coords] = np.max(weight_mask)
             visuals.append(('L2 weight mask', weight_mask))
-            
 
         if self.opt.continent_data:
             continents = util.tensor2im(self.continents.data)

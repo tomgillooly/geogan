@@ -30,7 +30,7 @@ def train():
     optimiser_step_interval = 10
 
     print('#training images = %d' % dataset_size)
-    print('#batches = %d' % len(dataset)/optimiser_step_interval)
+    print('#batches = %d' % (len(dataset)/optimiser_step_interval))
 
 
     model = create_model(opt)
