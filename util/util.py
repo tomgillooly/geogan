@@ -59,49 +59,61 @@ def mkdir(path):
         os.makedirs(path)
 
 
-def create_weight_mask(tensor1, tensor2, diff_in_numerator=False):
+def create_weight_mask(tensor1, tensor2, diff_in_numerator=False, method='freq'):
     assert(tensor1.shape == tensor2.shape)
 
-    total_pixels = tensor1[0, 0, :, :].numel()
+    if method == 'freq':
+        total_pixels = tensor1[0, 0, :, :].numel()
 
-    num_ridge_pixels_1 = torch.sum(torch.sum(tensor1[:, 0, :, :].unsqueeze(1),
-        dim=2, keepdim=True), dim=3, keepdim=True).float()
-    num_plate_pixels_1 = torch.sum(torch.sum(tensor1[:, 1, :, :].unsqueeze(1),
-        dim=2, keepdim=True), dim=3, keepdim=True).float()
-    num_subduction_pixels_1 = torch.sum(torch.sum(tensor1[:, 2, :, :].unsqueeze(1),
-        dim=2, keepdim=True), dim=3, keepdim=True).float()
+        num_ridge_pixels_1 = torch.sum(torch.sum(tensor1[:, 0, :, :].unsqueeze(1),
+            dim=2, keepdim=True), dim=3, keepdim=True).float()
+        num_plate_pixels_1 = torch.sum(torch.sum(tensor1[:, 1, :, :].unsqueeze(1),
+            dim=2, keepdim=True), dim=3, keepdim=True).float()
+        num_subduction_pixels_1 = torch.sum(torch.sum(tensor1[:, 2, :, :].unsqueeze(1),
+            dim=2, keepdim=True), dim=3, keepdim=True).float()
 
-    num_ridge_pixels_2 = torch.sum(torch.sum(tensor2[:, 0, :, :].unsqueeze(1),
-        dim=2, keepdim=True), dim=3, keepdim=True).float()
-    num_plate_pixels_2 = torch.sum(torch.sum(tensor2[:, 1, :, :].unsqueeze(1),
-        dim=2, keepdim=True), dim=3, keepdim=True).float()
-    num_subduction_pixels_2 = torch.sum(torch.sum(tensor2[:, 2, :, :].unsqueeze(1),
-        dim=2, keepdim=True), dim=3, keepdim=True).float()
+        num_ridge_pixels_2 = torch.sum(torch.sum(tensor2[:, 0, :, :].unsqueeze(1),
+            dim=2, keepdim=True), dim=3, keepdim=True).float()
+        num_plate_pixels_2 = torch.sum(torch.sum(tensor2[:, 1, :, :].unsqueeze(1),
+            dim=2, keepdim=True), dim=3, keepdim=True).float()
+        num_subduction_pixels_2 = torch.sum(torch.sum(tensor2[:, 2, :, :].unsqueeze(1),
+            dim=2, keepdim=True), dim=3, keepdim=True).float()
 
-    ridge_freq_1 = num_ridge_pixels_1 / total_pixels
-    plate_freq_1 = num_plate_pixels_1 / total_pixels
-    subduction_freq_1 = num_subduction_pixels_1 / total_pixels
+        ridge_freq_1 = num_ridge_pixels_1 / total_pixels
+        plate_freq_1 = num_plate_pixels_1 / total_pixels
+        subduction_freq_1 = num_subduction_pixels_1 / total_pixels
 
-    ridge_freq_2 = num_ridge_pixels_2 / total_pixels
-    plate_freq_2 = num_plate_pixels_2 / total_pixels
-    subduction_freq_2 = num_subduction_pixels_2 / total_pixels
+        ridge_freq_2 = num_ridge_pixels_2 / total_pixels
+        plate_freq_2 = num_plate_pixels_2 / total_pixels
+        subduction_freq_2 = num_subduction_pixels_2 / total_pixels
 
-    if diff_in_numerator:
-        ridge_weight = 2.0 + torch.abs(ridge_freq_1 - ridge_freq_2) / (ridge_freq_1 + ridge_freq_2)
-        plate_weight = 2.0 + torch.abs(plate_freq_1 - plate_freq_2) / (plate_freq_1 + plate_freq_2)
-        subduction_weight = 2.0 + torch.abs(subduction_freq_1 - subduction_freq_2) / (subduction_freq_1 + subduction_freq_2)
+        if diff_in_numerator:
+            ridge_weight = 2.0 + torch.abs(ridge_freq_1 - ridge_freq_2) / (ridge_freq_1 + ridge_freq_2)
+            plate_weight = 2.0 + torch.abs(plate_freq_1 - plate_freq_2) / (plate_freq_1 + plate_freq_2)
+            subduction_weight = 2.0 + torch.abs(subduction_freq_1 - subduction_freq_2) / (subduction_freq_1 + subduction_freq_2)
+        else:
+            ridge_weight = 2 * 1.0 / (ridge_freq_1 + ridge_freq_2)
+            plate_weight = 2 * 1.0 / (plate_freq_1 + plate_freq_2)
+            subduction_weight = 2 * 1.0 / (subduction_freq_1 + subduction_freq_2)
+
+        pixel_weights = torch.cat((ridge_weight, plate_weight, subduction_weight), dim=1)
+        pixel_weights /= torch.sum(pixel_weights + 1e-8, dim=1, keepdim=True)
+
+        if tensor1.device.type != 'cpu':
+            pixel_weights = pixel_weights.cuda()
+
+        weight_mask = torch.max(pixel_weights * torch.max(tensor1, tensor2), dim=1, keepdim=True)[0]
     else:
-        ridge_weight = 2 * 1.0 / (ridge_freq_1 + ridge_freq_2)
-        plate_weight = 2 * 1.0 / (plate_freq_1 + plate_freq_2)
-        subduction_weight = 2 * 1.0 / (subduction_freq_1 + subduction_freq_2)
+        gt_fg = torch.max(tensor1[:, [0, 2], :, :], dim=1, keepdim=True)[0]
+        output_fg = torch.max(tensor2[:, [0, 2], :, :], dim=1, keepdim=True)[0]
 
-    pixel_weights = torch.cat((ridge_weight, plate_weight, subduction_weight), dim=1)
-    pixel_weights /= torch.sum(pixel_weights + 1e-8, dim=1, keepdim=True)
-
-    if tensor1.device.type != 'cpu':
-        pixel_weights = pixel_weights.cuda()
-
-    weight_mask = torch.max(pixel_weights * torch.max(tensor1, tensor2), dim=1, keepdim=True)[0]
+        intersection = torch.min(torch.cat((gt_fg.unsqueeze(4), output_fg.unsqueeze(4)), dim=4), dim=4)[0]
+        union = torch.max(torch.cat((gt_fg.unsqueeze(4), output_fg.unsqueeze(4)), dim=4), dim=4)[0]
+        
+        iou = intersection.sum(3).sum(2) / union.sum(3).sum(2)
+        iou = 1.0 - iou.unsqueeze(2).unsqueeze(3)
+        
+        weight_mask = torch.max(iou * torch.max(gt_fg, output_fg)[0], dim=1)[0]
 
     return weight_mask
 
