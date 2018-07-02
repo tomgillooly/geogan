@@ -120,7 +120,7 @@ class DivInlineModel(BaseModel):
             if opt.optim_type == 'adam':
                 optim = torch.optim.Adam
                 G_optim_kwargs = {'lr': opt.lr/4, 'betas': (opt.beta1, 0.999)}
-                D_optim_kwargs = {'lr': opt.lr, 'betas': (0, 0.9)}
+                D_optim_kwargs = {'lr': opt.lr, 'betas': (opt.beta1, 0.999)}
             elif opt.optim_type == 'rmsprop':
                 optim = torch.optim.RMSprop
                 G_optim_kwargs = {'lr': opt.lr, 'alpha': opt.alpha}
@@ -270,8 +270,15 @@ class DivInlineModel(BaseModel):
         self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
         self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
 
-        self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI.float(), self.opt.diff_in_numerator, method='iou')
+        self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI.float(), self.opt.diff_in_numerator, method='freq')
         
+        if self.opt.grad_loss:
+            self.real_B_DIV_grad_x = self.real_B_DIV_grad_x.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+            self.real_B_DIV_grad_y = self.real_B_DIV_grad_y.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+
+            self.fake_B_DIV_grad_x = self.fake_B_DIV_grad_x.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+            self.fake_B_DIV_grad_y = self.fake_B_DIV_grad_y.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+
 
     # no backprop gradients
     def test(self):
@@ -385,12 +392,6 @@ class DivInlineModel(BaseModel):
         # self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
         
         if self.opt.grad_loss:
-            self.real_B_DIV_grad_x = self.real_B_DIV_grad_x.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
-            self.real_B_DIV_grad_y = self.real_B_DIV_grad_y.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
-
-            self.fake_B_DIV_grad_x = self.fake_B_DIV_grad_x.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
-            self.fake_B_DIV_grad_y = self.fake_B_DIV_grad_y.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
-
             grad_x_L2_img =  self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach())
             grad_y_L2_img =  self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach())
 
@@ -401,7 +402,6 @@ class DivInlineModel(BaseModel):
             self.loss_L2_DIV_grad_x = (grad_x_L2_img).sum(dim=2).sum(dim=2)
             self.loss_L2_DIV_grad_y = (grad_y_L2_img).sum(dim=2).sum(dim=2)
 
-            print("Adding gradient losses")
             self.loss_G_L2 += self.loss_L2_DIV_grad_x
             self.loss_G_L2 += self.loss_L2_DIV_grad_y
 
@@ -465,8 +465,8 @@ class DivInlineModel(BaseModel):
 
         if self.opt.grad_loss:
             errors += [
-                ('G_L2_grad_x', self.loss_L2_DIV_grad_x.data.item()),
-                ('G_L2_grad_y', self.loss_L2_DIV_grad_y.data.item())
+                ('G_L2_grad_x', self.loss_L2_DIV_grad_x.data[0]),
+                ('G_L2_grad_y', self.loss_L2_DIV_grad_y.data[0])
                 ]
 
         if self.opt.num_discrims  > 0 and self.D_has_run:
@@ -515,11 +515,6 @@ class DivInlineModel(BaseModel):
         fake_B_DIV[mask_edge_coords] = np.max(fake_B_DIV)
         visuals.append(('output_divergence', fake_B_DIV))
 
-        weighted_DIV = util.tensor2im(self.loss_G_L2_DIV_weighted.data)
-        if not self.opt.local_loss:
-            weighted_DIV[mask_edge_coords] = np.max(weighted_DIV)
-        visuals.append(('weighted_L2_loss', weighted_DIV))
-
         fake_B_discrete = util.tensor2im(self.fake_B_discrete.data)
         fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
         visuals.append(('output_discrete', fake_B_discrete))
@@ -543,6 +538,11 @@ class DivInlineModel(BaseModel):
             if not self.opt.local_loss:
                 weight_mask[mask_edge_coords] = np.max(weight_mask)
             visuals.append(('L2 weight mask', weight_mask))
+            
+            weighted_DIV = util.tensor2im(self.loss_G_L2_DIV_weighted.data)
+            if not self.opt.local_loss:
+                weighted_DIV[mask_edge_coords] = np.max(weighted_DIV)
+            visuals.append(('weighted_L2_loss', weighted_DIV))
 
         if self.opt.continent_data:
             continents = util.tensor2im(self.continents.data)

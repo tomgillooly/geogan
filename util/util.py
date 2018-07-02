@@ -109,12 +109,12 @@ def create_weight_mask(tensor1, tensor2, diff_in_numerator=False, method='freq')
 
         intersection = torch.min(torch.cat((gt_fg.unsqueeze(4), output_fg.unsqueeze(4)), dim=4), dim=4)[0]
         union = torch.max(torch.cat((gt_fg.unsqueeze(4), output_fg.unsqueeze(4)), dim=4), dim=4)[0]
-        
-        iou = intersection.sum(3).sum(2) / union.sum(3).sum(2)
-        iou = 1.0 - iou.unsqueeze(2).unsqueeze(3)
-        
-        weight_mask = torch.max(iou * torch.max(gt_fg, output_fg)[0], dim=1)[0]
 
+        union_sum = union.sum(3).sum(2)
+        iou = intersection.sum(3).sum(2) / union_sum
+        iou = 1.0 - iou.unsqueeze(2).unsqueeze(3)
+        weight_mask = torch.max(iou * union, dim=1, keepdim=True)[0]
+    
     return weight_mask
 
 
