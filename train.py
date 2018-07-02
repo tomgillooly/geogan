@@ -27,8 +27,10 @@ def train():
 
 
     dataset_size = len(unpickler)
+    optimiser_step_interval = 10
+
     print('#training images = %d' % dataset_size)
-    print('#batches = %d' % len(dataset))
+    print('#batches = %d' % len(dataset)/optimiser_step_interval)
 
 
     model = create_model(opt)
@@ -37,7 +39,6 @@ def train():
     total_steps = 0
 
     running_errors = defaultdict(list)
-    optimiser_step_interval = 10
 
     for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
         data_iter = iter(dataset)

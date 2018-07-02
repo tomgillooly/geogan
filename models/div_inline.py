@@ -70,6 +70,13 @@ def wgan_criterionGAN(loss, real_label):
     return loss.mean(dim=0, keepdim=True) * (-1 if real_label else 1)
 
 
+def hinge_criterionGAN(loss, real_label):
+    if real_label:
+        d_loss_real = torch.nn.ReLU()(1.0 - loss).mean()
+    else:
+        d_loss_fake = torch.nn.ReLU()(1.0 + loss).mean()
+
+
 class DivInlineModel(BaseModel):
     def name(self):
         return 'DivInlineModel'
@@ -148,7 +155,9 @@ class DivInlineModel(BaseModel):
             self.criterionL2 = torch.nn.MSELoss(reduce=False)
             self.criterionCE = torch.nn.NLLLoss2d
 
-            if self.opt.which_model_netD == 'wgan-gp' or self.opt.which_model_netD == 'self-attn':
+            if self.opt.use_hinge:
+                self.criterionGAN = hinge_criterionGAN
+            elif self.opt.which_model_netD == 'wgan-gp' or self.opt.which_model_netD == 'self-attn':
                 self.criterionGAN = wgan_criterionGAN
             else:
                 self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
@@ -467,8 +476,12 @@ class DivInlineModel(BaseModel):
             for netD in self.netDs:
                 for p in netD.parameters():
                     p.requires_grad = False
-
-            self.loss_G_GAN1 = torch.cat([self.criterionGAN(netD(fake_AB), True).unsqueeze(0) for netD in self.netDs], dim=0).mean()
+            
+            if self.opt.use_hinge:
+                    g_loss_fake = - g_out_fake.mean()
+                self.loss_G_GAN1 = torch.cat([-netD(fake_AB).mean(dim=0, keepdim=True) for netD in self.netDs], dim=0).mean()
+            else:
+                self.loss_G_GAN1 = torch.cat([self.criterionGAN(netD(fake_AB), True).unsqueeze(0) for netD in self.netDs], dim=0).mean()
  
             # Trying to incentivise making this big, so it's mistaken for real
             self.loss_G_GAN = self.loss_G_GAN1
@@ -572,7 +585,8 @@ class DivInlineModel(BaseModel):
                 ('D_fake', self.loss_D_fake.data[0])
             ]
             if self.opt.which_model_netD == 'wgan-gp' or self.opt.which_model_netD == 'self-attn':
-                errors += [('G_grad_pen', self.grad_pen_loss.data[0])]
+                if not self.opt.use_hinge:
+                    errors += [('G_grad_pen', self.grad_pen_loss.data[0])]
 
 
         if self.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
