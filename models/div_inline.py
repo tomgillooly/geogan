@@ -67,7 +67,7 @@ def save_output_hook(module, input, output):
 
 
 def wgan_criterionGAN(loss, real_label):
-    return loss.mean(dim=0) * -1 if real_label else 1
+    return loss.mean(dim=0, keepdim=True) * (-1 if real_label else 1)
 
 
 class DivInlineModel(BaseModel):
@@ -414,14 +414,16 @@ class DivInlineModel(BaseModel):
 
         loss = fake_loss + real_loss
 
-        if self.opt.which_model_netD == 'wgan-gp':
-            loss += self.calc_gradient_penalty(net_D, real_AB.data, fake_AB.data) * self.opt.lambda_C
+        if self.opt.which_model_netD == 'wgan-gp' or self.opt.which_model_netD == 'self-attn':
+            self.grad_pen_loss = self.calc_gradient_penalty(net_D, real_AB.data, fake_AB.data) * self.opt.lambda_C
+            loss += self.grad_pen_loss
+
 
         # Combined loss
         # self.loss_D2 = (self.loss_D2_fake + self.loss_D2_real) * 0.5
 
         loss.backward()
-
+        
         # We could use view, but it looks like it just causes memory overflow
         # return torch.cat((loss, real_loss, fake_loss), dim=0).view(-1, 3, 1)
         output = torch.cat((loss.unsqueeze(0), real_loss.unsqueeze(0), fake_loss.unsqueeze(0)), dim=0)
@@ -569,6 +571,9 @@ class DivInlineModel(BaseModel):
                 ('D_real', self.loss_D_real.data[0]),
                 ('D_fake', self.loss_D_fake.data[0])
             ]
+            if self.opt.which_model_netD == 'wgan-gp' or self.opt.which_model_netD == 'self-attn':
+                errors += [('G_grad_pen', self.grad_pen_loss.data[0])]
+
 
         if self.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             errors.append(('folder_CE', self.folder_pred_CE.data[0]))
