@@ -55,7 +55,7 @@ class DivInlineModel(BaseModel):
         if self.opt.continent_data:
             input_channels += 1
 
-        self.netG = networks.define_G(input_channels, opt.output_nc+2, opt.ngf,
+        self.netG = networks.define_G(input_channels, opt.output_nc+1, opt.ngf,
                                       opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
 
 
@@ -108,7 +108,7 @@ class DivInlineModel(BaseModel):
 
             self.criterionL2 = torch.nn.MSELoss(reduce=False)
             # self.criterionCE = torch.nn.NLLLoss2d()
-            self.criterionCE = torch.nn.CrossEntropyLoss(reduce=False)
+            self.criterionBCE = torch.nn.BCELoss(reduce=False)
 
             if self.opt.use_hinge:
                 self.criterionGAN = hinge_criterionGAN
@@ -234,8 +234,8 @@ class DivInlineModel(BaseModel):
 
         self.G_out = self.netG(self.G_input)
         self.fake_B_DIV = self.G_out[:, 0, :, :].unsqueeze(1)
-        self.fg_classes = self.G_out[:, 1:, :, :]
-        self.fg_prediction = (self.fg_classes.max(dim=1)[1] == 0).unsqueeze(1)
+        self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :])
+        self.fake_fg_discrete = self.fake_B_fg > 0.5
 
  
         if self.opt.grad_loss:
@@ -280,8 +280,8 @@ class DivInlineModel(BaseModel):
         self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
 
         self.real_B_fg_ROI = self.real_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
-        self.fg_classes_ROI = self.fg_classes.masked_select(loss_mask.repeat(1, 2, 1, 1)).view(self.batch_size, 2, *im_dims)
-        self.fg_prediction_ROI = self.fg_prediction.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+        self.fake_B_fg_ROI = self.fake_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+        self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
 
         self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI.float(), self.opt.diff_in_numerator, method='freq')
         
@@ -422,9 +422,9 @@ class DivInlineModel(BaseModel):
             self.loss_G_L2 += self.loss_L2_DIV_grad_x
             self.loss_G_L2 += self.loss_L2_DIV_grad_y
 
-        self.ce_weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fg_prediction_ROI.float())
+        self.ce_weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_fg_discrete_ROI.float())
         
-        self.loss_fg_CE_im = self.criterionCE(self.fg_classes_ROI, self.real_B_fg_ROI.long().squeeze()).unsqueeze(1) * self.ce_weight_mask.detach()
+        self.loss_fg_CE_im = self.criterionCE(self.fake_fg_ROI, self.real_B_fg_ROI.long().squeeze()).unsqueeze(1) * self.ce_weight_mask.detach()
         self.loss_fg_CE = self.loss_fg_CE_im.sum(3).sum(2) * self.opt.lambda_B
         #print(self.loss_fg_CE.shape)
         #print(self.fg_prediction_ROI.shape)
@@ -549,9 +549,9 @@ class DivInlineModel(BaseModel):
         fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
         visuals.append(('output_discrete', fake_B_discrete))
 
-        fg_prediction = util.tensor2im(self.fg_prediction.data)
-        fg_prediction[mask_edge_coords] = np.max(fg_prediction)
-        visuals.append(('fg_prediction', fg_prediction))
+        fake_fg_discrete = util.tensor2im(self.fake_fg_discrete.data)
+        fake_fg_discrete[mask_edge_coords] = np.max(fake_fg_discrete)
+        visuals.append(('fake_fg_discrete', fake_fg_discrete))
 
         real_B_fg = util.tensor2im(self.real_B_fg.data)
         real_B_fg[mask_edge_coords] = np.max(real_B_fg)
