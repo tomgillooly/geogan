@@ -47,8 +47,8 @@ def train():
         epoch_iter = 0
 
 
-        # If there's a fractional batch at the end, make sure we get it
-        for i in range(int(ceil(1.0 * len(dataset) / optimiser_step_interval))):
+        # Don't worry about the fractional batch at the end, just keep it simple
+        for i in range(int(len(dataset) / optimiser_step_interval)):
             iter_start_time = time.time()
             visualizer.reset()
 
@@ -64,11 +64,10 @@ def train():
                     # target and generated data in object
                     model.forward()
 
-                    if ((total_steps <= (opt.high_iter+1)*5 and total_steps % (opt.high_iter+1) == 0) or (total_steps >= (opt.high_iter+1)*5 and total_steps % (opt.low_iter+1) == 0)) or opt.num_discrims == 0:
-                        model.optimize_G()
-                    else:
-                        model.optimize_D()
+                    model.optimize_G()
+                    model.optimize_D()
         
+                # Just in case we run off the end of our dataset
                 except StopIteration:
                     break
             
