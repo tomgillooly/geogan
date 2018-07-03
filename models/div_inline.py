@@ -234,7 +234,7 @@ class DivInlineModel(BaseModel):
 
         self.G_out = self.netG(self.G_input)
         self.fake_B_DIV = self.G_out[:, 0, :, :].unsqueeze(1)
-        self.fg_classes = self.G_out[:, 1:, :, :].unsqueeze(1)
+        self.fg_classes = self.G_out[:, 1:, :, :]
         self.fg_prediction = torch.max(self.fg_classes, dim=1)[0].unsqueeze(1)
 
  
@@ -425,8 +425,12 @@ class DivInlineModel(BaseModel):
         total_pix = self.real_B_fg_ROI.numel()
         fg_weight = num_fg_pix / total_pix
         bg_weight = 1.0 - fg_weight
-        ce_fun = self.criterionCE(weight=torch.FloatTensor([fg_weight, bg_weight], device=self.real_B_fg_ROI.device.type))
-        self.loss_fg_CE = ce_fun(self.fg_classes_ROI, self.real_B_fg_ROI)
+
+        ce_weights = torch.FloatTensor([fg_weight, bg_weight])
+        ce_weights = ce_weights.cuda() if len(self.gpu_ids) > 0 else ce_weights
+
+        ce_fun = self.criterionCE(weight=ce_weights, reduce=False)
+        self.loss_fg_CE = ce_fun(self.fg_classes_ROI, self.real_B_fg_ROI.long().squeeze()).sum(2).sum(1) * self.opt.lambda_B
         #print(self.loss_fg_CE.shape)
         #print(self.fg_prediction_ROI.shape)
         #print(self.real_B_fg_ROI.shape)
