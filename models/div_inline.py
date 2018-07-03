@@ -230,7 +230,8 @@ class DivInlineModel(BaseModel):
             self.G_input = torch.cat((self.G_input, self.continents.float()), dim=1)
 
 
-        self.fake_B_DIV = self.netG(self.G_input)
+        self.G_out = self.netG(self.G_input)
+        self.fake_B_DIV = self.G_out[:, 0, :, :].unsqueeze(1)
 
         if self.opt.grad_loss:
             self.real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV)
@@ -245,7 +246,7 @@ class DivInlineModel(BaseModel):
         scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
         scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
         self.fake_B_discrete = (torch.cat(
-            (-self.fake_B_DIV[:, 0, :, :], torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV[:, 0, :, :])
+            (-self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV)
             , dim=1) > scaled_thresh)
         plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
@@ -266,7 +267,7 @@ class DivInlineModel(BaseModel):
             # im_dims = (100, 100)
         
 
-        self.fake_B_DIV_ROI = self.fake_B_DIV[:, 0, :, :].masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+        self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
 
         self.real_B_DIV_ROI = self.real_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
 
@@ -394,10 +395,10 @@ class DivInlineModel(BaseModel):
 
         self.loss_G_L2 += self.loss_G_L2_DIV
 
-        self.mask_sm = F.softmax(self.fake_DIV[:, 1:, :, :], dim=1)
+        self.mask_sm = F.softmax(self.G_out[:, 1:, :, :], dim=1)
         self.mask_prediction = torch.max(self.mask_sm, dim=1)[0]
 
-        self.loss_mask_CE = self.criterionCE(self.mask_sm, self.mask)
+        self.loss_mask_CE = self.criterionCE(self.mask_sm, self.mask.long().squeeze())
 
         # self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
         # self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
@@ -537,7 +538,7 @@ class DivInlineModel(BaseModel):
 
         mask_prediction = util.tensor2im(self.mask_prediction.data)
         mask_prediction[mask_edge_coords] = np.max(mask_prediction)
-        visuals.append(('output_discrete', mask_prediction))
+        visuals.append(('mask_prediction', mask_prediction))
 
         
         if self.opt.grad_loss:
