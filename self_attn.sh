@@ -37,7 +37,7 @@ python train.py --dataroot $DATAROOT --name ellipse_critic_self_attn_orthogonal_
 	--local_loss \
 	--input_nc 3 --output_nc 1 \
         --g_lr 0.0004 --d_lr 0.0001 \
-	--lambda_A 0.01 --lambda_B 0.01 --lambda_D 100 \
+	--lambda_A 0.1 --lambda_B 0.1 --lambda_D 100 \
 	--which_model_netG unet_256 \
 	--display_freq 10 --print_freq 10 \
 	--pool_size 0 --no_html --batchSize 5 --nThreads 2 $OPTIONS

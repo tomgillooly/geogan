@@ -108,7 +108,7 @@ class DivInlineModel(BaseModel):
 
             self.criterionL2 = torch.nn.MSELoss(reduce=False)
             # self.criterionCE = torch.nn.NLLLoss2d()
-            self.criterionCE = torch.nn.CrossEntropyLoss
+            self.criterionCE = torch.nn.CrossEntropyLoss(reduce=False)
 
             if self.opt.use_hinge:
                 self.criterionGAN = hinge_criterionGAN
@@ -235,7 +235,7 @@ class DivInlineModel(BaseModel):
         self.G_out = self.netG(self.G_input)
         self.fake_B_DIV = self.G_out[:, 0, :, :].unsqueeze(1)
         self.fg_classes = self.G_out[:, 1:, :, :]
-        self.fg_prediction = torch.max(self.fg_classes, dim=1)[0].unsqueeze(1)
+        self.fg_prediction = (self.fg_classes.max(dim=1)[1] == 0).unsqueeze(1)
 
  
         if self.opt.grad_loss:
@@ -281,6 +281,7 @@ class DivInlineModel(BaseModel):
 
         self.real_B_fg_ROI = self.real_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
         self.fg_classes_ROI = self.fg_classes.masked_select(loss_mask.repeat(1, 2, 1, 1)).view(self.batch_size, 2, *im_dims)
+        self.fg_prediction_ROI = self.fg_prediction.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
 
         self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI.float(), self.opt.diff_in_numerator, method='freq')
         
@@ -421,10 +422,10 @@ class DivInlineModel(BaseModel):
             self.loss_G_L2 += self.loss_L2_DIV_grad_x
             self.loss_G_L2 += self.loss_L2_DIV_grad_y
 
-        self.ce_weight_mask = create_weight_mask(self.real_B_fg_ROI, (self.fg_classes_ROI.max(dim=1)[0] > 0))
+        self.ce_weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fg_prediction_ROI.float())
         
-        self.loss_fg_CE_im = ce_fun(self.fg_classes_ROI, self.real_B_fg_ROI.long().squeeze()).unsqueeze(1) * self.ce_weight_mask.detach()
-        self.loss_fg_CE = loss_fg_CE_im.sum(3).sum(2) * self.opt.lambda_B
+        self.loss_fg_CE_im = self.criterionCE(self.fg_classes_ROI, self.real_B_fg_ROI.long().squeeze()).unsqueeze(1) * self.ce_weight_mask.detach()
+        self.loss_fg_CE = self.loss_fg_CE_im.sum(3).sum(2) * self.opt.lambda_B
         #print(self.loss_fg_CE.shape)
         #print(self.fg_prediction_ROI.shape)
         #print(self.real_B_fg_ROI.shape)
