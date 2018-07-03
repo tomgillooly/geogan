@@ -71,9 +71,7 @@ def weights_init_orthogonal(m):
         try:
             init.orthogonal(m.weight.data, gain=1)
         except AttributeError:
-            init.orthogonal(m.weight_bar.data, gain=1)
-            init.orthogonal(m.weight_u.data, gain=1)
-            init.orthogonal(m.weight_v.data, gain=1)
+            weights_init_normal(m)
     elif classname.find('Linear') != -1:
         init.orthogonal(m.weight.data, gain=1)
     elif classname.find('BatchNorm2d') != -1:

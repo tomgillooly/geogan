@@ -43,3 +43,4 @@ test/data/legacy_serialized.pt
 assorted_test
 archive
 test_data
+slurm*

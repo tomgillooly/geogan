@@ -50,12 +50,12 @@ class DivInlineModel(BaseModel):
 
         # load/define networks
         # Input channels = 3 channels for input one-hot map + mask
-        input_channels = opt.input_nc + 1
+        input_channels = opt.input_nc
 
         if self.opt.continent_data:
             input_channels += 1
 
-        self.netG = networks.define_G(input_channels, opt.output_nc+2, opt.ngf,
+        self.netG = networks.define_G(input_channels, opt.output_nc+1, opt.ngf,
                                       opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
 
 
@@ -108,6 +108,7 @@ class DivInlineModel(BaseModel):
 
             self.criterionL2 = torch.nn.MSELoss(reduce=False)
             self.criterionCE = torch.nn.NLLLoss2d()
+            self.criterionBCE = torch.nn.BCELoss()
 
             if self.opt.use_hinge:
                 self.criterionGAN = hinge_criterionGAN
@@ -224,7 +225,7 @@ class DivInlineModel(BaseModel):
         
         # Produces three channel output with class probability assignments
         # Input is one-hot image with chunk missing, conditional data is mask
-        self.G_input = torch.cat((self.real_A_discrete, self.mask.float()), dim=1)
+        self.G_input = self.real_A_discrete 
 
         if self.opt.continent_data:
             self.G_input = torch.cat((self.G_input, self.continents.float()), dim=1)
@@ -298,7 +299,8 @@ class DivInlineModel(BaseModel):
             self.continents = torch.autograd.Variable(self.continent_img)
 
         # mask_var = Variable(self.mask.float(), volatile=True)
-        self.G_input = torch.cat((self.real_A_discrete, self.mask.float()), dim=1)
+        # self.G_input = torch.cat((self.real_A_discrete, self.mask.float()), dim=1)
+        self.G_input = self.real_A_discrete
 
         if self.opt.continent_data:
             self.G_input = torch.cat((self.G_input, self.continents.float()), dim=1)
@@ -395,10 +397,9 @@ class DivInlineModel(BaseModel):
 
         self.loss_G_L2 += self.loss_G_L2_DIV
 
-        self.mask_sm = F.softmax(self.G_out[:, 1:, :, :], dim=1)
-        self.mask_prediction = torch.max(self.mask_sm, dim=1)[0]
+        self.mask_prediction = torch.nn.Sigmoid()(self.G_out[:, 1, :, :])
 
-        self.loss_mask_CE = self.criterionCE(self.mask_sm, self.mask.long().squeeze())
+        self.loss_mask_CE = self.criterionBCE(self.mask_prediction, self.mask.float())
 
         # self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
         # self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
