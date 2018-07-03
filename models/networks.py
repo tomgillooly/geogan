@@ -545,7 +545,6 @@ class DiscriminatorWGANGP(torch.nn.Module):
         if len(self.gpu_ids) and isinstance(input.data, torch.cuda.FloatTensor):
             return nn.parallel.data_parallel(self.ls, x, self.gpu_ids).view(-1)
         else:
-            output = self.model(input)
             return self.ls(x).view(-1)
 
 

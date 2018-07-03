@@ -80,6 +80,9 @@ class DivInlineModel(BaseModel):
             # Inputs: 3 channels of one-hot input (with chunk missing) + divergence output data + mask
             discrim_input_channels = opt.output_nc
 
+            if not opt.no_mask_to_critic:
+                discrim_input_channels += 1
+
 
             if opt.local_critic:
                 self.critic_im_size = (64, 64)
@@ -422,7 +425,11 @@ class DivInlineModel(BaseModel):
             else:
                 fake_AB = self.fake_B_DIV
                 real_AB = self.real_B_DIV
-             
+            
+            if not self.opt.no_mask_to_critic:
+                fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
+                real_AB = torch.cat((real_AB, self.mask.float()), dim=1)
+
             # stop backprop to the generator by detaching fake_B
             self.loss_D_fake = self.criterionGAN(self.netD(fake_AB.detach()), False)
 
