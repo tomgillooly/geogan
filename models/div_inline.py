@@ -421,16 +421,10 @@ class DivInlineModel(BaseModel):
             self.loss_G_L2 += self.loss_L2_DIV_grad_x
             self.loss_G_L2 += self.loss_L2_DIV_grad_y
 
-        num_fg_pix = self.real_B_fg_ROI.sum()
-        total_pix = self.real_B_fg_ROI.numel()
-        fg_weight = num_fg_pix / total_pix
-        bg_weight = 1.0 - fg_weight
-
-        ce_weights = torch.FloatTensor([fg_weight, bg_weight])
-        ce_weights = ce_weights.cuda() if len(self.gpu_ids) > 0 else ce_weights
-
-        ce_fun = self.criterionCE(weight=ce_weights, reduce=False)
-        self.loss_fg_CE = ce_fun(self.fg_classes_ROI, self.real_B_fg_ROI.long().squeeze()).sum(2).sum(1) * self.opt.lambda_B
+        self.ce_weight_mask = create_weight_mask(self.real_B_fg_ROI, (self.fg_classes_ROI.max(dim=1)[0] > 0))
+        
+        self.loss_fg_CE_im = ce_fun(self.fg_classes_ROI, self.real_B_fg_ROI.long().squeeze()).unsqueeze(1) * self.ce_weight_mask.detach()
+        self.loss_fg_CE = loss_fg_CE_im.sum(3).sum(2) * self.opt.lambda_B
         #print(self.loss_fg_CE.shape)
         #print(self.fg_prediction_ROI.shape)
         #print(self.real_B_fg_ROI.shape)
@@ -556,7 +550,11 @@ class DivInlineModel(BaseModel):
 
         fg_prediction = util.tensor2im(self.fg_prediction.data)
         fg_prediction[mask_edge_coords] = np.max(fg_prediction)
-        visuals.append(('mask_prediction', fg_prediction))
+        visuals.append(('fg_prediction', fg_prediction))
+
+        real_B_fg = util.tensor2im(self.real_B_fg.data)
+        real_B_fg[mask_edge_coords] = np.max(real_B_fg)
+        visuals.append(('real_foreground', real_B_fg))
 
         
         if self.opt.grad_loss:
@@ -573,15 +571,25 @@ class DivInlineModel(BaseModel):
             visuals.append(('output_y_gradient', fake_B_DIV_grad_y))
             
         if self.isTrain:
-            weight_mask = util.tensor2im(self.weight_mask.data)
+            l2_weight_mask = util.tensor2im(self.weight_mask.data)
             if not self.opt.local_loss:
-                weight_mask[mask_edge_coords] = np.max(weight_mask)
-            visuals.append(('L2 weight mask', weight_mask))
+                l2_weight_mask[mask_edge_coords] = np.max(l2_weight_mask)
+            visuals.append(('L2 weight mask', l2_weight_mask))
+            
+            ce_weight_mask = util.tensor2im(self.ce_weight_mask.data)
+            if not self.opt.local_loss:
+                ce_weight_mask[mask_edge_coords] = np.max(ce_weight_mask)
+            visuals.append(('CE weight mask', ce_weight_mask))
             
             weighted_DIV = util.tensor2im(self.loss_G_L2_DIV_weighted.data)
             if not self.opt.local_loss:
                 weighted_DIV[mask_edge_coords] = np.max(weighted_DIV)
             visuals.append(('weighted_L2_loss', weighted_DIV))
+            
+            weighted_CE = util.tensor2im(self.loss_fg_CE_im.data)
+            if not self.opt.local_loss:
+                weighted_CE[mask_edge_coords] = np.max(weighted_CE)
+            visuals.append(('weighted_CE_loss', weighted_CE))
 
         if self.opt.continent_data:
             continents = util.tensor2im(self.continents.data)
