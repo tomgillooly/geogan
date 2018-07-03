@@ -366,6 +366,9 @@ class DivInlineModel(BaseModel):
                 fake_AB = self.fake_B_DIV_ROI
             else:
                 fake_AB = self.fake_B_DIV
+
+            if not self.opt.no_mask_to_critic:
+                fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
             
             # Mean across batch, then across discriminators
             # We only optimise with respect to the fake prediction because
