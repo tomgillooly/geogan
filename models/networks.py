@@ -66,7 +66,7 @@ def weights_init_kaiming(m):
 
 def weights_init_orthogonal(m):
     classname = m.__class__.__name__
-    print(classname)
+    # print(classname)
     if classname.find('Conv') != -1:
         try:
             init.orthogonal(m.weight.data, gain=1)

@@ -108,7 +108,7 @@ class DivInlineModel(BaseModel):
 
             self.criterionL2 = torch.nn.MSELoss(reduce=False)
             self.criterionCE = torch.nn.NLLLoss2d()
-            self.criterionBCE = torch.nn.BCELoss()
+            self.criterionBCE = torch.nn.BCELoss(reduce=False)
 
             if self.opt.use_hinge:
                 self.criterionGAN = hinge_criterionGAN
@@ -210,6 +210,7 @@ class DivInlineModel(BaseModel):
         self.real_A_discrete = torch.autograd.Variable(self.input_A)
         # Complete thresholded, one-hot divergence map
         self.real_B_discrete = torch.autograd.Variable(self.input_B)
+        self.real_B_fg = torch.max(self.real_B_discrete[:, [0, 2], :, :], dim=1)
 
         # Continuous divergence map with chunk missing
         self.real_A_DIV = torch.autograd.Variable(self.input_A_DIV)
@@ -397,9 +398,9 @@ class DivInlineModel(BaseModel):
 
         self.loss_G_L2 += self.loss_G_L2_DIV
 
-        self.mask_prediction = torch.nn.Sigmoid()(self.G_out[:, 1, :, :])
+        self.fg_prediction = torch.nn.Sigmoid()(self.G_out[:, 1, :, :])
 
-        self.loss_mask_CE = self.criterionBCE(self.mask_prediction, self.mask.float())
+        self.loss_fg_CE = (self.weight_mask.detach() * self.criterionBCE(self.fg_prediction, self.real_B_fg)).sum(dim=2).sum(dim=2)
 
         # self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
         # self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
