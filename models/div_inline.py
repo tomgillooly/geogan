@@ -234,7 +234,7 @@ class DivInlineModel(BaseModel):
 
         self.G_out = self.netG(self.G_input)
         self.fake_B_DIV = self.G_out[:, 0, :, :].unsqueeze(1)
-        self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :])
+        self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :]).unsqueeze(1)
         self.fake_fg_discrete = self.fake_B_fg > 0.5
 
  
@@ -423,8 +423,7 @@ class DivInlineModel(BaseModel):
             self.loss_G_L2 += self.loss_L2_DIV_grad_y
 
         self.ce_weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_fg_discrete_ROI.float())
-        
-        self.loss_fg_CE_im = self.criterionCE(self.fake_fg_ROI, self.real_B_fg_ROI.long().squeeze()).unsqueeze(1) * self.ce_weight_mask.detach()
+        self.loss_fg_CE_im = self.criterionBCE(self.fake_B_fg_ROI, self.real_B_fg_ROI.float()) * self.ce_weight_mask.detach()
         self.loss_fg_CE = self.loss_fg_CE_im.sum(3).sum(2) * self.opt.lambda_B
         #print(self.loss_fg_CE.shape)
         #print(self.fg_prediction_ROI.shape)
@@ -549,7 +548,7 @@ class DivInlineModel(BaseModel):
         fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
         visuals.append(('output_discrete', fake_B_discrete))
 
-        fake_fg_discrete = util.tensor2im(self.fake_fg_discrete.data)
+        fake_fg_discrete = util.tensor2im(self.fake_fg_discrete.data.float())
         fake_fg_discrete[mask_edge_coords] = np.max(fake_fg_discrete)
         visuals.append(('fake_fg_discrete', fake_fg_discrete))
 
