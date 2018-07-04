@@ -37,7 +37,7 @@ python train.py --dataroot $DATAROOT --name ellipse_bce_resnet_log_div_readd \
 	--local_loss \
 	--input_nc 3 --output_nc 1 \
         --g_lr 0.001 --d_lr 0.0001 \
-	--lambda_A 0 --lambda_B 0.0001 --lambda_D 100 \
+	--lambda_A 0.02 --lambda_B 0.0001 --lambda_D 100 \
 	--which_model_netG resnet_9blocks \
 	--display_freq 10 --print_freq 10 \
 	--pool_size 0 --no_html --batchSize 1 --nThreads 2 $OPTIONS

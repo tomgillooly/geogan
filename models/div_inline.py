@@ -264,7 +264,7 @@ class DivInlineModel(BaseModel):
         self.fake_B_fg_ROI = self.fake_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
         self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
         self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
-        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
 
         
         if self.opt.grad_loss:
@@ -474,8 +474,8 @@ class DivInlineModel(BaseModel):
         errors = [
             ('G', self.loss_G.data[0]),
             ('G_fg_CE', self.loss_fg_CE.data[0]),
-            ('G_fg_CE_local', self.loss_fg_CE_local.data[0])
-            ('G_L2', self.loss_G_L2.data[0]),
+            ('G_fg_CE_local', self.loss_fg_CE_local.data[0]),
+            ('G_L2', self.loss_G_L2.data[0])
         ]
 
         if self.opt.grad_loss:
