@@ -108,7 +108,7 @@ class DivInlineModel(BaseModel):
 
             self.criterionL2 = torch.nn.MSELoss(reduce=False)
             # self.criterionCE = torch.nn.NLLLoss2d()
-            self.criterionBCE = torch.nn.BCELoss(size_average=False)
+            self.criterionBCE = torch.nn.BCELoss(size_average=True)
 
             if self.opt.use_hinge:
                 self.criterionGAN = hinge_criterionGAN
