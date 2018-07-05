@@ -434,7 +434,7 @@ class DivInlineModel(BaseModel):
         if self.opt.with_BCE:
             self.loss_fg_CE = self.criterionBCE(self.fake_B_fg_ROI, self.real_B_fg_ROI.float()) * self.opt.lambda_B + 1e-8
 
-            self.loss_fg_CE = self.processBCE(self.loss_fg_CE)
+            self.loss_fg_CE = self.processBCE(self.loss_fg_CE) * self.opt.lambda_B2
 
             self.loss_G += self.loss_fg_CE
 

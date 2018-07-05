@@ -23,6 +23,7 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--no_lsgan', action='store_true', help='do *not* use least square GAN, if false, use vanilla GAN')
         self.parser.add_argument('--lambda_A', type=float, default=10.0, help='weight for cycle loss (A -> B -> A)')
         self.parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
+        self.parser.add_argument('--lambda_B2', type=float, default=1.0, help='WEight term for BCE after processing e.g. outside log()')
         self.parser.add_argument('--lambda_C', type=float, default=10.0, help='weight for WGAN gradient penalty')
         self.parser.add_argument('--lambda_D', type=float, default=10.0, help='weight for folder predictor')
         self.parser.add_argument('--pool_size', type=int, default=50, help='the size of image buffer that stores previously generated images')
