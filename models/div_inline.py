@@ -234,7 +234,7 @@ class DivInlineModel(BaseModel):
 
         self.G_out = self.netG(self.G_input)
         self.fake_B_DIV = self.G_out[:, 0, :, :].unsqueeze(1)
-        self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :].unsqueeze(1))
+        self.fake_B_fg = 1.0 - torch.nn.Sigmoid()(self.G_out[:, 1, :, :].unsqueeze(1))
         self.fake_fg_discrete = self.fake_B_fg > 0.5
 
  
