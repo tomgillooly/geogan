@@ -43,4 +43,7 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--optim_type', type=str, default='adam', help='Type of optimiser to use adam|rmsprop')
         self.parser.add_argument('--alpha', type=float, default=0.99, help="Smoothing value for rms prop")
         self.parser.add_argument('--use_hinge', action='store_true', help='Use hinge loss with critic')
+        self.parser.add_argument('--with_BCE', action='store_true', help='Include BCE loss')
+        self.parser.add_argument('--log_BCE', action='store_true', help='Apply log to BCE loss')
+        self.parser.add_argument('--log_L2', action='store_true', help='Apply log to MSE')
         self.isTrain = True

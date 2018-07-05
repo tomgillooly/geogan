@@ -35,6 +35,9 @@ def hinge_criterionGAN(loss, real_label):
     else:
         return torch.nn.ReLU()(1.0 + loss).mean()
 
+def identity(x):
+    return x
+
 
 class DivInlineModel(BaseModel):
     def name(self):
@@ -51,11 +54,16 @@ class DivInlineModel(BaseModel):
         # load/define networks
         # Input channels = 3 channels for input one-hot map + mask
         input_channels = opt.input_nc
+        output_channels = opt.output_nc
 
         if self.opt.continent_data:
             input_channels += 1
 
-        self.netG = networks.define_G(input_channels, opt.output_nc+1, opt.ngf,
+
+        if self.opt.with_BCE:
+            output_channels += 1
+
+        self.netG = networks.define_G(input_channels, output_channels, opt.ngf,
                                       opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
 
 
@@ -106,9 +114,19 @@ class DivInlineModel(BaseModel):
         if self.isTrain:
             # define loss functions
 
-            self.criterionL2 = torch.nn.MSELoss(reduce=False)
+            self.criterionL2 = torch.nn.MSELoss(size_average=True)
             # self.criterionCE = torch.nn.NLLLoss2d()
             self.criterionBCE = torch.nn.BCELoss(size_average=True)
+
+            if self.opt.log_L2:
+                self.processL2 = torch.log
+            else:
+                self.processL2 = identity
+
+            if self.opt.log_BCE:
+                self.processBCE = torch.log
+            else:
+                self.processBCE = identity
 
             if self.opt.use_hinge:
                 self.criterionGAN = hinge_criterionGAN
@@ -234,8 +252,10 @@ class DivInlineModel(BaseModel):
 
         self.G_out = self.netG(self.G_input)
         self.fake_B_DIV = self.G_out[:, 0, :, :].unsqueeze(1)
-        self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :].unsqueeze(1))
-        self.fake_fg_discrete = self.fake_B_fg > 0.5
+
+        if self.opt.with_BCE:
+            self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :].unsqueeze(1))
+            self.fake_fg_discrete = self.fake_B_fg > 0.5
 
  
         if self.opt.grad_loss:
@@ -260,12 +280,13 @@ class DivInlineModel(BaseModel):
             # im_dims = (100, 100)
         
 
-        self.real_B_fg_ROI = self.real_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
-        self.fake_B_fg_ROI = self.fake_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
-        self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
+        if self.opt.with_BCE:
+            self.real_B_fg_ROI = self.real_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
+            self.fake_B_fg_ROI = self.fake_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
+            self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
+
         self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
         self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
-
         
         if self.opt.grad_loss:
             self.real_B_DIV_grad_x = self.real_B_DIV_grad_x.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
@@ -274,7 +295,7 @@ class DivInlineModel(BaseModel):
             self.fake_B_DIV_grad_x = self.fake_B_DIV_grad_x.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
             self.fake_B_DIV_grad_y = self.fake_B_DIV_grad_y.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
 
-        self.weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_B_fg_ROI.float())
+        # self.weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_B_fg_ROI.float())
 
 
     # no backprop gradients
@@ -384,13 +405,12 @@ class DivInlineModel(BaseModel):
                 p.requires_grad = True
 
 
-        self.loss_G_L2_DIV_weighted = (self.weight_mask.detach() * self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI))
-        self.loss_G_L2_DIV = self.loss_G_L2_DIV_weighted.sum(dim=2).sum(dim=2) * self.opt.lambda_A
+        ##### L2 Loss
+        self.loss_G_L2_DIV = self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI) * self.opt.lambda_A
 
         self.loss_G_L2 += self.loss_G_L2_DIV
 
-               # self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
-        # self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.mask.byte()).view(self.batch_size, 1, self.mask_size, self.mask_size)
+        self.loss_G_L2 = self.processL2(self.loss_G_L2)
         
         if self.opt.grad_loss:
             grad_x_L2_img =  self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach())
@@ -400,22 +420,24 @@ class DivInlineModel(BaseModel):
                 grad_x_L2_img = self.weight_mask.detach() * grad_x_L2_img
                 grad_y_L2_img = self.weight_mask.detach() * grad_y_L2_img
 
-            self.loss_L2_DIV_grad_x = (grad_x_L2_img).sum(dim=2).sum(dim=2)
-            self.loss_L2_DIV_grad_y = (grad_y_L2_img).sum(dim=2).sum(dim=2)
+            self.loss_L2_DIV_grad_x = (grad_x_L2_img)
+            self.loss_L2_DIV_grad_y = (grad_y_L2_img)
 
             self.loss_G_L2 += self.loss_L2_DIV_grad_x
             self.loss_G_L2 += self.loss_L2_DIV_grad_y
 
-        # self.ce_weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_fg_discrete_ROI.float())
-        self.loss_fg_CE = torch.log(self.criterionBCE(self.fake_B_fg, self.real_B_fg.float()) * self.opt.lambda_B + 1e-8)
-        self.loss_fg_CE_local = torch.log(self.criterionBCE(self.fake_B_fg_ROI, self.real_B_fg_ROI.float()) * self.opt.lambda_D + 1e-8)
-        # self.loss_fg_CE = self.loss_fg_CE_im.sum(3).sum(2) * self.opt.lambda_B
-        #print(self.loss_fg_CE.shape)
-        #print(self.fg_prediction_ROI.shape)
-        #print(self.real_B_fg_ROI.shape)
-        #print(self.loss_G_L2)
 
-        self.loss_G = self.loss_G_GAN + self.loss_G_L2 + self.loss_fg_CE + self.loss_fg_CE_local
+        self.loss_G = self.loss_G_GAN + self.loss_G_L2
+
+
+        ##### BCE Loss
+        if self.opt.with_BCE:
+            self.loss_fg_CE = self.criterionBCE(self.fake_B_fg_ROI, self.real_B_fg_ROI.float()) * self.opt.lambda_B + 1e-8
+
+            self.loss_fg_CE = self.processBCE(self.loss_fg_CE)
+
+            self.loss_G += self.loss_fg_CE
+
 
         self.loss_G = self.loss_G.mean()
         self.loss_G.backward()
@@ -473,8 +495,6 @@ class DivInlineModel(BaseModel):
     def get_current_errors(self):
         errors = [
             ('G', self.loss_G.data[0]),
-            ('G_fg_CE', self.loss_fg_CE.data[0]),
-            ('G_fg_CE_local', self.loss_fg_CE_local.data[0]),
             ('G_L2', self.loss_G_L2.data[0])
         ]
 
@@ -483,6 +503,11 @@ class DivInlineModel(BaseModel):
                 ('G_L2_grad_x', self.loss_L2_DIV_grad_x.data[0]),
                 ('G_L2_grad_y', self.loss_L2_DIV_grad_y.data[0])
                 ]
+
+        if self.opt.with_BCE:
+            errors += [
+                ('G_fg_CE', self.loss_fg_CE.data[0])
+            ]
 
         if self.opt.num_discrims  > 0 and self.D_has_run:
             errors += [
@@ -529,20 +554,8 @@ class DivInlineModel(BaseModel):
         fake_B_DIV = util.tensor2im(self.fake_B_DIV.data)
         fake_B_DIV[mask_edge_coords] = np.max(fake_B_DIV)
         visuals.append(('output_divergence', fake_B_DIV))
-
-        fake_B_fg = util.tensor2im(self.fake_B_fg.data)
-        fake_B_fg[mask_edge_coords] = np.max(fake_B_fg)
-        visuals.append(('fake_B_fg', fake_B_fg))
-
-        fake_fg_discrete = util.tensor2im(self.fake_fg_discrete.data.float())
-        fake_fg_discrete[mask_edge_coords] = np.max(fake_fg_discrete)
-        visuals.append(('fake_fg_discrete', fake_fg_discrete))
-
-        real_B_fg = util.tensor2im(self.real_B_fg.data)
-        real_B_fg[mask_edge_coords] = np.max(real_B_fg)
-        visuals.append(('real_foreground', real_B_fg))
-
         
+
         if self.opt.grad_loss:
             real_B_DIV_grad_x = util.tensor2im(self.real_B_DIV_grad_x.data)
             visuals.append(('ground_truth_x_gradient', real_B_DIV_grad_x))
@@ -555,6 +568,20 @@ class DivInlineModel(BaseModel):
 
             fake_B_DIV_grad_y = util.tensor2im(self.fake_B_DIV_grad_y.data)
             visuals.append(('output_y_gradient', fake_B_DIV_grad_y))
+
+        if self.opt.with_BCE:
+            fake_B_fg = util.tensor2im(self.fake_B_fg.data)
+            fake_B_fg[mask_edge_coords] = np.max(fake_B_fg)
+            visuals.append(('fake_B_fg', fake_B_fg))
+
+            fake_fg_discrete = util.tensor2im(self.fake_fg_discrete.data.float())
+            fake_fg_discrete[mask_edge_coords] = np.max(fake_fg_discrete)
+            visuals.append(('fake_fg_discrete', fake_fg_discrete))
+
+            real_B_fg = util.tensor2im(self.real_B_fg.data)
+            real_B_fg[mask_edge_coords] = np.max(real_B_fg)
+            visuals.append(('real_foreground', real_B_fg))
+
             
         if self.isTrain:
             l2_weight_mask = util.tensor2im(self.weight_mask.data)
