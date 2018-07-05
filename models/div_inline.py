@@ -407,8 +407,8 @@ class DivInlineModel(BaseModel):
             self.loss_G_L2 += self.loss_L2_DIV_grad_y
 
         # self.ce_weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_fg_discrete_ROI.float())
-        self.loss_fg_CE = torch.log(self.criterionBCE(self.fake_B_fg, self.real_B_fg.float()) * self.opt.lambda_B)
-        self.loss_fg_CE_local = torch.log(self.criterionBCE(self.fake_B_fg_ROI, self.real_B_fg_ROI.float()) * self.opt.lambda_B)
+        self.loss_fg_CE = torch.log(self.criterionBCE(self.fake_B_fg, self.real_B_fg.float()) * self.opt.lambda_B + 1e-8)
+        self.loss_fg_CE_local = torch.log(self.criterionBCE(self.fake_B_fg_ROI, self.real_B_fg_ROI.float()) * self.opt.lambda_B + 1e-8)
         # self.loss_fg_CE = self.loss_fg_CE_im.sum(3).sum(2) * self.opt.lambda_B
         #print(self.loss_fg_CE.shape)
         #print(self.fg_prediction_ROI.shape)
