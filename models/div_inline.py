@@ -583,17 +583,6 @@ class DivInlineModel(BaseModel):
             visuals.append(('real_foreground', real_B_fg))
 
             
-        if self.isTrain:
-            l2_weight_mask = util.tensor2im(self.weight_mask.data)
-            if not self.opt.local_loss:
-                l2_weight_mask[mask_edge_coords] = np.max(l2_weight_mask)
-            visuals.append(('L2 weight mask', l2_weight_mask))
-            
-            weighted_DIV = util.tensor2im(self.loss_G_L2_DIV_weighted.data)
-            if not self.opt.local_loss:
-                weighted_DIV[mask_edge_coords] = np.max(weighted_DIV)
-            visuals.append(('weighted_L2_loss', weighted_DIV))
-
         if self.opt.continent_data:
             continents = util.tensor2im(self.continents.data)
             continents[mask_edge_coords] = np.max(continents)
