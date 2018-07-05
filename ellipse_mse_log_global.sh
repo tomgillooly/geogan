@@ -35,8 +35,8 @@ python train.py --dataroot $DATAROOT --name ellipse_mse_log_global \
 	--no_lsgan --norm batch --init_type orthogonal \
 	--diff_in_numerator \
 	--input_nc 3 --output_nc 1 \
-	--log_MSE \
-    --g_lr 0.001 --d_lr 0.0001 \
+	--with_BCE --log_BCE --log_L2 \
+	--g_lr 0.001 --d_lr 0.0001 \
 	--lambda_A 0.02 --lambda_B 1 --lambda_D 1 \
 	--which_model_netG unet_256 \
 	--display_freq 10 --print_freq 10 \
