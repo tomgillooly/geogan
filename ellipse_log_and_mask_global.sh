@@ -37,7 +37,7 @@ python train.py --dataroot $DATAROOT --name ellipse_log_and_mask_global \
 	--input_nc 3 --output_nc 1 \
 	--with_BCE --log_BCE --log_L2 \
 	--g_lr 0.001 --d_lr 0.002 \
-	--lambda_A 1 --lambda_A2 0.01 --lambda_B 1 --lambda_B2 10 --lambda_D 1 \
+	--lambda_A 1 --lambda_A2 1 --lambda_B 1 --lambda_B2 1 --lambda_D 1 \
 	--which_model_netG unet_256 \
 	--display_freq 5 --print_freq 5 \
 	--pool_size 0 --no_html --batchSize 5 --nThreads 2 $OPTIONS
