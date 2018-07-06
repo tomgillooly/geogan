@@ -36,11 +36,11 @@ python train.py --dataroot $DATAROOT --name ellipse_log_global_self_attn \
 	--diff_in_numerator \
 	--input_nc 3 --output_nc 1 \
 	--with_BCE --log_BCE --log_L2 \
-	--g_lr 0.001 --d_lr 0.004 \
-	--lambda_A 0.02 --lambda_B 1 --lambda_D 1 \
+	--g_lr 0.001 --d_lr 0.002 \
+	--lambda_A 0.02 --lambda_B 1 --lambda_B2 10 --lambda_D 1 \
 	--which_model_netG unet_256 \
-	--display_freq 10 --print_freq 10 \
-	--pool_size 0 --no_html --batchSize 1 --nThreads 2 $OPTIONS
+	--display_freq 5 --print_freq 5 \
+	--pool_size 0 --no_html --batchSize 5 --nThreads 2 $OPTIONS
 
 kill %1
 
