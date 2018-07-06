@@ -96,7 +96,7 @@ class DivInlineModel(BaseModel):
             if opt.local_critic:
                 self.critic_im_size = (64, 64)
             else:
-                self.critic_im_size = (256, 256)
+                self.critic_im_size = (256, 512)
 
             self.netD = networks.define_D(discrim_input_channels, opt.ndf, opt.which_model_netD, opt.n_layers_D, 
                 opt.norm, use_sigmoid, opt.init_type, self.gpu_ids, critic_im_size=self.critic_im_size)
@@ -115,9 +115,9 @@ class DivInlineModel(BaseModel):
         if self.isTrain:
             # define loss functions
 
-            self.criterionL2 = torch.nn.MSELoss(size_average=True, reduce=(not self.opt.weighted_loss))
+            self.criterionL2 = torch.nn.MSELoss(size_average=True, reduce=(not self.opt.weighted_L2))
             # self.criterionCE = torch.nn.NLLLoss2d()
-            self.criterionBCE = torch.nn.BCELoss(size_average=True, reduce=(not self.opt.weighted_loss))
+            self.criterionBCE = torch.nn.BCELoss(size_average=True, reduce=(not self.opt.weighted_CE))
 
             if self.opt.log_L2:
                 self.processL2 = torch.log
@@ -296,7 +296,7 @@ class DivInlineModel(BaseModel):
             self.fake_B_DIV_grad_x = self.fake_B_DIV_grad_x.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
             self.fake_B_DIV_grad_y = self.fake_B_DIV_grad_y.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
 
-        if self.opt.with_BCE and self.opt.weighted_loss:
+        if self.opt.with_BCE and (self.opt.weighted_L2 or self.opt.weighted_CE):
             self.weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_B_fg_ROI.float())
 
 
@@ -409,7 +409,7 @@ class DivInlineModel(BaseModel):
 
         ##### L2 Loss
         self.loss_G_L2_DIV = self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI) * self.opt.lambda_A
-        if self.opt.weighted_loss:
+        if self.opt.weighted_L2:
             self.loss_G_L2_DIV = (self.weight_mask.detach() * self.loss_G_L2_DIV).mean(3).mean(2)
 
         self.loss_G_L2 = self.processL2(self.loss_G_L2_DIV) * self.opt.lambda_A2
@@ -438,7 +438,7 @@ class DivInlineModel(BaseModel):
         if self.opt.with_BCE:
             self.loss_fg_CE = self.criterionBCE(self.fake_B_fg_ROI, self.real_B_fg_ROI.float()) * self.opt.lambda_B + 1e-8
 
-            if self.opt.weighted_loss:
+            if self.opt.weighted_CE:
                 self.loss_fg_CE = (self.weight_mask.detach() * self.loss_fg_CE).mean(3).mean(2)
 
             self.loss_fg_CE = self.processBCE(self.loss_fg_CE) * self.opt.lambda_B2

@@ -48,5 +48,6 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--with_BCE', action='store_true', help='Include BCE loss')
         self.parser.add_argument('--log_BCE', action='store_true', help='Apply log to BCE loss')
         self.parser.add_argument('--log_L2', action='store_true', help='Apply log to MSE')
-        self.parser.add_argument('--weighted_loss', action='store_true', help='Apply weighting to loss based on pixel class membership')
+        self.parser.add_argument('--weighted_L2', action='store_true', help='Apply weighting to L2 loss based on pixel class membership')
+        self.parser.add_argument('--weighted_CE', action='store_true', help='Apply weighting to CE loss based on pixel class membership')
         self.isTrain = True
