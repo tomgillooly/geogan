@@ -408,11 +408,12 @@ class DivInlineModel(BaseModel):
 
 
         ##### L2 Loss
-        self.loss_G_L2_DIV = self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI) * self.opt.lambda_A
-        if self.opt.weighted_L2:
-            self.loss_G_L2_DIV = (self.weight_mask.detach() * self.loss_G_L2_DIV).mean(3).mean(2)
+        self.loss_G_L2_DIV = self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)
 
-        self.loss_G_L2 = self.processL2(self.loss_G_L2_DIV) * self.opt.lambda_A2
+        if self.opt.weighted_L2:
+            self.loss_G_L2_DIV = (self.weight_mask.detach() * self.loss_G_L2_DIV).sum(3).sum(2)
+
+        self.loss_G_L2 = self.processL2(self.loss_G_L2_DIV * self.opt.lambda_A + 1e-8) * self.opt.lambda_A2
 
         self.loss_G_L2 += self.loss_G_L2_DIV
         
@@ -436,12 +437,12 @@ class DivInlineModel(BaseModel):
 
         ##### BCE Loss
         if self.opt.with_BCE:
-            self.loss_fg_CE = self.criterionBCE(self.fake_B_fg_ROI, self.real_B_fg_ROI.float()) * self.opt.lambda_B + 1e-8
+            self.loss_fg_CE = self.criterionBCE(self.fake_B_fg_ROI, self.real_B_fg_ROI.float())
 
             if self.opt.weighted_CE:
-                self.loss_fg_CE = (self.weight_mask.detach() * self.loss_fg_CE).mean(3).mean(2)
+                self.loss_fg_CE = (self.weight_mask.detach() * self.loss_fg_CE).sum(3).sum(2)
 
-            self.loss_fg_CE = self.processBCE(self.loss_fg_CE) * self.opt.lambda_B2
+            self.loss_fg_CE = self.processBCE(self.loss_fg_CE * self.opt.lambda_B + 1e-8) * self.opt.lambda_B2
 
             self.loss_G += self.loss_fg_CE
 
