@@ -22,6 +22,7 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--d_beta1', type=float, default=0.0, help='momentum term of adam')
         self.parser.add_argument('--no_lsgan', action='store_true', help='do *not* use least square GAN, if false, use vanilla GAN')
         self.parser.add_argument('--lambda_A', type=float, default=10.0, help='weight for cycle loss (A -> B -> A)')
+        self.parser.add_argument('--lambda_A2', type=float, default=10.0, help='Weight term for L2 after processing e.g. outside log()')
         self.parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
         self.parser.add_argument('--lambda_B2', type=float, default=1.0, help='WEight term for BCE after processing e.g. outside log()')
         self.parser.add_argument('--lambda_C', type=float, default=10.0, help='weight for WGAN gradient penalty')
@@ -47,4 +48,5 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--with_BCE', action='store_true', help='Include BCE loss')
         self.parser.add_argument('--log_BCE', action='store_true', help='Apply log to BCE loss')
         self.parser.add_argument('--log_L2', action='store_true', help='Apply log to MSE')
+        self.parser.add_argument('--weighted_loss', action='store_true', help='Apply weighting to loss based on pixel class membership')
         self.isTrain = True
