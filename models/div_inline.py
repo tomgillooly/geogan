@@ -105,10 +105,10 @@ class DivInlineModel(BaseModel):
             if len(self.gpu_ids) > 0:
                 self.netD.cuda()
 
-        if not self.isTrain or opt.continue_train:
+        if not self.isTrain or opt.continue_train or opt.restart_G:
             self.load_network(self.netG, 'G', opt.which_epoch)
 
-            if self.isTrain:
+            if self.isTrain and not opt.restart_G:
                 self.load_network(self.netD, 'D', opt.which_epoch)
 
 
