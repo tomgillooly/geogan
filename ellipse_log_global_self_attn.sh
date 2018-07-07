@@ -32,6 +32,7 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 python train.py --dataroot $DATAROOT --name ellipse_log_global_self_attn \
 	--model div_inline --which_direction BtoA \
 	--num_discrims 1 --which_model_netD self-attn --use_hinge \
+        --restart_G \
 	--no_lsgan --norm batch --init_type orthogonal \
 	--diff_in_numerator \
 	--input_nc 3 --output_nc 1 \
