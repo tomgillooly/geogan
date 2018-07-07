@@ -9,7 +9,7 @@ else
 	VIRTUALENV_NAME=cyclegan3
 	# DATAROOT=/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT
 	# DATAROOT=/storage/Datasets/Geology-NicolasColtice/pytorch_records_new_thresh
-	DATAROOT=/storage/Datasets/Geology-NicolasColtice/ellipses3
+	DATAROOT=/storage/Datasets/Geology-NicolasColtice/ellipses3_overfit50
 	HOME=/home/tgillooly/
 
 	source find_free_port.sh
@@ -29,19 +29,18 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --high_iter 25 --low_iter 5 \
 	# --continue_train --which_epoch 55 --epoch_count 56 \
-python train.py --dataroot $DATAROOT --name ellipse_mse_log_global_lb10 \
-        --continue_train --which_epoch latest --epoch_count 4 \
+python train.py --dataroot $DATAROOT --name ellipse_id_bce_weighted_mse_weighted_global \
 	--model div_inline --which_direction BtoA \
 	--num_discrims 0 --which_model_netD self-attn --use_hinge \
 	--no_lsgan --norm batch --init_type orthogonal \
-	--diff_in_numerator \
+	--weighted_L2 --diff_in_numerator \
 	--input_nc 3 --output_nc 1 \
-	--with_BCE --log_BCE --log_L2 \
-	--g_lr 0.001 --d_lr 0.0001 \
-	--lambda_A 1 --lambda_A2 2 --lambda_B 1 --lambda_B2 10 --lambda_D 1 \
+	--local_loss --with_BCE --log_BCE  \
+	--g_lr 0.0004 --d_lr 0.002 \
+	--lambda_A 1 --lambda_A2 1 --lambda_B 1 --lambda_B2 100 --lambda_D 1 \
 	--which_model_netG unet_256 \
-	--display_freq 10 --print_freq 10 \
-	--pool_size 0 --no_html --batchSize 1 --nThreads 2 $OPTIONS
+	--display_freq 1 --print_freq 1 --save_latest_freq 200 --save_epoch_freq 200 \
+	--pool_size 0 --no_html --batchSize 5 --nThreads 2 $OPTIONS
 
 kill %1
 
