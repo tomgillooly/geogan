@@ -96,7 +96,7 @@ class DivInlineModel(BaseModel):
             if opt.local_critic:
                 self.critic_im_size = (64, 64)
             else:
-                self.critic_im_size = (256, 512)
+                self.critic_im_size = (256, 256)
 
             self.netD = networks.define_D(discrim_input_channels, opt.ndf, opt.which_model_netD, opt.n_layers_D, 
                 opt.norm, use_sigmoid, opt.init_type, self.gpu_ids, critic_im_size=self.critic_im_size)
@@ -401,7 +401,7 @@ class DivInlineModel(BaseModel):
                 self.loss_G_GAN1 = self.criterionGAN(self.netD(fake_AB), True)
  
             # Trying to incentivise making this big, so it's mistaken for real
-            self.loss_G_GAN = self.loss_G_GAN1
+            self.loss_G_GAN = self.loss_G_GAN1 * self.opt.lambda_D
 
             for p in self.netD.parameters():
                 p.requires_grad = True
