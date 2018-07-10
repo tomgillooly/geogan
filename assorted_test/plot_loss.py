@@ -40,6 +40,7 @@ better_legend_lookup = {
 	"D": NameOrder("Critic loss", 14),
 	"G_L2_grad_y": NameOrder("L2 Y gradient", 15),
 	"G_L2_grad_x": NameOrder("L2 X gradient", 16),
+	"G_fg_CE": NameOrder("Foreground BCE loss", 16),
 }
 
 
