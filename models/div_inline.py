@@ -313,11 +313,19 @@ class DivInlineModel(BaseModel):
         if self.opt.continent_data:
             self.G_input = torch.cat((self.G_input, self.continents.float()), dim=1)
         
-        self.fake_B_DIV = self.netG(self.G_input)
+        self.G_out = self.netG(self.G_input)
+        self.fake_B_DIV = self.G_out[:, 0, :, :].unsqueeze(1)
+        self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :]).unsqueeze(1)
+        self.fake_fg_discrete = self.fake_B_fg > 0.5
 
-        scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat((self.div_max, torch.ones(self.div_max.shape), -self.div_min), dim=1)
+        scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
+            (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
+            dim=1)
         scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
-        self.fake_B_discrete = (torch.cat((-self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape), self.fake_B_DIV), dim=1) > scaled_thresh)
+        scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
+        self.fake_B_discrete = (torch.cat(
+            (-self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV)
+            , dim=1) > scaled_thresh)
         plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
         self.fake_B_discrete[:, 1, :, :].copy_(plate)
