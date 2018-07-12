@@ -30,13 +30,14 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 	# --high_iter 25 --low_iter 5 \
 	# --continue_train --which_epoch 55 --epoch_count 56 \
 python train.py --dataroot $DATAROOT --name ellipse_bce_log_no_mse_global_reweight \
+        --continue_train --which_epoch latest --epoch_count 38 \
 	--model div_inline --which_direction BtoA \
 	--num_discrims 0 --which_model_netD self-attn --use_hinge \
 	--no_lsgan --norm batch --init_type orthogonal \
 	--diff_in_numerator \
 	--input_nc 3 --output_nc 1 \
 	--with_BCE --log_BCE --log_L2 \
-	--g_lr 0.001 --d_lr 0.0001 \
+	--g_lr 0.00005 --d_lr 0.0001 \
         --lambda_A 1 --lambda_A2 0 --lambda_B 3.1 --lambda_B2 130.1 --lambda_D 1 \
         --which_model_netG unet_256 \
 	--display_freq 10 --print_freq 10 \
