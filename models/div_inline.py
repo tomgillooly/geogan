@@ -297,6 +297,7 @@ class DivInlineModel(BaseModel):
     def test(self):
         self.real_A_discrete = torch.autograd.Variable(self.input_A, volatile=True)
         self.real_B_discrete = torch.autograd.Variable(self.input_B, volatile=True)
+        self.real_B_fg = torch.max(self.real_B_discrete[:, [0, 2], :, :], dim=1)[0].unsqueeze(1)
 
         self.real_A_DIV = torch.autograd.Variable(self.input_A_DIV)
         self.real_B_DIV = torch.autograd.Variable(self.input_B_DIV)
