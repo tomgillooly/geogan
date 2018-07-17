@@ -31,7 +31,8 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 	# --continue_train --which_epoch 55 --epoch_count 56 \
 python train.py --dataroot $DATAROOT --name ellipse_mse_only_mask_log \
 	--model div_inline --which_direction BtoA \
-	--num_discrims 0 --which_model_netD self-attn --use_hinge \
+	--continue_train --which_epoch 19 --epoch_count 20 \
+        --num_discrims 0 --which_model_netD self-attn --use_hinge \
 	--no_lsgan --norm batch --init_type orthogonal \
 	--diff_in_numerator \
 	--input_nc 3 --output_nc 1 \
