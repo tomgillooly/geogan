@@ -9,7 +9,7 @@ else
 	VIRTUALENV_NAME=cyclegan3
 	# DATAROOT=/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT
 	# DATAROOT=/storage/Datasets/Geology-NicolasColtice/pytorch_records_new_thresh
-	DATAROOT=/storage/Datasets/Geology-NicolasColtice/old_pytorch_records
+	DATAROOT=/storage/Datasets/Geology-NicolasColtice/pytorch_records_new_thresh
 	HOME=/home/tgillooly/
 
 	source find_free_port.sh
@@ -29,9 +29,9 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --high_iter 25 --low_iter 5 \
 	# --continue_train --which_epoch 55 --epoch_count 56 \
-python train.py --dataroot $DATAROOT --name geo_self_attn_longest \
+python train.py --dataroot $DATAROOT --name geo_self_attn_new_data \
         --model div_inline --which_direction BtoA \
-        --continue_train --which_epoch 1240 --epoch_count 1241 \
+        --continue_train --which_epoch 25 --epoch_count 16 \
         --niter 8000 --niter_decay 2000 \
 	--num_discrims 1 --which_model_netD self-attn --use_hinge \
 	--no_lsgan --norm batch --init_type orthogonal \
