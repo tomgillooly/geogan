@@ -31,7 +31,7 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 	# --continue_train --which_epoch 55 --epoch_count 56 \
 python train.py --dataroot $DATAROOT --name geo_self_attn_new_data \
         --model div_inline --which_direction BtoA \
-        --continue_train --which_epoch 15 --epoch_count 16 \
+        --continue_train --which_epoch 525 --epoch_count 526 \
         --niter 8000 --niter_decay 2000 \
 	--num_discrims 1 --which_model_netD self-attn --use_hinge \
 	--no_lsgan --norm batch --init_type orthogonal \
