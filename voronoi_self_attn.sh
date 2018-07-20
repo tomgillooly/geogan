@@ -31,7 +31,8 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 	# --continue_train --which_epoch 55 --epoch_count 56 \
 python train.py --dataroot $DATAROOT --name voronoi_self_attn \
         --model div_inline --which_direction BtoA \
-        --niter 50 --niter_decay 50 \
+        --continue_train --which_epoch 45 --epoch_count 46 \
+        --niter 200 --niter_decay 100 \
 	--num_discrims 1 --which_model_netD self-attn --use_hinge \
 	--no_lsgan --norm batch --init_type orthogonal \
 	--diff_in_numerator \
