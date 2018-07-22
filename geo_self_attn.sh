@@ -29,7 +29,7 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --high_iter 25 --low_iter 5 \
 	# --continue_train --which_epoch 55 --epoch_count 56 \
-python train.py --dataroot $DATAROOT --name geo_self_attn_new_data \
+python train.py --dataroot $DATAROOT --name geo_self_attn_new_data --x_size 512 \
         --model div_inline --which_direction BtoA \
         --continue_train --which_epoch 555 --epoch_count 556 \
         --niter 8000 --niter_decay 2000 \

@@ -87,7 +87,7 @@ class DivInlineModel(BaseModel):
             if opt.local_critic:
                 self.critic_im_size = (64, 64)
             else:
-                self.critic_im_size = (256, 256)
+                self.critic_im_size = (256, opt.x_size)
 
             self.netD = networks.define_D(discrim_input_channels, opt.ndf, opt.which_model_netD, opt.n_layers_D, 
                 opt.norm, use_sigmoid, opt.init_type, self.gpu_ids, critic_im_size=self.critic_im_size)
