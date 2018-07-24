@@ -167,6 +167,9 @@ class GeoUnpickler(object):
 	def __getitem__(self, idx):
 		data = torch.load(self.files[idx])
 
+		for key in [key for key in data.keys() if 'hist' in key or 'Vy' in key or 'Vx' in key or 'A_path' in key or 'min_pix_in_mask' in key]:
+			data.pop(key)
+
 		basedir = os.path.join(self.opt.dataroot, self.opt.phase).rstrip('/')
 		
 		data['folder_name'] = os.path.dirname(self.files[idx])[len(basedir)+1:]
