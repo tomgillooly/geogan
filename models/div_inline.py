@@ -21,6 +21,7 @@ from scipy.spatial.distance import directed_hausdorff, euclidean
 from skimage.filters import roberts
 
 from metrics.hausdorff import get_hausdorff, get_hausdorff_exc
+from metrics.emd import get_emd
 
 import sys
 
@@ -605,6 +606,10 @@ class DivInlineModel(BaseModel):
             continents[mask_edge_coords] = np.max(continents)
             visuals.append(('continents', continents))
 
+        if not self.isTrain:
+            visuals.append(('emd_ridge_error', self.emd_ridge_error))
+            visuals.append(('emd_subduction_error', self.emd_subduction_error))
+
         return OrderedDict(visuals)
 
 
@@ -612,9 +617,11 @@ class DivInlineModel(BaseModel):
         # import skimage.io as io
         # import matplotlib.pyplot as plt
         real_DIV = self.real_B_DIV.data.numpy().squeeze()
+        real_disc = self.real_B_discrete.data.numpy().transpose(1, 2, 0)
         fake_DIV = self.fake_B_DIV.data.numpy().squeeze()
 
         real_DIV_local = real_DIV[np.where(self.mask.numpy().squeeze())]
+        real_disc_local = real_discrete[np.where(self.mask.repeat(3, 1, 1).numpy().transpose(1, 2, 0))]
         fake_DIV_local = fake_DIV[np.where(self.mask.numpy().squeeze())]
 
         L2_error = np.mean((real_DIV - fake_DIV)**2)
@@ -622,6 +629,52 @@ class DivInlineModel(BaseModel):
 
         metrics = [('L2_global', L2_error)]
         metrics.append(('L2_local', L2_local_error))
+
+        low_thresh = 0
+        high_thresh = np.max(div)
+
+        tmp = {'A_DIV': fake_DIV_local}
+
+        for _ in range(20):
+            scores = []
+
+            thresholds = np.linspace(low_thresh, high_thresh, 4)
+
+            for thresh in thresholds:
+                p.create_one_hot(tmp, thresh)
+                tmp_disc = tmp['A']
+            
+                s = []
+                for i in [0, 2]:
+                    tmp_emd = get_emd(tmp_disc[:,:,i], real_disc_local[:,:,i], visualise=False)
+
+                    s.append(tmp_emd)
+                scores.append(np.mean(s))
+
+            best_idx = np.argmin(scores)
+
+            if best_idx+1 < len(thresholds):
+                high_thresh = thresholds[best_idx+1]
+            else:
+                high_thresh = thresholds[best_idx]
+
+            if best_idx > 0:
+                low_thresh = thresholds[best_idx-1]
+            else:
+                low_thresh = thresholds[best_idx]
+
+            DIV_thresh = thresholds[best_idx]
+            p.create_one_hot(tmp, DIV_thresh)
+            self.fake_B_discrete = tmp['A']
+
+            emd_cost0, im0 = get_emd(fake_B_discrete[:, :, 0], real_disc_local[:, :, 0], visualise=True)
+            emd_cost1, im1 = get_emd(fake_B_discrete[:, :, 2], real_disc_local[:, :, 2], visualise=True)
+
+            self.emd_ridge_error = im0
+            self.emd_subduction_error = im1
+
+        metrics.append([('EMD_ridge', emd_cost0), ('EMD_subduction', emd_cost1)])
+        
 
         return OrderedDict(metrics)
 
