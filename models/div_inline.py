@@ -339,6 +339,26 @@ class DivInlineModel(BaseModel):
         # self.p.create_one_hot(tmp_dict, 0.2)
         # self.fake_B_discrete_02 = tmp_dict['A']
         # self.p.create_one_hot(tmp_dict, 0.1)
+
+        im_dims = self.mask.shape[2:]
+
+        loss_mask = self.mask.byte()
+
+        # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
+        im_dims = self.mask_size, self.mask_size
+        
+        self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+
+        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+
+        self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
+        self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
+
+        self.real_B_fg_ROI = self.real_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+        self.fake_B_fg_ROI = self.fake_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+        self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+
+        
         # self.fake_B_discrete_01 = tmp_dict['A']
 
 
@@ -534,14 +554,6 @@ class DivInlineModel(BaseModel):
 
         visuals = []
 
-        real_A_discrete = util.tensor2im(self.real_A_discrete.data)
-        real_A_discrete[mask_edge_coords] = np.max(real_A_discrete)
-        visuals.append(('input_one_hot', real_A_discrete))
-
-        real_B_discrete = util.tensor2im(self.real_B_discrete.data)
-        real_B_discrete[mask_edge_coords] = np.max(real_B_discrete)
-        visuals.append(('ground_truth_one_hot', real_B_discrete))
-
         real_A_DIV = util.tensor2im(self.real_A_DIV.data)
         real_A_DIV[mask_edge_coords] = np.max(real_A_DIV)
         visuals.append(('input_divergence', real_A_DIV))
@@ -554,10 +566,6 @@ class DivInlineModel(BaseModel):
         fake_B_DIV[mask_edge_coords] = np.max(fake_B_DIV)
         visuals.append(('output_divergence', fake_B_DIV))
 
-        fake_B_discrete = util.tensor2im(self.fake_B_discrete.data)
-        fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
-        visuals.append(('output_discrete', fake_B_discrete))
-
         fake_fg_discrete = util.tensor2im(self.fake_fg_discrete.data.float())
         fake_fg_discrete[mask_edge_coords] = np.max(fake_fg_discrete)
         visuals.append(('fake_fg_discrete', fake_fg_discrete))
@@ -566,7 +574,19 @@ class DivInlineModel(BaseModel):
         real_B_fg[mask_edge_coords] = np.max(real_B_fg)
         visuals.append(('real_foreground', real_B_fg))
 
-        
+        real_A_discrete = util.tensor2im(self.real_A_discrete.data)
+        real_A_discrete[mask_edge_coords] = np.max(real_A_discrete)
+        visuals.append(('input_one_hot', real_A_discrete))
+
+        real_B_discrete = util.tensor2im(self.real_B_discrete.data)
+        real_B_discrete[mask_edge_coords] = np.max(real_B_discrete)
+        visuals.append(('ground_truth_one_hot', real_B_discrete))
+
+        fake_B_discrete = util.tensor2im(self.fake_B_discrete.data)
+        fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
+        visuals.append(('output_discrete', fake_B_discrete))
+
+       
         if self.opt.grad_loss:
             real_B_DIV_grad_x = util.tensor2im(self.real_B_DIV_grad_x.data)
             visuals.append(('ground_truth_x_gradient', real_B_DIV_grad_x))
@@ -617,12 +637,12 @@ class DivInlineModel(BaseModel):
         # import skimage.io as io
         # import matplotlib.pyplot as plt
         real_DIV = self.real_B_DIV.data.numpy().squeeze()
-        real_disc = self.real_B_discrete.data.numpy().transpose(1, 2, 0)
+        real_disc = self.real_B_discrete.data.numpy().squeeze().transpose(1, 2, 0)
         fake_DIV = self.fake_B_DIV.data.numpy().squeeze()
 
-        real_DIV_local = real_DIV[np.where(self.mask.numpy().squeeze())]
-        real_disc_local = real_discrete[np.where(self.mask.repeat(3, 1, 1).numpy().transpose(1, 2, 0))]
-        fake_DIV_local = fake_DIV[np.where(self.mask.numpy().squeeze())]
+        real_DIV_local = self.real_B_DIV_ROI.numpy().squeeze()
+        real_disc_local = self.real_B_discrete_ROI.data.numpy().squeeze().transpose(1, 2, 0)
+        fake_DIV_local = self.fake_B_DIV_ROI.data.numpy().squeeze()
 
         L2_error = np.mean((real_DIV - fake_DIV)**2)
         L2_local_error = np.mean((real_DIV_local - fake_DIV_local)**2)
@@ -631,7 +651,7 @@ class DivInlineModel(BaseModel):
         metrics.append(('L2_local', L2_local_error))
 
         low_thresh = 0
-        high_thresh = np.max(div)
+        high_thresh = np.max(fake_DIV_local)
 
         tmp = {'A_DIV': fake_DIV_local}
 
@@ -641,7 +661,7 @@ class DivInlineModel(BaseModel):
             thresholds = np.linspace(low_thresh, high_thresh, 4)
 
             for thresh in thresholds:
-                p.create_one_hot(tmp, thresh)
+                self.p.create_one_hot(tmp, thresh)
                 tmp_disc = tmp['A']
             
                 s = []
@@ -663,29 +683,32 @@ class DivInlineModel(BaseModel):
             else:
                 low_thresh = thresholds[best_idx]
 
-            DIV_thresh = thresholds[best_idx]
-            p.create_one_hot(tmp, DIV_thresh)
-            self.fake_B_discrete = tmp['A']
+        DIV_thresh = thresholds[best_idx]
+        self.p.create_one_hot(tmp, DIV_thresh)
+        fake_B_discrete = tmp['A']
 
-            emd_cost0, im0 = get_emd(fake_B_discrete[:, :, 0], real_disc_local[:, :, 0], visualise=True)
-            emd_cost1, im1 = get_emd(fake_B_discrete[:, :, 2], real_disc_local[:, :, 2], visualise=True)
+        emd_cost0, im0 = get_emd(fake_B_discrete[:, :, 0], real_disc_local[:, :, 0], visualise=True)
+        emd_cost1, im1 = get_emd(fake_B_discrete[:, :, 2], real_disc_local[:, :, 2], visualise=True)
 
-            self.emd_ridge_error = im0
-            self.emd_subduction_error = im1
+        tmp['A_DIV'] = fake_DIV
+        self.p.create_one_hot(tmp, DIV_thresh)
+        self.fake_B_discrete.data.copy_(torch.from_numpy(tmp['A'].transpose(2, 0, 1)))
+        self.emd_ridge_error = im0
+        self.emd_subduction_error = im1
 
-        metrics.append([('EMD_ridge', emd_cost0), ('EMD_subduction', emd_cost1)])
-        
+        metrics += [('EMD_ridge', emd_cost0), ('EMD_subduction', emd_cost1), ('EMD_mean', (emd_cost0+emd_cost1)/2)]
 
         return OrderedDict(metrics)
 
 
     def accumulate_metrics(self, metrics):
-        # all_L2 = [metric['L2'] for metric in metrics]
+        a_metrics = [('L2_global', np.mean([metric['L2_global'] for metric in metrics]))]
+        a_metrics.append(('L2_local', np.mean([metric['L2_local'] for metric in metrics])))
+        a_metrics.append(('EMD_ridge', np.mean([metric['EMD_ridge'] for metric in metrics])))
+        a_metrics.append(('EMD_subduction', np.mean([metric['EMD_subduction'] for metric in metrics])))
+        a_metrics.append(('EMD_mean', np.mean([metric['EMD_mean'] for metric in metrics])))
 
-        # metrics = ('L2', np.mean(all_L2))
-        metrics = []
-
-        return OrderedDict()
+        return OrderedDict(a_metrics)
 
 
     def save(self, label):

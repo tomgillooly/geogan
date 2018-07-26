@@ -1,5 +1,7 @@
 import os
 from options.test_options import TestOptions
+import matplotlib
+matplotlib.use('Agg')
 from metrics.hausdorff import get_hausdorff, get_hausdorff_exc
 from models.models import create_model
 from util.visualizer import Visualizer
@@ -86,7 +88,7 @@ with open(results_file_name, 'a') as results_file:
             try:
                 text.append("{} = {:.04} ".format(key, value))
             except ValueError:
-                print(key, value)
+                print('ValueError', key, value)
 
     if text:
         webpage.add_text(text)
@@ -100,7 +102,7 @@ with open(results_file_name, 'a') as results_file:
             try:
                 text.append("{} = {:.04} ".format(key, value))
             except ValueError:
-                print(key, value)
+                print('ValueError', key, value)
             results.append(str(value))
 
         results_file.write(', '.join(results) + '\n')
@@ -109,7 +111,10 @@ with open(results_file_name, 'a') as results_file:
         if len(visuals) < 6:
             row_lengths = [len(visuals)]
         else:
-            row_lengths = [3] * int(len(visuals) / 3 + 0.5)
+            row_lengths = [3]
+            row_lengths.append(2)
+            row_lengths.append(3)
+            row_lengths.append(2)
             # row_lengths.append(4)   # Discrete input, GT, softmax, one-hot output
             # row_lengths.append(3)   # Divergence input, output, G
             # row_lengths.append(3)   # Velocity x input, output, G

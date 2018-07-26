@@ -23,7 +23,7 @@ def get_emd(im1, im2, visualise=False, im1_label='Predicted', im2_label='Actual'
 	diff = cost.shape[0] - cost.shape[1]
 	axis = 0 if diff < 0 else 1
 	diff = abs(diff)
-	dummy_points = np.ones((diff, cost.shape[1]) if axis==0 else (cost.shape[0], diff)) * 114.0
+	dummy_points = np.ones((diff, cost.shape[1]) if axis==0 else (cost.shape[0], diff)) * max_distance
 	cost = np.concatenate((cost, dummy_points), axis=axis)
 
 	source_ind, dest_ind = linear_sum_assignment(cost)
@@ -62,7 +62,7 @@ def get_emd(im1, im2, visualise=False, im1_label='Predicted', im2_label='Actual'
 		plt.grid()
 
 		plt.savefig('/tmp/tmpimg.png')
-		img = plt.imread('/tmp/tmpimg.png')
+		img = (plt.imread('/tmp/tmpimg.png')*255).astype(np.uint8)
 		plt.close(1)
 
 		return average_distance, img
