@@ -269,7 +269,7 @@ class DivInlineModel(BaseModel):
                 , dim=1) > scaled_thresh)
             plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
-            self.fake_fg_discrete = self.fake_B_discrete.max(dim=1).unsqueeze(1)
+            self.fake_fg_discrete = self.fake_B_discrete.max(dim=1)[0].unsqueeze(1)
             self.fake_B_discrete[:, 1, :, :].copy_(plate)
 
  
