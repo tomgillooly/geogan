@@ -257,6 +257,19 @@ class DivInlineModel(BaseModel):
         if self.opt.with_BCE:
             self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :].unsqueeze(1))
             self.fake_fg_discrete = self.fake_B_fg > 0.5
+        else:
+            scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
+                (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
+                dim=1)
+            scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
+            scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
+            self.fake_B_discrete = (torch.cat(
+                (-self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV)
+                , dim=1) > scaled_thresh)
+            plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
+
+            self.fake_fg_discrete = self.fake_B_discrete.max(dim=1).unsqueeze(1)
+            self.fake_B_discrete[:, 1, :, :].copy_(plate)
 
  
         if self.opt.grad_loss:
@@ -281,10 +294,11 @@ class DivInlineModel(BaseModel):
             # im_dims = (100, 100)
         
 
+        self.real_B_fg_ROI = self.real_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
+        self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
+        
         if self.opt.with_BCE:
-            self.real_B_fg_ROI = self.real_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
             self.fake_B_fg_ROI = self.fake_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
-            self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
 
         self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
         self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
@@ -296,8 +310,8 @@ class DivInlineModel(BaseModel):
             self.fake_B_DIV_grad_x = self.fake_B_DIV_grad_x.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
             self.fake_B_DIV_grad_y = self.fake_B_DIV_grad_y.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
 
-        if self.opt.with_BCE and (self.opt.weighted_L2 or self.opt.weighted_CE):
-            self.weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_B_fg_ROI.float())
+        if self.opt.weighted_L2 or self.opt.weighted_CE:
+            self.weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_fg_discrete_ROI.float())
 
 
     # no backprop gradients
