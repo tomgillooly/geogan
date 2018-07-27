@@ -1,5 +1,7 @@
 import os
 from options.test_options import TestOptions
+import matplotlib
+matplotlib.use('Agg')
 from metrics.hausdorff import get_hausdorff, get_hausdorff_exc
 from models.models import create_model
 from util.visualizer import Visualizer
@@ -67,50 +69,11 @@ for i, data in enumerate(dataset):
         break
     model.set_input(data)
     model.test()
+    
+    metric_data.append(model.get_current_metrics())
+    
     visuals = model.get_current_visuals()
     img_path = model.get_image_paths()
-
-    if opt.visualise_hausdorff:
-        mask = data["mask"]
-
-        actual_inpaint_region = data["A"].masked_select(
-            mask.repeat(1, 3, 1, 1)).numpy().reshape(3, 100, 100).transpose(1, 2, 0)
-
-        test_inpaint_region = model.fake_B_classes.data.masked_select(
-            mask).numpy().reshape(100, 100)
-
-
-        for c in [0, 2]:
-            # _, _, _, i_precision, i_recall = get_hausdorff(test_inpaint_region == c, actual_inpaint_region[:, :, c], True)
-            # gt = np.zeros((actual_inpaint_region.shape[0], actual_inpaint_region.shape[1], 3), dtype=np.uint8)
-            # gt[:, :, c] = actual_inpaint_region[:, :, c]*255
-
-            # inpainted = np.zeros((actual_inpaint_region.shape[0], actual_inpaint_region.shape[1], 3), dtype=np.uint8)
-            # inpainted[:, :, c] = (test_inpaint_region == c)*255
-
-            # visuals['ground_truth_class_%d' % c] = gt
-            # visuals['inpainted_class_%d' % c] = inpainted
-            # visuals['hausdorff_recall_class_%d' % c] = i_recall
-            # visuals['hausdorff_precision_class_%d' % c] = i_precision
-            
-            _, _, _, i_precision, i_recall = get_hausdorff_exc(test_inpaint_region == c, actual_inpaint_region[:, :, c], True)
-            visuals['hausdorff_recall_exc_class_%d' % c] = i_recall
-            visuals['hausdorff_precision_exc_class_%d' % c] = i_precision
-            
-
-    # for key, value in model.get_current_metrics().items():
-    #     print(key,"=",value)
-
-    metric_data.append(model.get_current_metrics())
-
-    # if opt.metrics:
-    #   thresh = 1000
-    #   accuracy = 0
-
-    #   out_im = visuals['fake_B']
-    #   # print(np.bincount(out_im.ravel()))
-    #   io.imshow(out_im)
-    #   io.show()
 
     print('%04d: process image... %s' % (i, img_path))
     # visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio)
@@ -125,7 +88,7 @@ with open(results_file_name, 'a') as results_file:
             try:
                 text.append("{} = {:.04} ".format(key, value))
             except ValueError:
-                print(key, value)
+                print('ValueError', key, value)
 
     if text:
         webpage.add_text(text)
@@ -139,7 +102,7 @@ with open(results_file_name, 'a') as results_file:
             try:
                 text.append("{} = {:.04} ".format(key, value))
             except ValueError:
-                print(key, value)
+                print('ValueError', key, value)
             results.append(str(value))
 
         results_file.write(', '.join(results) + '\n')
@@ -148,7 +111,10 @@ with open(results_file_name, 'a') as results_file:
         if len(visuals) < 6:
             row_lengths = [len(visuals)]
         else:
-            row_lengths = [3] * int(len(visuals) / 3 + 0.5)
+            row_lengths = [3]
+            row_lengths.append(2)
+            row_lengths.append(3)
+            row_lengths.append(2)
             # row_lengths.append(4)   # Discrete input, GT, softmax, one-hot output
             # row_lengths.append(3)   # Divergence input, output, G
             # row_lengths.append(3)   # Velocity x input, output, G
