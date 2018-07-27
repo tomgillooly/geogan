@@ -29,7 +29,7 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --high_iter 25 --low_iter 5 \
 	# --continue_train --which_epoch 55 --epoch_count 56 \
-python train.py --dataroot $DATAROOT --name voronoi_log_global_self_attn \
+python train.py --dataroot $DATAROOT --name voronoi_log_global \
 	--model div_inline --which_direction BtoA \
 	--num_discrims 1 --which_model_netD self-attn --use_hinge \
 	--no_lsgan --norm batch --init_type orthogonal \
