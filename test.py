@@ -31,7 +31,7 @@ except AttributeError:
 opt = TestOptions().parse()
 opt.nThreads = 1   # test code only supports nThreads = 1
 opt.batchSize = 1  # test code only supports batchSize = 1
-opt.serial_batches = False  # no shuffle
+#opt.serial_batches = False  # no shuffle
 opt.no_flip = True  # no flip
 
 unpickler = GeoUnpickler()
@@ -40,7 +40,7 @@ unpickler.initialise(opt)
 dataset = torch.utils.data.DataLoader(
         unpickler,
         batch_size=opt.batchSize,
-        shuffle=False,
+        shuffle=not opt.serial_batches,
         num_workers=opt.nThreads)
 
 dataset_size = len(dataset)
@@ -112,9 +112,9 @@ with open(results_file_name, 'a') as results_file:
             row_lengths = [len(visuals)]
         else:
             row_lengths = [3]
-            row_lengths.append(2)
             row_lengths.append(3)
             row_lengths.append(2)
+            #row_lengths.append(2)
             # row_lengths.append(4)   # Discrete input, GT, softmax, one-hot output
             # row_lengths.append(3)   # Divergence input, output, G
             # row_lengths.append(3)   # Velocity x input, output, G

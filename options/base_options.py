@@ -51,6 +51,7 @@ class BaseOptions():
         self.parser.add_argument('--div_depth', type=int, default=3, help="Number of upconv layers to walk back to connect DIV head")
         self.parser.add_argument('--grad_loss', action='store_true', help='Include L2 loss of gradient image')
         self.parser.add_argument('--x_size', type=int, default=256, help='Size of input image in x direction')
+        self.parser.add_argument('--with_BCE', action='store_true', help='Include BCE loss')
 
         
         continuous_data = self.parser.add_mutually_exclusive_group()
