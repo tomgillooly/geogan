@@ -657,14 +657,18 @@ class DivInlineModel(BaseModel):
         tmp = {'A_DIV': -fake_DIV_local}
         #print(np.max(tmp['A_DIV']), np.min(tmp['A_DIV']))
 
-        for search_iter in range(5):
-            print('search_iter = {}'.format(search_iter))
-            scores = []
+        scores = np.ones((4, 1)) * np.inf
+        print('search_iter: ')
+        for search_iter in range(15):
+            print('{}... '.format(search_iter), end='\r')
 
             thresholds = np.linspace(low_thresh, high_thresh, 4)
             #print(thresholds)
 
-            for thresh in thresholds:
+            for thresh_idx, thresh in enumerate(thresholds):
+                if scores[thresh_idx] != np.inf:
+                    continue
+
                 self.p.create_one_hot(tmp, thresh, skel=False)
                 tmp_disc = tmp['A']
 
@@ -676,19 +680,25 @@ class DivInlineModel(BaseModel):
                     tmp_emd = get_emd(tmp_disc[:,:,i], real_disc_local[:,:,i], visualise=False)
 
                     s.append(tmp_emd)
-                scores.append(np.mean(s))
-            #print(scores)
+                scores[thresh_idx] = (np.mean(s))
+            #print(scores.ravel())
             best_idx = np.argmin(scores)
+            high_idx = best_idx + 1
+            low_idx = best_idx - 1
 
-            if best_idx+1 < len(thresholds):
-                high_thresh = thresholds[best_idx+1]
-            else:
-                high_thresh = thresholds[best_idx]
+            if high_idx >= len(thresholds):
+                high_idx -= 1
 
-            if best_idx > 0:
-                low_thresh = thresholds[best_idx-1]
-            else:
-                low_thresh = thresholds[best_idx]
+            if low_idx < 0:
+                low_idx += 1
+
+            high_thresh = thresholds[high_idx]
+            low_thresh = thresholds[low_idx]
+
+            scores[0] = scores[low_idx]
+            scores[-1] = scores[high_idx]
+            scores[1:-1] = np.inf
+            #print(scores.ravel())
 
         DIV_thresh = thresholds[best_idx]
         self.p.create_one_hot(tmp, DIV_thresh, skel=False)
