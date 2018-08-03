@@ -19,7 +19,7 @@ def get_emd(im1, im2, visualise=False, im1_label='Predicted', im2_label='Actual'
 		return max_distance
 
 	cost = cdist(im1_coords, im2_coords)
-	# print('source, dest', cost.shape)
+	#print('source, dest', cost.shape)
 	diff = cost.shape[0] - cost.shape[1]
 	axis = 0 if diff < 0 else 1
 	diff = abs(diff)

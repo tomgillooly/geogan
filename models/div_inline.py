@@ -338,8 +338,10 @@ class DivInlineModel(BaseModel):
         
         self.G_out = self.netG(self.G_input)
         self.fake_B_DIV = self.G_out[:, 0, :, :].unsqueeze(1)
-        self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :]).unsqueeze(1)
-        self.fake_fg_discrete = self.fake_B_fg > 0.5
+        
+        if self.opt.with_BCE:
+            self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :]).unsqueeze(1)
+            self.fake_fg_discrete = self.fake_B_fg > 0.5
 
         scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
             (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
@@ -575,6 +577,10 @@ class DivInlineModel(BaseModel):
         real_B_discrete[mask_edge_coords] = np.max(real_B_discrete)
         visuals.append(('ground_truth_one_hot', real_B_discrete))
 
+        fake_B_discrete = util.tensor2im(self.fake_B_discrete.data)
+        fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
+        visuals.append(('output_one_hot', fake_B_discrete))
+
         real_A_DIV = util.tensor2im(self.real_A_DIV.data)
         real_A_DIV[mask_edge_coords] = np.max(real_A_DIV)
         visuals.append(('input_divergence', real_A_DIV))
@@ -634,9 +640,9 @@ class DivInlineModel(BaseModel):
         real_disc = self.real_B_discrete.data.numpy().squeeze().transpose(1, 2, 0)
         fake_DIV = self.fake_B_DIV.data.numpy().squeeze()
 
-        real_DIV_local = self.real_B_DIV_ROI.numpy().squeeze()
-        real_disc_local = self.real_B_discrete_ROI.data.numpy().squeeze().transpose(1, 2, 0)
-        fake_DIV_local = self.fake_B_DIV_ROI.data.numpy().squeeze()
+        real_DIV_local = self.real_B_DIV.masked_select(self.mask).view(1, 1, self.mask_size, self.mask_size).numpy().squeeze()
+        real_disc_local = self.real_B_discrete.masked_select(self.mask.repeat(1, 3, 1, 1)).view(1, 3, self.mask_size, self.mask_size).data.numpy().squeeze().transpose(1, 2, 0)
+        fake_DIV_local = self.fake_B_DIV.masked_select(self.mask).view(1, 1, self.mask_size, self.mask_size).data.numpy().squeeze()
 
         L2_error = np.mean((real_DIV - fake_DIV)**2)
         L2_local_error = np.mean((real_DIV_local - fake_DIV_local)**2)
@@ -644,27 +650,34 @@ class DivInlineModel(BaseModel):
         metrics = [('L2_global', L2_error)]
         metrics.append(('L2_local', L2_local_error))
 
-        low_thresh = 0
-        high_thresh = np.max(fake_DIV_local)
+        low_thresh = 1e-3
+        high_thresh = max(np.max(fake_DIV_local), np.abs(np.min(fake_DIV_local)))
+        #high_thresh=1.0
+        # Somehow goofed and produced inverted divergence maps, so we need to flip to compare
+        tmp = {'A_DIV': -fake_DIV_local}
+        #print(np.max(tmp['A_DIV']), np.min(tmp['A_DIV']))
 
-        tmp = {'A_DIV': fake_DIV_local}
-
-        for _ in range(20):
+        for search_iter in range(5):
+            print('search_iter = {}'.format(search_iter))
             scores = []
 
             thresholds = np.linspace(low_thresh, high_thresh, 4)
+            #print(thresholds)
 
             for thresh in thresholds:
-                self.p.create_one_hot(tmp, thresh)
+                self.p.create_one_hot(tmp, thresh, skel=False)
                 tmp_disc = tmp['A']
+
+                #print('dafuq {}'.format( np.sum(tmp_disc[:, :, 0] >= thresh)))
             
                 s = []
                 for i in [0, 2]:
+                    #print('channel: {}, thresh: {} {}-{}'.format(i, thresh, len(np.where(tmp_disc[:,:,i])[0]), len(np.where(real_disc_local[:,:,i])[0])))
                     tmp_emd = get_emd(tmp_disc[:,:,i], real_disc_local[:,:,i], visualise=False)
 
                     s.append(tmp_emd)
                 scores.append(np.mean(s))
-
+            #print(scores)
             best_idx = np.argmin(scores)
 
             if best_idx+1 < len(thresholds):
@@ -678,14 +691,14 @@ class DivInlineModel(BaseModel):
                 low_thresh = thresholds[best_idx]
 
         DIV_thresh = thresholds[best_idx]
-        self.p.create_one_hot(tmp, DIV_thresh)
+        self.p.create_one_hot(tmp, DIV_thresh, skel=False)
         fake_B_discrete = tmp['A']
 
         emd_cost0, im0 = get_emd(fake_B_discrete[:, :, 0], real_disc_local[:, :, 0], visualise=True)
         emd_cost1, im1 = get_emd(fake_B_discrete[:, :, 2], real_disc_local[:, :, 2], visualise=True)
 
-        tmp['A_DIV'] = fake_DIV
-        self.p.create_one_hot(tmp, DIV_thresh)
+        tmp['A_DIV'] = -fake_DIV
+        self.p.create_one_hot(tmp, DIV_thresh, skel=False)
         self.fake_B_discrete.data.copy_(torch.from_numpy(tmp['A'].transpose(2, 0, 1)))
         self.emd_ridge_error = im0
         self.emd_subduction_error = im1

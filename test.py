@@ -112,9 +112,9 @@ with open(results_file_name, 'a') as results_file:
             row_lengths = [len(visuals)]
         else:
             row_lengths = [3]
-            row_lengths.append(2)
             row_lengths.append(3)
             row_lengths.append(2)
+            #row_lengths.append(2)
             # row_lengths.append(4)   # Discrete input, GT, softmax, one-hot output
             # row_lengths.append(3)   # Divergence input, output, G
             # row_lengths.append(3)   # Velocity x input, output, G
