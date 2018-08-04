@@ -53,6 +53,9 @@ class DivInlineModel(BaseModel):
         # Input channels = 3 channels for input one-hot map + mask
         input_channels = opt.input_nc
 
+        if self.opt.mask_to_G:
+            input_channels += 1
+
         if self.opt.continent_data:
             input_channels += 1
 
@@ -311,6 +314,9 @@ class DivInlineModel(BaseModel):
         # mask_var = Variable(self.mask.float(), volatile=True)
         # self.G_input = torch.cat((self.real_A_discrete, self.mask.float()), dim=1)
         self.G_input = self.real_A_discrete
+
+        if self.opt.mask_to_G:
+            self.G_input = torch.cat((self.G_input, self.mask.float()), dim=1)
 
         if self.opt.continent_data:
             self.G_input = torch.cat((self.G_input, self.continents.float()), dim=1)
@@ -635,26 +641,26 @@ class DivInlineModel(BaseModel):
         metrics = [('L2_global', L2_error)]
         metrics.append(('L2_local', L2_local_error))
 
-        low_thresh = 1e-4
+        low_thresh = 1e-6
         high_thresh = max(np.max(fake_DIV_local), np.abs(np.min(fake_DIV_local)))
         #high_thresh=1.0
         # Somehow goofed and produced inverted divergence maps, so we need to flip to compare
         tmp = {'A_DIV': fake_DIV_local}
         #print(np.max(tmp['A_DIV']), np.min(tmp['A_DIV']))
 
-        scores = np.ones((4, 1)) * np.inf
+        scores = np.ones((5, 1)) * np.inf
         print('search_iter: ')
-        for search_iter in range(20):
+        for search_iter in range(10):
             print('{}... '.format(search_iter), end='\r')
 
-            thresholds = np.linspace(low_thresh, high_thresh, 4)
+            thresholds = np.linspace(low_thresh, high_thresh, 5)
             #print(thresholds)
 
             for thresh_idx, thresh in enumerate(thresholds):
                 if scores[thresh_idx] != np.inf:
                     continue
 
-                self.p.create_one_hot(tmp, thresh, skel=True)
+                self.p.create_one_hot(tmp, thresh, skel=self.opt.skel_metric)
                 tmp_disc = tmp['A']
 
                 #print('dafuq {}'.format( np.sum(tmp_disc[:, :, 0] >= thresh)))
@@ -683,14 +689,14 @@ class DivInlineModel(BaseModel):
             high_thresh = thresholds[high_idx]
             low_thresh = thresholds[low_idx]
 
-            #print(scores.ravel())
+            print(scores.ravel()[best_idx])
             scores[0] = scores[low_idx]
             scores[-1] = scores[high_idx]
             scores[1:-1] = np.inf
 
         DIV_thresh = thresholds[best_idx]
         print('Best thresh/score : {}/{}'.format(DIV_thresh, scores[best_idx]))
-        self.p.create_one_hot(tmp, DIV_thresh, skel=True)
+        self.p.create_one_hot(tmp, DIV_thresh, skel=self.opt.skel_metric)
         print('Created new one-hot')
 
         print('Computing emd 0 ', end='')
@@ -700,7 +706,7 @@ class DivInlineModel(BaseModel):
 
         tmp['A_DIV'] = fake_DIV
         print('Creating full one hot image')
-        self.p.create_one_hot(tmp, DIV_thresh, skel=True)
+        self.p.create_one_hot(tmp, DIV_thresh, skel=self.opt.skel_metric)
         self.fake_B_discrete.data.copy_(torch.from_numpy(tmp['A'].transpose(2, 0, 1)))
         self.emd_ridge_error = im0
         self.emd_subduction_error = im1

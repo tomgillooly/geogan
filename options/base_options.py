@@ -52,7 +52,8 @@ class BaseOptions():
         self.parser.add_argument('--grad_loss', action='store_true', help='Include L2 loss of gradient image')
         self.parser.add_argument('--x_size', type=int, default=256, help='Size of input image in x direction')
         self.parser.add_argument('--with_BCE', action='store_true', help='Include BCE loss')
-
+        self.parser.add_argument('--mask_to_G', action='store_true', help='Pass mask to generator')
+        self.parser.add_argument('--skel_metric', action='store_true', help='Skeletonise image when finding metric')
         
         continuous_data = self.parser.add_mutually_exclusive_group()
         continuous_data.add_argument('--discrete_only', action='store_true', help="Disregard continuous data (divergence and vector fields)")
