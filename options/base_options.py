@@ -54,6 +54,7 @@ class BaseOptions():
         self.parser.add_argument('--with_BCE', action='store_true', help='Include BCE loss')
         self.parser.add_argument('--mask_to_G', action='store_true', help='Pass mask to generator')
         self.parser.add_argument('--skel_metric', action='store_true', help='Skeletonise image when finding metric')
+        self.parser.add_argument('--invert_ridge', action='store_true', help='Get ridge channel with negative threshold')
         
         continuous_data = self.parser.add_mutually_exclusive_group()
         continuous_data.add_argument('--discrete_only', action='store_true', help="Disregard continuous data (divergence and vector fields)")

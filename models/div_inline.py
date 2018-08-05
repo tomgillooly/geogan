@@ -255,7 +255,7 @@ class DivInlineModel(BaseModel):
         scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
         scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
         self.fake_B_discrete = (torch.cat(
-            (-self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV)
+            (self.fake_B_DIV * (-1 if self.opt.invert_ridge else 1), torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV * (1 if self.opt.invert_ridge else -1))
             , dim=1) > scaled_thresh)
         plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
@@ -332,7 +332,7 @@ class DivInlineModel(BaseModel):
         scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
         scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
         self.fake_B_discrete = (torch.cat(
-            (-self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV)
+            (self.fake_B_DIV * (-1 if self.opt.invert_ridge else 1), torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV * (1 if self.opt.invert_ridge else -1))
             , dim=1) > scaled_thresh)
         plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
@@ -641,7 +641,7 @@ class DivInlineModel(BaseModel):
         metrics = [('L2_global', L2_error)]
         metrics.append(('L2_local', L2_local_error))
 
-        low_thresh = 1e-6
+        low_thresh = 0
         high_thresh = max(np.max(fake_DIV_local), np.abs(np.min(fake_DIV_local)))
         #high_thresh=1.0
         # Somehow goofed and produced inverted divergence maps, so we need to flip to compare
