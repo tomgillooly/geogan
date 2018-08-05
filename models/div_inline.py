@@ -56,16 +56,14 @@ class DivInlineModel(BaseModel):
         # load/define networks
         # Input channels = 3 channels for input one-hot map + mask
         input_channels = opt.input_nc
-        output_channels = opt.output_nc
+
+        if self.opt.mask_to_G:
+            input_channels += 1
 
         if self.opt.continent_data:
             input_channels += 1
 
-
-        if self.opt.with_BCE:
-            output_channels += 1
-
-        self.netG = networks.define_G(input_channels, output_channels, opt.ngf,
+        self.netG = networks.define_G(input_channels, opt.output_nc+1, opt.ngf,
                                       opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
 
 
@@ -97,7 +95,7 @@ class DivInlineModel(BaseModel):
             if opt.local_critic:
                 self.critic_im_size = (64, 64)
             else:
-                self.critic_im_size = (256, 256)
+                self.critic_im_size = (256, opt.x_size)
 
             self.netD = networks.define_D(discrim_input_channels, opt.ndf, opt.which_model_netD, opt.n_layers_D, 
                 opt.norm, use_sigmoid, opt.init_type, self.gpu_ids, critic_im_size=self.critic_im_size)
@@ -206,7 +204,7 @@ class DivInlineModel(BaseModel):
         if 'A_paths' in input.keys():
             self.A_path = input['A_paths']
         elif 'folder_id' in input.keys():
-            self.A_path = ['serie_{}_{:05}'.format(input['folder_id'][0], input['series_number'][0])]
+            self.A_path = ['serie_{}_{:05}'.format(input['folder_name'][0], input['series_number'][0])]
             
         if self.opt.continent_data:
             self.continent_img = continents
@@ -333,6 +331,9 @@ class DivInlineModel(BaseModel):
         # self.G_input = torch.cat((self.real_A_discrete, self.mask.float()), dim=1)
         self.G_input = self.real_A_discrete
 
+        if self.opt.mask_to_G:
+            self.G_input = torch.cat((self.G_input, self.mask.float()), dim=1)
+
         if self.opt.continent_data:
             self.G_input = torch.cat((self.G_input, self.continents.float()), dim=1)
         
@@ -349,7 +350,7 @@ class DivInlineModel(BaseModel):
         scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
         scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
         self.fake_B_discrete = (torch.cat(
-            (-self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV)
+            (self.fake_B_DIV * (-1 if self.opt.invert_ridge else 1), torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV * (1 if self.opt.invert_ridge else -1))
             , dim=1) > scaled_thresh)
         plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
@@ -650,26 +651,26 @@ class DivInlineModel(BaseModel):
         metrics = [('L2_global', L2_error)]
         metrics.append(('L2_local', L2_local_error))
 
-        low_thresh = 1e-3
+        low_thresh = 0
         high_thresh = max(np.max(fake_DIV_local), np.abs(np.min(fake_DIV_local)))
         #high_thresh=1.0
         # Somehow goofed and produced inverted divergence maps, so we need to flip to compare
-        tmp = {'A_DIV': -fake_DIV_local}
+        tmp = {'A_DIV': fake_DIV_local * (-1 if self.opt.invert_ridge else 1)}
         #print(np.max(tmp['A_DIV']), np.min(tmp['A_DIV']))
 
-        scores = np.ones((4, 1)) * np.inf
+        scores = np.ones((5, 1)) * np.inf
         print('search_iter: ')
-        for search_iter in range(15):
+        for search_iter in range(10):
             print('{}... '.format(search_iter), end='\r')
 
-            thresholds = np.linspace(low_thresh, high_thresh, 4)
+            thresholds = np.linspace(low_thresh, high_thresh, 5)
             #print(thresholds)
 
             for thresh_idx, thresh in enumerate(thresholds):
                 if scores[thresh_idx] != np.inf:
                     continue
 
-                self.p.create_one_hot(tmp, thresh, skel=False)
+                self.p.create_one_hot(tmp, thresh, skel=self.opt.skel_metric)
                 tmp_disc = tmp['A']
 
                 #print('dafuq {}'.format( np.sum(tmp_disc[:, :, 0] >= thresh)))
@@ -677,12 +678,15 @@ class DivInlineModel(BaseModel):
                 s = []
                 for i in [0, 2]:
                     #print('channel: {}, thresh: {} {}-{}'.format(i, thresh, len(np.where(tmp_disc[:,:,i])[0]), len(np.where(real_disc_local[:,:,i])[0])))
-                    tmp_emd = get_emd(tmp_disc[:,:,i], real_disc_local[:,:,i], visualise=False)
+                    tmp_emd = get_emd(tmp_disc[:,:,i], real_disc_local[:,:,i], visualise=False, average=True)
 
                     s.append(tmp_emd)
                 scores[thresh_idx] = (np.mean(s))
             #print(scores.ravel())
             best_idx = np.argmin(scores)
+            #best_idx = np.argmin(list(reversed(scores)))
+            #best_idx = len(scores) - 1 - best_idx
+            
             high_idx = best_idx + 1
             low_idx = best_idx - 1
 
@@ -695,26 +699,30 @@ class DivInlineModel(BaseModel):
             high_thresh = thresholds[high_idx]
             low_thresh = thresholds[low_idx]
 
+            print(scores.ravel()[best_idx])
             scores[0] = scores[low_idx]
             scores[-1] = scores[high_idx]
             scores[1:-1] = np.inf
-            #print(scores.ravel())
 
         DIV_thresh = thresholds[best_idx]
-        self.p.create_one_hot(tmp, DIV_thresh, skel=False)
-        fake_B_discrete = tmp['A']
+        print('Best thresh/score : {}/{}'.format(DIV_thresh, scores[best_idx]))
+        self.p.create_one_hot(tmp, DIV_thresh, skel=self.opt.skel_metric)
+        print('Created new one-hot')
 
-        emd_cost0, im0 = get_emd(fake_B_discrete[:, :, 0], real_disc_local[:, :, 0], visualise=True)
-        emd_cost1, im1 = get_emd(fake_B_discrete[:, :, 2], real_disc_local[:, :, 2], visualise=True)
+        print('Computing emd 0 ', end='')
+        emd_cost0, im0 = get_emd(tmp['A'][:, :, 0], real_disc_local[:, :, 0], visualise=True)
+        print('Computing emd 1 ', end='')
+        emd_cost1, im1 = get_emd(tmp['A'][:, :, 2], real_disc_local[:, :, 2], visualise=True)
 
-        tmp['A_DIV'] = -fake_DIV
-        self.p.create_one_hot(tmp, DIV_thresh, skel=False)
+        tmp['A_DIV'] = fake_DIV * (-1 if self.opt.invert_ridge else 1)
+        print('Creating full one hot image')
+        self.p.create_one_hot(tmp, DIV_thresh, skel=self.opt.skel_metric)
         self.fake_B_discrete.data.copy_(torch.from_numpy(tmp['A'].transpose(2, 0, 1)))
         self.emd_ridge_error = im0
         self.emd_subduction_error = im1
 
         metrics += [('EMD_ridge', emd_cost0), ('EMD_subduction', emd_cost1), ('EMD_mean', (emd_cost0+emd_cost1)/2)]
-
+        print('Done')
         return OrderedDict(metrics)
 
 
