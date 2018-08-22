@@ -93,6 +93,9 @@ class DivInlineModel(BaseModel):
             else:
                 self.critic_im_size = (256, opt.x_size)
 
+            if self.opt.continent_data:
+                discrim_input_channels += 1
+
             self.netD = networks.define_D(discrim_input_channels, opt.ndf, opt.which_model_netD, opt.n_layers_D, 
                 opt.norm, use_sigmoid, opt.init_type, self.gpu_ids, critic_im_size=self.critic_im_size)
             
@@ -414,6 +417,9 @@ class DivInlineModel(BaseModel):
             else:
                 fake_AB = self.fake_B_DIV
 
+            if self.opt.continent_data:
+                fake_AB = torch.cat((fake_AB, self.continents.float()), dim=1)
+
             if not self.opt.no_mask_to_critic:
                 fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
             
@@ -482,6 +488,10 @@ class DivInlineModel(BaseModel):
             else:
                 fake_AB = self.fake_B_DIV
                 real_AB = self.real_B_DIV
+            
+            if self.opt.continent_data:
+                fake_AB = torch.cat((fake_AB, self.continents.float()), dim=1)
+                real_AB = torch.cat((real_AB, self.continents.float()), dim=1)
             
             if not self.opt.no_mask_to_critic:
                 fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
