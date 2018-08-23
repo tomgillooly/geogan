@@ -369,7 +369,7 @@ class UnetGenerator(nn.Module):
 class UnetGeneratorSelfAttn(nn.Module):
     def __init__(self, input_nc, output_nc, num_downs, ngf=64,
                  norm_layer=nn.BatchNorm2d, use_dropout=False, gpu_ids=[]):
-        super(UnetGeneratorNonLocal, self).__init__()
+        super(UnetGeneratorSelfAttn, self).__init__()
         self.gpu_ids = gpu_ids
 
         # construct unet structure
@@ -607,7 +607,7 @@ class Self_Attn(nn.Module):
         out = out.view(m_batchsize,C,width,height)
         
         out = self.gamma*out + x
-        return out,attention
+        return out
 
 
 class SelfAttnDiscriminator(nn.Module):
@@ -660,9 +660,9 @@ class SelfAttnDiscriminator(nn.Module):
         out = self.l1(x)
         out = self.l2(out)
         out = self.l3(out)
-        out,p1 = self.attn1(out)
+        out = self.attn1(out)
         out=self.l4(out)
-        out,p2 = self.attn2(out)
+        out = self.attn2(out)
         out=self.last(out)
 
         # GAP
