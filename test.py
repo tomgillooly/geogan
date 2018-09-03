@@ -113,6 +113,8 @@ with open(results_file_name, 'a') as results_file:
         else:
             row_lengths = [3]
             row_lengths.append(3)
+            if opt.continent_data:
+                row_lengths.append(1)
             row_lengths.append(2)
             #row_lengths.append(2)
             # row_lengths.append(4)   # Discrete input, GT, softmax, one-hot output
