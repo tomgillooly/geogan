@@ -171,8 +171,8 @@ class GeoUnpickler(object):
 	def __getitem__(self, idx):
 		data = torch.load(self.files[idx])
 		
-                 if 'real_DISC' in data.keys():
-                    data['A'] = data['real_DISC'] / 255
+		if 'real_DISC' in data.keys():
+			data['A'] = data['real_DISC'] / 255
 
                 # We don't actually use these most of the time, and causes problems when creating batches if not all keys are present
 		for key in [key for key in data.keys() if 'hist' in key or 'Vy' in key or 'Vx' in key or 'A_path' in key or 'min_pix_in_mask' in key]:

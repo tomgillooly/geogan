@@ -281,6 +281,10 @@ class DivInlineModel(BaseModel):
             self.fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV)
             self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV)
 
+        if self.opt.with_BCE:
+            self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :].unsqueeze(1))
+            self.fake_fg_discrete = self.fake_B_fg > 0.5
+        
         scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
             (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
             dim=1)
@@ -411,9 +415,10 @@ class DivInlineModel(BaseModel):
         self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
         self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
 
-        self.real_B_fg_ROI = self.real_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
-        self.fake_B_fg_ROI = self.fake_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
-        self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+        if self.opt.with_BCE:
+            self.real_B_fg_ROI = self.real_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+            self.fake_B_fg_ROI = self.fake_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+            self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
 
         
         # self.fake_B_discrete_01 = tmp_dict['A']

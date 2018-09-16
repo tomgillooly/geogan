@@ -13,6 +13,5 @@ class TestOptions(BaseOptions):
         self.parser.add_argument('--metrics', type=str, default="", help='Which metrics to apply to output images')
         self.parser.add_argument('--visualise_hausdorff', action='store_true', help='Show related pixels used to calculate Hausdorff distance')
         self.parser.add_argument('--visualise_ot', action='store_true', help='Show which pixel maps to which under optimal transport')
-        self.parser.add_argument('--mask_size', type=int, default=100)
         self.parser.add_argument('--no_images', action='store_true')
         self.isTrain = False
