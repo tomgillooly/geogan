@@ -310,7 +310,25 @@ class DivInlineModel(BaseModel):
             self.fake_B_DIV_grad_y = self.fake_B_DIV_grad_y.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
 
         if self.opt.weighted_L2 or self.opt.weighted_CE:
-            self.weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_fg_discrete_ROI.float())
+            if self.opt.with_BCE:
+                self.weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_B_fg_ROI.float())
+            else:
+                scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
+                    (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
+                dim=1)
+                scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
+                scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
+                self.fake_B_discrete = (torch.cat(
+                    (-self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV),
+                dim=1) > scaled_thresh)
+                plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
+
+                self.fake_B_discrete[:, 1, :, :].copy_(plate)
+
+                self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
+                self.real_B_discrete_ROI = self.real_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
+        
+                self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI.float())
 
 
     # no backprop gradients
@@ -620,7 +638,16 @@ class DivInlineModel(BaseModel):
             real_B_fg = util.tensor2im(self.real_B_fg.data)
             real_B_fg[mask_edge_coords] = np.max(real_B_fg)
             visuals.append(('real_foreground', real_B_fg))
+        elif self.opt.weighted_L2:
+            fake_B_discrete = util.tensor2im(self.fake_B_discrete.data)
+            fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
+            visuals.append(('fake_B_discrete', fake_B_discrete))
 
+        if self.opt.weighted_L2 or self.opt.weighted_CE:
+            weight_mask = util.tensor2im(self.weight_mask)
+            if not self.opt.local_loss:
+                weight_mask[mask_edge_coords] = np.max(weight_mask)
+            visuals.append(('weight_mask', weight_mask))
             
         if self.opt.continent_data:
             continents = util.tensor2im(self.continents.data)
