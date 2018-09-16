@@ -13,9 +13,20 @@ from scipy.signal import correlate2d
 
 
 class GeoPickler(object):
+	"""
+	Processes geological text data in its raw format and produces pickled files
+	which are loaded in by GeoUnpickler during training/test time
+	This is much faster than processing raw text files on the fly
+
+	Doesn't do any preprocessing besides finding candidate mask locations,
+	based on the minimum number of pixels we want to remove
+	"""
 	def __init__(self, dataroot, out_dir=None, row_height=None):
 		self.dataroot = dataroot
+		# Just drop pickle files in input directory if an output directory is not specified
 		self.out_dir = dataroot if not out_dir else out_dir
+		
+		# Desired height of image
 		self.row_height = row_height
 
 		self.num_series = 0
@@ -25,10 +36,14 @@ class GeoPickler(object):
 
 		self.series = []
 
+		# Filename structure, we use this to extract series number and data type so the raw files
+		# can be organised
 		self.filename_re = re.compile('serie1_?(?P<series_no>\d+)_(.*_)?(?P<tag>\w+).dat')
 
 
 	def initialise(self):
+		# Find all text files under directory
+		# Group them together by series so we can access DIV, Vx, Vy etc under the same series id
 		self.collect_all()
 		self.group_by_series()
 
@@ -36,6 +51,7 @@ class GeoPickler(object):
 	def collect_all(self):
 		topdir = self.dataroot.rstrip('/')
 
+		# Group files under folder
 		for root, dirs, files in os.walk(topdir):
 			folder = root[len(topdir)+1:]
 
@@ -54,7 +70,9 @@ class GeoPickler(object):
 
 
 	def group_by_series(self):
+		# Work through each folder in turn
 		for folder_name, files in self.folders.items():
+			# Create a list with the series number and data type of each file, in order
 			file_data = [self.filename_re.match(filename) for filename in files]
 			
 
@@ -65,16 +83,20 @@ class GeoPickler(object):
 
 			self.folders[folder_name] = files
 
+			# Get list of unique series numbers (no duplicates) and for each series number, a list of indices to the files
+			# belonging to that series
 			series_numbers, lookup_idx = np.unique([int(match.group('series_no')) for match in file_data], return_inverse=True)
 			
 			num_series = len(series_numbers)
 
+			# Group files belong to series together in dictionary, with series number as key
 			self.folders[folder_name] = OrderedDict({s_no: sorted([files[i] for i in np.where(lookup_idx == idx)[0]]) for idx, s_no in enumerate(series_numbers)})
 
 
 	def read_geo_file(self, path):
 	    data = OrderedDict()
 
+	    # Read in text file, handle files with both one and three columns
 	    with open(path) as file:
 	        try:
 	            lines = file.read().splitlines()
@@ -88,6 +110,7 @@ class GeoPickler(object):
 	                data['values'] = np.array([float(line.split()[2]) for line in lines])
 
 	        except ValueError as ex:
+	        	# If we have an error, print which file the error occurred for
 	            print(path)
 	            raise ex
 
@@ -95,8 +118,10 @@ class GeoPickler(object):
 
 
 	def get_data_dict(self, folder_id, series_no):
+		# Get all the files associated with the series number under the given folder
 		files = self.get_folder_by_id(folder_id)[series_no]
 
+		# Get list of file series number and data type
 		file_data = [self.filename_re.match(filename) for filename in files]
 
 		tags = [match.group('tag') for match in file_data]
@@ -110,18 +135,21 @@ class GeoPickler(object):
 
 		size_info = list(zip(*[(len(np.unique(data['x'])), len(np.unique(data['y']))) for data in series_data if 'x' in data.keys()]))
 
+		# Check that image sizes are the same across all data types
 		assert(np.unique(size_info[0]) == size_info[0][0])
 		assert(np.unique(size_info[1]) == size_info[1][0])
 
 		cols = size_info[0][0]
 		rows = size_info[1][0]
 
+		# We've checked x, y, but not the actual data values
 		# Skip, but this should be fixed later, by actually writing into a proper grid
 		if any([len(data['values']) != rows*cols for data in series_data]):
 			return {}
 
 		data_dict = {'A_' + tag : data['values'].reshape(rows, cols) for tag, data in zip(tags, series_data)}
 
+		# Rescale to desired height/width
 		if self.row_height:
 			for key, im in data_dict.items():
 				data_dict[key] = resize(im, (self.row_height, self.row_height * im.shape[1]/im.shape[0]), mode='constant')
@@ -133,6 +161,7 @@ class GeoPickler(object):
 		return data_dict
 
 
+	# Threshold divergence to create discrete image
 	def create_one_hot(self, data_dict, threshold, skel=True):
 		DIV_img = data_dict['A_DIV']
 		ridge = DIV_img >= threshold
@@ -152,9 +181,12 @@ class GeoPickler(object):
 	def get_mask_loc(self, data_dict, mask_size, num_pixels):
 		one_hot = data_dict['A']
 
+		# Each pixel in output image will show the number of ridges/subductions in the region mask_size x mask_size
+		# centred at that output pixel
 		ridges = correlate2d(one_hot[:, :, 0] != 0, np.ones((mask_size, mask_size)), mode='valid')
 		subductions = correlate2d(one_hot[:, :, 2] != 0, np.ones((mask_size, mask_size)), mode='valid')
 
+		# Mark all locations with more active pixels in the ROI than the threshold number of pixels
 		ridges = ridges >= num_pixels
 		subductions = subductions >= num_pixels
 
@@ -194,6 +226,8 @@ class GeoPickler(object):
 			data_dict['cont'] = np.zeros(data_dict['A_DIV'].shape)
 
 
+	# Build histogram of areas of all connected components in one hot image
+	# Used if we want to provide a prior to the critic
 	def build_conn_comp_hist(self, data_dict):
 		A = data_dict['A']
 
@@ -212,6 +246,7 @@ class GeoPickler(object):
 		data_dict['conn_comp_hist'] = total_hist
 
 
+	# Create pkl file which contains dictionary containing each type of image
 	def pickle_series(self, folder_id, series_no, threshold, mask_size, num_pix_in_mask):
 		data_dict = self.get_data_dict(folder_id, series_no)
 
@@ -237,6 +272,7 @@ class GeoPickler(object):
 			os.mkdir(os.path.join(self.out_dir, data_dict['folder_name']))
 
 		torch.save(data_dict, os.path.join(self.out_dir, data_dict['folder_name'], '{:05}.pkl'.format(series_no)))
+
 
 	def pickle_all(self, threshold, mask_size, num_pix_in_mask, verbose=False, skip_existing=False):
 		for folder_id, folder_name in enumerate(self.folders.keys()):

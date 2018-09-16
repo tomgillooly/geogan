@@ -26,6 +26,7 @@ from metrics.emd import get_emd
 import sys
 
 
+# GAN criterion functions are optionally applied to the results from the discriminator
 def wgan_criterionGAN(loss, real_label):
     return loss.mean(dim=0, keepdim=True) * (-1 if real_label else 1)
 
@@ -51,10 +52,11 @@ class DivInlineModel(BaseModel):
 
         self.D_has_run = False
 
+        # Dummy pickler that we use to create discrete images from divergence
         self.p = GeoPickler('')
 
         # load/define networks
-        # Input channels = 3 channels for input one-hot map + mask
+        # Input channels = 3 channels for input one-hot map + mask (optional) + continents (optional)
         input_channels = opt.input_nc
 
         if self.opt.mask_to_G:
@@ -67,6 +69,7 @@ class DivInlineModel(BaseModel):
                                       opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
 
 
+        # Filters to create gradient images, if we are using gradient loss
         if self.opt.grad_loss:
             self.sobel_layer_y = torch.nn.Conv2d(1, 1, 3, padding=1)
             self.sobel_layer_y.weight.data = torch.FloatTensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]).unsqueeze(0).unsqueeze(0)
@@ -85,13 +88,15 @@ class DivInlineModel(BaseModel):
 
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
-            # Inputs: 3 channels of one-hot input (with chunk missing) + divergence output data + mask
+            
+            # Inputs: 1 channel of divergence output data + mask (optional)
             discrim_input_channels = opt.output_nc
 
             if not opt.no_mask_to_critic:
                 discrim_input_channels += 1
 
 
+            # If we are only looking at the missing region
             if opt.local_critic:
                 self.critic_im_size = (64, 64)
             else:
@@ -100,6 +105,7 @@ class DivInlineModel(BaseModel):
             if self.opt.continent_data:
                 discrim_input_channels += 1
 
+            # Create discriminator
             self.netD = networks.define_D(discrim_input_channels, opt.ndf, opt.which_model_netD, opt.n_layers_D, 
                 opt.norm, use_sigmoid, opt.init_type, self.gpu_ids, critic_im_size=self.critic_im_size)
             
@@ -116,11 +122,10 @@ class DivInlineModel(BaseModel):
 
         if self.isTrain:
             # define loss functions
-
             self.criterionL2 = torch.nn.MSELoss(size_average=True, reduce=(not self.opt.weighted_L2))
-            # self.criterionCE = torch.nn.NLLLoss2d()
             self.criterionBCE = torch.nn.BCELoss(size_average=True, reduce=(not self.opt.weighted_CE))
 
+            # Choose post-processing function for reconstruction losses
             if self.opt.log_L2:
                 self.processL2 = torch.log
             else:
@@ -131,6 +136,7 @@ class DivInlineModel(BaseModel):
             else:
                 self.processBCE = identity
 
+            # Choose post-processing function for discriminator output
             if self.opt.use_hinge:
                 self.criterionGAN = hinge_criterionGAN
             elif self.opt.which_model_netD == 'wgan-gp' or self.opt.which_model_netD == 'self-attn':
@@ -256,23 +262,10 @@ class DivInlineModel(BaseModel):
         self.G_out = self.netG(self.G_input)
         self.fake_B_DIV = self.G_out[:, 0, :, :].unsqueeze(1)
 
+        # If we're creating the foreground image, just use that as discrete
         if self.opt.with_BCE:
             self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :].unsqueeze(1))
             self.fake_fg_discrete = self.fake_B_fg > 0.5
-        else:
-            scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
-                (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
-                dim=1)
-            scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
-            scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
-            self.fake_B_discrete = (torch.cat(
-                (-self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV)
-                , dim=1) > scaled_thresh)
-            plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
-
-            self.fake_fg_discrete = self.fake_B_discrete.max(dim=1)[0].unsqueeze(1)
-            self.fake_B_discrete[:, 1, :, :].copy_(plate)
-
  
         if self.opt.grad_loss:
             self.real_B_DIV_grad_x = self.sobel_layer_x(self.real_B_DIV)
@@ -281,15 +274,16 @@ class DivInlineModel(BaseModel):
             self.fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV)
             self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV)
 
-        if self.opt.with_BCE:
-            self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :].unsqueeze(1))
-            self.fake_fg_discrete = self.fake_B_fg > 0.5
         
+        # One hot was created by thresholding unscaled image, so rescale the threshold to
+        # apply to scaled image
         scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
             (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
             dim=1)
         scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
         scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
+
+        # Apply threshold to divergence image
         self.fake_B_discrete = (torch.cat(
             (self.fake_B_DIV * (-1 if self.opt.invert_ridge else 1), torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV * (1 if self.opt.invert_ridge else -1))
             , dim=1) > scaled_thresh)
@@ -332,18 +326,6 @@ class DivInlineModel(BaseModel):
             if self.opt.with_BCE:
                 self.weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_B_fg_ROI.float())
             else:
-                scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
-                    (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
-                dim=1)
-                scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
-                scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
-                self.fake_B_discrete = (torch.cat(
-                    (-self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV),
-                dim=1) > scaled_thresh)
-                plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
-
-                self.fake_B_discrete[:, 1, :, :].copy_(plate)
-
                 self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
                 self.real_B_discrete_ROI = self.real_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
         
@@ -430,7 +412,7 @@ class DivInlineModel(BaseModel):
 
 
     def calc_gradient_penalty(self, netD, real_data, fake_data):
-        # print "real_data: ", real_data.size(), fake_data.size()
+        # Calculate gradient penalty of points interpolated between real and fake pairs
         alpha = torch.rand(real_data.shape[0], 1)
         alpha = alpha.expand(alpha.shape[0], real_data[0, ...].nelement()).contiguous().view(-1, *real_data.shape[1:])
         alpha = alpha.cuda(self.gpu_ids[0]) if len(self.gpu_ids) > 0 else alpha
@@ -727,8 +709,8 @@ class DivInlineModel(BaseModel):
 
         low_thresh = 2e-4
         high_thresh = max(np.max(fake_DIV_local), np.abs(np.min(fake_DIV_local)))
-        #high_thresh=1.0
-        # Somehow goofed and produced inverted divergence maps, so we need to flip to compare
+        
+        # Somehow goofed and produced inverted divergence maps for circles/ellipses, so we sometimes need to flip to compare
         tmp = {'A_DIV': fake_DIV_local * (-1 if self.opt.invert_ridge else 1)}
         #print(np.max(tmp['A_DIV']), np.min(tmp['A_DIV']))
 
@@ -737,8 +719,8 @@ class DivInlineModel(BaseModel):
         for search_iter in range(10):
             print('{}... '.format(search_iter), end='\r')
 
+            # Threshold at equal intervals between low and high, find best score
             thresholds = np.linspace(low_thresh, high_thresh, 5)
-            #print(thresholds)
 
             for thresh_idx, thresh in enumerate(thresholds):
                 if scores[thresh_idx] != np.inf:
@@ -747,19 +729,14 @@ class DivInlineModel(BaseModel):
                 self.p.create_one_hot(tmp, thresh, skel=self.opt.skel_metric)
                 tmp_disc = tmp['A']
 
-                #print('dafuq {}'.format( np.sum(tmp_disc[:, :, 0] >= thresh)))
-            
                 s = []
                 for i in [0, 2]:
-                    #print('channel: {}, thresh: {} {}-{}'.format(i, thresh, len(np.where(tmp_disc[:,:,i])[0]), len(np.where(real_disc_local[:,:,i])[0])))
                     tmp_emd = get_emd(tmp_disc[:,:,i], real_disc_local[:,:,i], visualise=False, average=True)
 
                     s.append(tmp_emd)
                 scores[thresh_idx] = (np.mean(s))
-            #print(scores.ravel())
+            
             best_idx = np.argmin(scores)
-            #best_idx = np.argmin(list(reversed(scores)))
-            #best_idx = len(scores) - 1 - best_idx
             
             high_idx = best_idx + 1
             low_idx = best_idx - 1

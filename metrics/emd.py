@@ -29,7 +29,8 @@ def get_emd(im1, im2, visualise=False, im1_label='Predicted', im2_label='Actual'
 	if visualise:
             print('source, dest {}'.format(cost.shape), end='\r')
 
-	#print(num_im1, im1.size, num_im2, im2.size)
+	# If the proportion of active pixels, or difference in number of each is too high, just skip
+	# Computation takes too long
 	skip_assign =  num_im1 > 0.2 * im1.size or num_im2 > 0.2 * im2.size or min(num_im1, num_im2)*1.0 / max(num_im1, num_im2) < 0.1
 
 	if not skip_assign:
