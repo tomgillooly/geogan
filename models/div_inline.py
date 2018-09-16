@@ -278,7 +278,19 @@ class DivInlineModel(BaseModel):
             self.fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV)
             self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV)
 
-                # if we aren't taking local loss, use entire image
+        scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
+            (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
+            dim=1)
+        scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
+        scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
+        self.fake_B_discrete = (torch.cat(
+            (self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), -self.fake_B_DIV)
+            , dim=1) > scaled_thresh)
+        plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
+
+        self.fake_B_discrete[:, 1, :, :].copy_(plate)
+
+        # if we aren't taking local loss, use entire image
         loss_mask = torch.ones(self.mask.shape).byte()
         loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
         self.loss_mask = torch.autograd.Variable(loss_mask)
@@ -678,7 +690,7 @@ class DivInlineModel(BaseModel):
         metrics = [('L2_global', L2_error)]
         metrics.append(('L2_local', L2_local_error))
 
-        low_thresh = 0
+        low_thresh = 2e-4
         high_thresh = max(np.max(fake_DIV_local), np.abs(np.min(fake_DIV_local)))
         #high_thresh=1.0
         # Somehow goofed and produced inverted divergence maps, so we need to flip to compare

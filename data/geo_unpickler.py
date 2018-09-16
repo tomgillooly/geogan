@@ -168,6 +168,11 @@ class GeoUnpickler(object):
 		data = torch.load(self.files[idx])
 		if 'real_DISC' in data.keys():
                     data['A'] = data['real_DISC'] / 255
+
+                # We don't actually use these most of the time, and causes problems when creating batches if not all keys are present
+		for key in [key for key in data.keys() if 'hist' in key or 'Vy' in key or 'Vx' in key or 'A_path' in key or 'min_pix_in_mask' in key]:
+			data.pop(key)
+
 		basedir = os.path.join(self.opt.dataroot, self.opt.phase).rstrip('/')
 		
 		data['folder_name'] = os.path.dirname(self.files[idx])[len(basedir)+1:]
