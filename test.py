@@ -47,11 +47,19 @@ dataset_size = len(dataset)
 print('#training images = %d' % dataset_size)
 
 model = create_model(opt)
-visualizer = Visualizer(opt)
-# create website
+
 web_dir = os.path.join(opt.results_dir, opt.name, '%s_%s' % (opt.phase, opt.which_epoch))
-webpage = html.HTML(web_dir, 'Experiment = %s, Phase = %s, Epoch = %s' % (opt.name, opt.phase, opt.which_epoch))
-# test
+
+if not opt.no_images:
+    visualizer = Visualizer(opt)
+    # create website
+    webpage = html.HTML(web_dir, 'Experiment = %s, Phase = %s, Epoch = %s' % (opt.name, opt.phase, opt.which_epoch))
+    # test
+else:
+    try:
+        os.mkdir(web_dir)
+    except:
+        pass
 
 results_file_name = os.path.join(web_dir, opt.name + '_results')
 
@@ -72,12 +80,16 @@ for i, data in enumerate(dataset):
     
     metric_data.append(model.get_current_metrics())
     
-    visuals = model.get_current_visuals()
+    if not opt.no_images:
+        visuals = model.get_current_visuals()
+    
     img_path = model.get_image_paths()
 
     print('%04d: process image... %s' % (i, img_path))
     # visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio)
-    img_data.append((visuals, img_path))
+
+    if not opt.no_images:
+        img_data.append((visuals, img_path))
 
 
 with open(results_file_name, 'a') as results_file:
@@ -90,47 +102,52 @@ with open(results_file_name, 'a') as results_file:
             except ValueError:
                 print('ValueError', key, value)
 
-    if text:
+    if text and not opt.no_images:
         webpage.add_text(text)
 
-    for (visuals, img_path), metrics in zip(img_data, metric_data):
+    if opt.no_images:
+        for metrics in metric_data:
+            text = []
 
-        text = []
+            results = []
+            for key, value in metrics.items():
+                try:
+                    text.append("{} = {:.04} ".format(key, value))
+                except ValueError:
+                    print('ValueError', key, value)
+                results.append(str(value))
 
-        results = []
-        for key, value in metrics.items():
-            try:
-                text.append("{} = {:.04} ".format(key, value))
-            except ValueError:
-                print('ValueError', key, value)
-            results.append(str(value))
+            results_file.write(', '.join(results) + '\n')
 
-        results_file.write(', '.join(results) + '\n')
-        # results_file.write(', '.join(text) + '\n')
-        
-        if len(visuals) < 6:
-            row_lengths = [len(visuals)]
-        else:
-            row_lengths = [3]
-            row_lengths.append(3)
-            if opt.continent_data:
-                row_lengths.append(1)
-            row_lengths.append(2)
-            #row_lengths.append(2)
-            # row_lengths.append(4)   # Discrete input, GT, softmax, one-hot output
-            # row_lengths.append(3)   # Divergence input, output, G
-            # row_lengths.append(3)   # Velocity x input, output, G
-            # row_lengths.append(3)   # Velocity y input, output, G
-            # row_lengths.append(2)   # Class 0 Haussdorf recall, precision
-            # row_lengths.append(2)   # Class 2 Haussdorf recall, precision
-            # row_lengths.append(2)   # Class 0 Haussdorf exclusive recall, precision
-            # row_lengths.append(2)   # Class 2 Haussdorf exclusive recall, precision
-            # # row_lengths.append(2)   # Class 0 and 2 EM distance
+    else:
+        for (visuals, img_path), metrics in zip(img_data, metric_data):
+            
 
+            text = []
 
-        visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, row_lengths=row_lengths)
+            results = []
+            for key, value in metrics.items():
+                try:
+                    text.append("{} = {:.04} ".format(key, value))
+                except ValueError:
+                    print('ValueError', key, value)
+                results.append(str(value))
 
-        if text:
-            webpage.add_text(text)
+            results_file.write(', '.join(results) + '\n')
+            
+            if len(visuals) < 6:
+                row_lengths = [len(visuals)]
+            else:
+                row_lengths = [3]
+                row_lengths.append(3)
+                if opt.continent_data:
+                    row_lengths.append(1)
+                row_lengths.append(2)
 
-webpage.save()
+            visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, row_lengths=row_lengths)
+
+            if text:
+                webpage.add_text(text)
+
+if not opt.no_images:
+    webpage.save()

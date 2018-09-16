@@ -42,21 +42,25 @@ class GeoUnpickler(object):
 		mask_size = data_dict['mask_size']
 		im_size = data_dict['A_DIV'].shape
 		
-		if 'mask_locs' in data_dict.keys():
-			mask_loc = random.sample(data_dict['mask_locs'], 1)[0]
-			# Remove these or it creates chaos when we're unpickling
-			data_dict.pop('mask_locs')
-		else:
-			x_range = range(im_size[1] - mask_size - 1)
-			y_range = range(im_size[0] - mask_size - 1)
+		while True:
+			if 'mask_locs' in data_dict.keys():
+				mask_loc = random.sample(data_dict['mask_locs'], 1)[0]
+				# Remove these or it creates chaos when we're unpickling
+				data_dict.pop('mask_locs')
+			else:
+				x_range = range(im_size[1] - mask_size - 1)
+				y_range = range(im_size[0] - mask_size - 1)
 
-			x = random.sample(x_range, 1)[0]
-			y = random.sample(y_range, 1)[0]
+				x = random.sample(x_range, 1)[0]
+				y = random.sample(y_range, 1)[0]
 
-			mask_loc = [y, x]
+				mask_loc = [y, x]
 
-		mask = np.zeros(im_size)
-		mask[mask_loc[0]:mask_loc[0]+mask_size, mask_loc[1]:mask_loc[1]+mask_size] = 1
+			mask = np.zeros(im_size)
+			mask[mask_loc[0]:mask_loc[0]+mask_size, mask_loc[1]:mask_loc[1]+mask_size] = 1
+
+			if data_dict['A'][:,:,0][np.where(mask)].sum() >= 10 and data_dict['A'][:,:,2][np.where(mask)].sum() >= 10:
+				break
 
 		data_dict['mask'] = mask
 		data_dict['mask_x1'] = mask_loc[1]
@@ -166,7 +170,8 @@ class GeoUnpickler(object):
 
 	def __getitem__(self, idx):
 		data = torch.load(self.files[idx])
-		if 'real_DISC' in data.keys():
+		
+                 if 'real_DISC' in data.keys():
                     data['A'] = data['real_DISC'] / 255
 
                 # We don't actually use these most of the time, and causes problems when creating batches if not all keys are present
@@ -175,6 +180,8 @@ class GeoUnpickler(object):
 
 		for key in [key for key in data.keys() if 'hist' in key or 'Vy' in key or 'Vx' in key or 'A_path' in key or 'min_pix_in_mask' in key or 'ResT' in key or 'A_cont' in key]:
 			data.pop(key)
+
+		data['mask_size'] = self.opt.mask_size
 
 		basedir = os.path.join(self.opt.dataroot, self.opt.phase).rstrip('/')
 		
