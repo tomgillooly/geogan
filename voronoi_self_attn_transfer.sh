@@ -29,17 +29,19 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --high_iter 25 --low_iter 5 \
 	# --continue_train --which_epoch 55 --epoch_count 56 \
-python train.py --dataroot $DATAROOT --name voronoi_log_global_self_attn \
-	--model div_inline --which_direction BtoA \
-	--num_discrims 0 --which_model_netD self-attn --use_hinge \
+python train.py --dataroot $DATAROOT --name voronoi_self_attn_transfer \
+        --model div_inline --which_direction BtoA \
+        --continue_train --which_epoch 50 --epoch_count 51 \
+        --niter 300 --niter_decay 100 \
+	--num_discrims 1 --which_model_netD self-attn --use_hinge \
 	--no_lsgan --norm batch --init_type orthogonal \
 	--diff_in_numerator \
+	--local_loss \
 	--input_nc 3 --output_nc 1 \
-	--with_BCE --log_BCE --log_L2 \
-	--g_lr 0.001 --d_lr 0.002 \
-	--lambda_A 1 --lambda_A2 0.2 --lambda_B 1 --lambda_B2 1 --lambda_D 1 \
+        --g_lr 0.0004 --d_lr 0.0001 \
+	--lambda_A 0.1 --lambda_B 0.005 --lambda_D 100 \
 	--which_model_netG unet_256 \
-	--display_freq 5 --print_freq 5 \
+	--display_freq 10 --print_freq 10 \
 	--pool_size 0 --no_html --batchSize 5 --nThreads 2 $OPTIONS
 
 kill %1

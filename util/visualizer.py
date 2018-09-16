@@ -131,6 +131,7 @@ class Visualizer():
         short_path = ntpath.basename(image_path[0])
         name = os.path.splitext(short_path)[0]
 
+        print('Adding header for {}'.format(name))
         webpage.add_header(name)
 
         visual_list = list(visuals.items())
@@ -143,6 +144,7 @@ class Visualizer():
             visual_slice = OrderedDict(visual_list[start:end])
 
             for label, im in visual_slice.items():
+                print(name, label)
                 image_name = '%s_%s.png' % (name, label)
                 save_path = os.path.join(image_dir, image_name)
                 h, w, _ = im.shape

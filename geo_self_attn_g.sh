@@ -9,7 +9,7 @@ else
 	VIRTUALENV_NAME=cyclegan3
 	# DATAROOT=/storage/Datasets/Geology-NicolasColtice/DS2-1810-RAW-DAT
 	# DATAROOT=/storage/Datasets/Geology-NicolasColtice/pytorch_records_new_thresh
-	DATAROOT=/storage/Datasets/Geology-NicolasColtice/voronoi
+	DATAROOT=/storage/Datasets/Geology-NicolasColtice/old_pytorch_records
 	HOME=/home/tgillooly/
 
 	source find_free_port.sh
@@ -29,17 +29,18 @@ python -m visdom.server $VISDOM_OPTIONS > visdom.log 2>&1 &
 
 	# --high_iter 25 --low_iter 5 \
 	# --continue_train --which_epoch 55 --epoch_count 56 \
-python train.py --dataroot $DATAROOT --name voronoi_log_global_self_attn \
+python train.py --dataroot $DATAROOT --name geo_nice_self_attn_g \
 	--model div_inline --which_direction BtoA \
-	--num_discrims 0 --which_model_netD self-attn --use_hinge \
+	--num_discrims 1 --which_model_netG unet_256_self_attn --which_model_netD self-attn --use_hinge \
+        --x_size 512 \
 	--no_lsgan --norm batch --init_type orthogonal \
 	--diff_in_numerator \
 	--input_nc 3 --output_nc 1 \
-	--with_BCE --log_BCE --log_L2 \
-	--g_lr 0.001 --d_lr 0.002 \
-	--lambda_A 1 --lambda_A2 0.2 --lambda_B 1 --lambda_B2 1 --lambda_D 1 \
-	--which_model_netG unet_256 \
-	--display_freq 5 --print_freq 5 \
+	--with_BCE --local_loss \
+	--g_lr 0.0001 --d_lr 0.0004 \
+	--niter 8000 --niter_decay 2000 \
+	--lambda_A 0.1 --lambda_B 0.005 --lambda_D 100 \
+	--display_freq 10 --print_freq 10 \
 	--pool_size 0 --no_html --batchSize 5 --nThreads 2 $OPTIONS
 
 kill %1

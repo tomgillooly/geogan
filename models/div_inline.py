@@ -97,6 +97,9 @@ class DivInlineModel(BaseModel):
             else:
                 self.critic_im_size = (256, opt.x_size)
 
+            if self.opt.continent_data:
+                discrim_input_channels += 1
+
             self.netD = networks.define_D(discrim_input_channels, opt.ndf, opt.which_model_netD, opt.n_layers_D, 
                 opt.norm, use_sigmoid, opt.init_type, self.gpu_ids, critic_im_size=self.critic_im_size)
             
@@ -284,7 +287,7 @@ class DivInlineModel(BaseModel):
         scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
         scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
         self.fake_B_discrete = (torch.cat(
-            (self.fake_B_DIV, torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), -self.fake_B_DIV)
+            (self.fake_B_DIV * (-1 if self.opt.invert_ridge else 1), torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV * (1 if self.opt.invert_ridge else -1))
             , dim=1) > scaled_thresh)
         plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
@@ -393,6 +396,26 @@ class DivInlineModel(BaseModel):
         # self.p.create_one_hot(tmp_dict, 0.2)
         # self.fake_B_discrete_02 = tmp_dict['A']
         # self.p.create_one_hot(tmp_dict, 0.1)
+
+        im_dims = self.mask.shape[2:]
+
+        loss_mask = self.mask.byte()
+
+        # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
+        im_dims = self.mask_size, self.mask_size
+        
+        self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+
+        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+
+        self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
+        self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
+
+        self.real_B_fg_ROI = self.real_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+        self.fake_B_fg_ROI = self.fake_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+        self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+
+        
         # self.fake_B_discrete_01 = tmp_dict['A']
 
 
@@ -441,6 +464,9 @@ class DivInlineModel(BaseModel):
                 fake_AB = self.fake_B_DIV_ROI
             else:
                 fake_AB = self.fake_B_DIV
+
+            if self.opt.continent_data:
+                fake_AB = torch.cat((fake_AB, self.continents.float()), dim=1)
 
             if not self.opt.no_mask_to_critic:
                 fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
@@ -518,6 +544,10 @@ class DivInlineModel(BaseModel):
             else:
                 fake_AB = self.fake_B_DIV
                 real_AB = self.real_B_DIV
+            
+            if self.opt.continent_data:
+                fake_AB = torch.cat((fake_AB, self.continents.float()), dim=1)
+                real_AB = torch.cat((real_AB, self.continents.float()), dim=1)
             
             if not self.opt.no_mask_to_critic:
                 fake_AB = torch.cat((fake_AB, self.mask.float()), dim=1)
