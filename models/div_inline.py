@@ -12,7 +12,6 @@ from data.geo_pickler import GeoPickler
 import torch.nn.functional as F
 import numpy as np
 import re
-from functools import reduce
 
 import skimage.io as io
 
