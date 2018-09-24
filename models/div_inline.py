@@ -288,7 +288,7 @@ class DivInlineModel(BaseModel):
             , dim=1) > scaled_thresh)
         plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
-        self.fake_B_discrete[:, 1, :, :].copy_(plate)
+        self.fake_B_discrete[:, 1, :, :].copy_(plate.detach())
 
         # if we aren't taking local loss, use entire image
         loss_mask = torch.ones(self.mask.shape).byte()
@@ -372,7 +372,7 @@ class DivInlineModel(BaseModel):
             , dim=1) > scaled_thresh)
         plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
-        self.fake_B_discrete[:, 1, :, :].copy_(plate)
+        self.fake_B_discrete[:, 1, :, :].copy_(plate.detach())
 
         # Work out the threshold from quantification factor
         # tmp_dict = {'A_DIV': self.fake_B_DIV.data[0].numpy().squeeze()}
