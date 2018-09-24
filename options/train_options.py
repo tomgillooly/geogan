@@ -48,4 +48,5 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--log_BCE', action='store_true', help='Apply log to BCE loss')
         self.parser.add_argument('--log_L2', action='store_true', help='Apply log to MSE')
         self.parser.add_argument('--restart_G', action='store_true', help='Load pre-trained G model, but not D')
+        self.parser.add_argument('--int_vars', action='store_true', help='Predict divergence from G')
         self.isTrain = True

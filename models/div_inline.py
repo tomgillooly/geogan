@@ -63,7 +63,16 @@ class DivInlineModel(BaseModel):
         if self.opt.continent_data:
             input_channels += 1
 
-        self.netG = networks.define_G(input_channels, opt.output_nc+1, opt.ngf,
+        if opt.int_vars:
+            opt.output_nc = 3
+        else:
+            opt.output_nc = 1
+
+        if opt.with_BCE:
+            opt.output_nc += 1
+
+
+        self.netG = networks.define_G(input_channels, opt.output_nc, opt.ngf,
                                       opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
 
 
@@ -120,7 +129,11 @@ class DivInlineModel(BaseModel):
 
         if self.isTrain:
             # define loss functions
-            self.criterionL2 = torch.nn.MSELoss(size_average=True, reduce=(not self.opt.weighted_L2))
+            if self.opt.int_vars:
+                self.criterionR = torch.nn.MSELoss(size_average=True, reduce=(not self.opt.weighted_reconstruction))
+            else:
+                self.criterionR = torch.nn.CrossEntropyLoss(size_average=True, reduce=(not self.opt.weighted_reconstruction))
+
             self.criterionBCE = torch.nn.BCELoss(size_average=True, reduce=(not self.opt.weighted_CE))
 
             # Choose post-processing function for reconstruction losses
@@ -229,6 +242,20 @@ class DivInlineModel(BaseModel):
             else:
                 assert input_A.shape[2:] == self.critic_im_size, "Fix im dimensions in critic {} -> {}".format(self.critic_im_size, input_A.shape[2:])
 
+        # if we aren't taking local loss, use entire image
+        loss_mask = torch.ones(self.mask.shape).byte()
+        loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
+        self.loss_mask = torch.autograd.Variable(loss_mask)
+
+        im_dims = self.mask.shape[2:]
+
+        if self.opt.local_loss:
+            self.loss_mask = self.mask.byte()
+
+            # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
+            im_dims = self.mask_size, self.mask_size
+            # im_dims = (100, 100)
+
 
     def forward(self):
         # Thresholded, one-hot divergence map with chunk missing
@@ -258,7 +285,8 @@ class DivInlineModel(BaseModel):
 
 
         self.G_out = self.netG(self.G_input)
-        self.fake_B_DIV = self.G_out[:, 0, :, :].unsqueeze(1)
+        self.fake_B_out = self.G_out[:, 0, :, :].unsqueeze(1)
+        self.fake_B_out_ROI = self.fake_B_out.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
 
         # If we're creating the foreground image, just use that as discrete
         if self.opt.with_BCE:
@@ -272,44 +300,32 @@ class DivInlineModel(BaseModel):
             self.fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV)
             self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV)
 
-        
-        # One hot was created by thresholding unscaled image, so rescale the threshold to
-        # apply to scaled image
-        scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
-            (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
-            dim=1)
-        scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
-        scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
+        if not self.opt.int_vars:
+            self.fake_B_DIV = self.fake_B_out
+            self.fake_B_DIV_ROI = self.fake_B_out_ROI
+            # One hot was created by thresholding unscaled image, so rescale the threshold to
+            # apply to scaled image
+            scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
+                (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
+                dim=1)
+            scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
+            scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
 
-        # Apply threshold to divergence image
-        self.fake_B_discrete = (torch.cat(
-            (self.fake_B_DIV * (-1 if self.opt.invert_ridge else 1), torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV * (1 if self.opt.invert_ridge else -1))
-            , dim=1) > scaled_thresh)
-        plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
+            # Apply threshold to divergence image
+            self.fake_B_discrete = (torch.cat(
+                (self.fake_B_DIV * (-1 if self.opt.invert_ridge else 1), torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV * (1 if self.opt.invert_ridge else -1))
+                , dim=1) > scaled_thresh)
+            plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
-        self.fake_B_discrete[:, 1, :, :].copy_(plate.detach())
-
-        # if we aren't taking local loss, use entire image
-        loss_mask = torch.ones(self.mask.shape).byte()
-        loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
-        self.loss_mask = torch.autograd.Variable(loss_mask)
-
-        im_dims = self.mask.shape[2:]
-
-        if self.opt.local_loss:
-            self.loss_mask = self.mask.byte()
-
-            # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
-            im_dims = self.mask_size, self.mask_size
-            # im_dims = (100, 100)
-        
+            self.fake_B_discrete[:, 1, :, :].copy_(plate.detach())
+        else:
+            self.fake_B_discrete = self.fake_B_out        
 
         if self.opt.with_BCE:
             self.real_B_fg_ROI = self.real_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
             self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
             self.fake_B_fg_ROI = self.fake_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
 
-        self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
         self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
         
         if self.opt.grad_loss:
@@ -319,7 +335,7 @@ class DivInlineModel(BaseModel):
             self.fake_B_DIV_grad_x = self.fake_B_DIV_grad_x.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
             self.fake_B_DIV_grad_y = self.fake_B_DIV_grad_y.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
 
-        if self.opt.weighted_L2 or self.opt.weighted_CE:
+        if self.opt.weighted_reconstruction or self.opt.weighted_CE:
             if self.opt.with_BCE:
                 self.weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_B_fg_ROI.float())
             else:
@@ -354,23 +370,30 @@ class DivInlineModel(BaseModel):
             self.G_input = torch.cat((self.G_input, self.continents.float()), dim=1)
         
         self.G_out = self.netG(self.G_input)
-        self.fake_B_DIV = self.G_out[:, 0, :, :].unsqueeze(1)
+        self.fake_B_out = self.G_out[:, 0, :, :].unsqueeze(1)
         
         if self.opt.with_BCE:
             self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :]).unsqueeze(1)
             self.fake_fg_discrete = self.fake_B_fg > 0.5
 
-        scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
-            (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
-            dim=1)
-        scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
-        scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
-        self.fake_B_discrete = (torch.cat(
-            (self.fake_B_DIV * (-1 if self.opt.invert_ridge else 1), torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV * (1 if self.opt.invert_ridge else -1))
-            , dim=1) > scaled_thresh)
-        plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
 
-        self.fake_B_discrete[:, 1, :, :].copy_(plate.detach())
+        if self.opt.int_vars:
+            self.fake_B_DIV = self.fake_B_out
+            self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+        
+            scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
+                (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
+                dim=1)
+            scaled_thresh = scaled_thresh.view(self.fake_B_DIV.shape[0], 3, 1, 1)
+            scaled_thresh = scaled_thresh.cuda() if len(self.gpu_ids) > 0 else scaled_thresh
+            self.fake_B_discrete = (torch.cat(
+                (self.fake_B_DIV * (-1 if self.opt.invert_ridge else 1), torch.zeros(self.fake_B_DIV.shape, device=self.fake_B_DIV.device.type), self.fake_B_DIV * (1 if self.opt.invert_ridge else -1))
+                , dim=1) > scaled_thresh)
+            plate = 1 - torch.max(self.fake_B_discrete, dim=1)[0]
+
+            self.fake_B_discrete[:, 1, :, :].copy_(plate.detach())
+        else:
+            self.fake_B_discrete = self.fake_B_out
 
         # Work out the threshold from quantification factor
         # tmp_dict = {'A_DIV': self.fake_B_DIV.data[0].numpy().squeeze()}
@@ -387,8 +410,6 @@ class DivInlineModel(BaseModel):
         # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
         im_dims = self.mask_size, self.mask_size
         
-        self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
-
         self.real_B_DIV_ROI = self.real_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
 
         self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
@@ -475,18 +496,18 @@ class DivInlineModel(BaseModel):
 
 
         ##### L2 Loss
-        self.loss_G_L2_DIV = self.criterionL2(self.fake_B_DIV_ROI, self.real_B_DIV_ROI)
+        self.loss_G_rec = self.criterionR(self.fake_B_out_ROI, self.real_B_out_ROI)
 
-        if self.opt.weighted_L2:
-            self.loss_G_L2_DIV = (self.weight_mask.detach() * self.loss_G_L2_DIV).sum(3).sum(2)
+        if self.opt.weighted_reconstruction:
+            self.loss_G_rec = (self.weight_mask.detach() * self.loss_G_rec).sum(3).sum(2)
 
-        self.loss_G_L2 = self.processL2(self.loss_G_L2_DIV * self.opt.lambda_A + 1e-8) * self.opt.lambda_A2
+        self.loss_G_rec = self.processL2(self.loss_G_rec_DIV * self.opt.lambda_A + 1e-8) * self.opt.lambda_A2
 
-        self.loss_G_L2 += self.loss_G_L2_DIV
+        # self.loss_G_rec += self.loss_G_L2_rec
         
         if self.opt.grad_loss:
-            grad_x_L2_img =  self.criterionL2(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach())
-            grad_y_L2_img =  self.criterionL2(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach())
+            grad_x_L2_img =  self.criterionR(self.fake_B_DIV_grad_x, self.real_B_DIV_grad_x.detach())
+            grad_y_L2_img =  self.criterionR(self.fake_B_DIV_grad_y, self.real_B_DIV_grad_y.detach())
 
             if self.opt.weighted_grad:
                 grad_x_L2_img = self.weight_mask.detach() * grad_x_L2_img
@@ -499,7 +520,7 @@ class DivInlineModel(BaseModel):
             self.loss_G_L2 += self.loss_L2_DIV_grad_y
 
 
-        self.loss_G = self.loss_G_GAN + self.loss_G_L2
+        self.loss_G = self.loss_G_GAN + self.loss_G_rec
 
 
         ##### BCE Loss
@@ -574,7 +595,7 @@ class DivInlineModel(BaseModel):
     def get_current_errors(self):
         errors = [
             ('G', self.loss_G.data[0]),
-            ('G_L2', self.loss_G_L2.data[0])
+            ('G_rec', self.loss_G_rec.data[0])
         ]
 
         if self.opt.grad_loss:
@@ -634,9 +655,10 @@ class DivInlineModel(BaseModel):
         real_B_DIV[mask_edge_coords] = np.max(real_B_DIV)
         visuals.append(('ground_truth_divergence', real_B_DIV))
 
-        fake_B_DIV = util.tensor2im(self.fake_B_DIV.data)
-        fake_B_DIV[mask_edge_coords] = np.max(fake_B_DIV)
-        visuals.append(('output_divergence', fake_B_DIV))
+        if self.opt.int_vars:
+            fake_B_DIV = util.tensor2im(self.fake_B_DIV.data)
+            fake_B_DIV[mask_edge_coords] = np.max(fake_B_DIV)
+            visuals.append(('output_divergence', fake_B_DIV))
         
 
         if self.opt.grad_loss:
@@ -664,12 +686,12 @@ class DivInlineModel(BaseModel):
             real_B_fg = util.tensor2im(self.real_B_fg.data)
             real_B_fg[mask_edge_coords] = np.max(real_B_fg)
             visuals.append(('real_foreground', real_B_fg))
-        elif self.opt.weighted_L2:
+        elif self.opt.weighted_reconstruction:
             fake_B_discrete = util.tensor2im(self.fake_B_discrete.data)
             fake_B_discrete[mask_edge_coords] = np.max(fake_B_discrete)
             visuals.append(('fake_B_discrete', fake_B_discrete))
 
-        if self.opt.weighted_L2 or self.opt.weighted_CE:
+        if self.opt.weighted_reconstruction or self.opt.weighted_CE:
             weight_mask = util.tensor2im(self.weight_mask)
             if not self.opt.local_loss:
                 weight_mask[mask_edge_coords] = np.max(weight_mask)
@@ -688,86 +710,99 @@ class DivInlineModel(BaseModel):
 
 
     def get_current_metrics(self):
-        # import skimage.io as io
-        # import matplotlib.pyplot as plt
-        real_DIV = self.real_B_DIV.data.numpy().squeeze()
-        real_disc = self.real_B_discrete.data.numpy().squeeze().transpose(1, 2, 0)
-        fake_DIV = self.fake_B_DIV.data.numpy().squeeze()
 
-        real_DIV_local = self.real_B_DIV.masked_select(self.mask).view(1, 1, self.mask_size, self.mask_size).numpy().squeeze()
         real_disc_local = self.real_B_discrete.masked_select(self.mask.repeat(1, 3, 1, 1)).view(1, 3, self.mask_size, self.mask_size).data.numpy().squeeze().transpose(1, 2, 0)
-        fake_DIV_local = self.fake_B_DIV.masked_select(self.mask).view(1, 1, self.mask_size, self.mask_size).data.numpy().squeeze()
+        if self.opt.int_vars:
+            # import skimage.io as io
+            # import matplotlib.pyplot as plt
+            real_DIV = self.real_B_DIV.data.numpy().squeeze()
+            real_disc = self.real_B_discrete.data.numpy().squeeze().transpose(1, 2, 0)
+            fake_DIV = self.fake_B_DIV.data.numpy().squeeze()
 
-        L2_error = np.mean((real_DIV - fake_DIV)**2)
-        L2_local_error = np.mean((real_DIV_local - fake_DIV_local)**2)
+            real_DIV_local = self.real_B_DIV.masked_select(self.mask).view(1, 1, self.mask_size, self.mask_size).numpy().squeeze()
+            fake_DIV_local = self.fake_B_DIV.masked_select(self.mask).view(1, 1, self.mask_size, self.mask_size).data.numpy().squeeze()
 
-        metrics = [('L2_global', L2_error)]
-        metrics.append(('L2_local', L2_local_error))
+            L2_error = np.mean((real_DIV - fake_DIV)**2)
+            L2_local_error = np.mean((real_DIV_local - fake_DIV_local)**2)
 
-        low_thresh = 2e-4
-        high_thresh = max(np.max(fake_DIV_local), np.abs(np.min(fake_DIV_local)))
+            metrics = [('L2_global', L2_error)]
+            metrics.append(('L2_local', L2_local_error))
+
+            low_thresh = 2e-4
+            high_thresh = max(np.max(fake_DIV_local), np.abs(np.min(fake_DIV_local)))
+            
+            # Somehow goofed and produced inverted divergence maps for circles/ellipses, so we sometimes need to flip to compare
+            tmp = {'A_DIV': fake_DIV_local * (-1 if self.opt.invert_ridge else 1)}
+            #print(np.max(tmp['A_DIV']), np.min(tmp['A_DIV']))
+
+            scores = np.ones((5, 1)) * np.inf
+            print('search_iter: ')
+            for search_iter in range(10):
+                print('{}... '.format(search_iter), end='\r')
+
+                # Threshold at equal intervals between low and high, find best score
+                thresholds = np.linspace(low_thresh, high_thresh, 5)
+
+                for thresh_idx, thresh in enumerate(thresholds):
+                    if scores[thresh_idx] != np.inf:
+                        continue
+
+                    self.p.create_one_hot(tmp, thresh, skel=self.opt.skel_metric)
+                    tmp_disc = tmp['A']
+
+                    s = []
+                    for i in [0, 2]:
+                        tmp_emd = get_emd(tmp_disc[:,:,i], real_disc_local[:,:,i], visualise=False, average=True)
+
+                        s.append(tmp_emd)
+                    scores[thresh_idx] = (np.mean(s))
+                
+                best_idx = np.argmin(scores)
+                
+                high_idx = best_idx + 1
+                low_idx = best_idx - 1
+
+                if high_idx >= len(thresholds):
+                    high_idx -= 1
+
+                if low_idx < 0:
+                    low_idx += 1
+
+                high_thresh = thresholds[high_idx]
+                low_thresh = thresholds[low_idx]
+
+                print(scores.ravel()[best_idx])
+                scores[0] = scores[low_idx]
+                scores[-1] = scores[high_idx]
+                scores[1:-1] = np.inf
+
+            DIV_thresh = thresholds[best_idx]
+            print('Best thresh/score : {}/{}'.format(DIV_thresh, scores[best_idx]))
+            self.p.create_one_hot(tmp, DIV_thresh, skel=self.opt.skel_metric)
+            print('Created new one-hot')
+
+            print('Computing emd 0 ', end='')
+            emd_cost0, im0 = get_emd(tmp['A'][:, :, 0], real_disc_local[:, :, 0], visualise=True)
+            print('Computing emd 1 ', end='')
+            emd_cost1, im1 = get_emd(tmp['A'][:, :, 2], real_disc_local[:, :, 2], visualise=True)
+
+            tmp['A_DIV'] = fake_DIV * (-1 if self.opt.invert_ridge else 1)
+            print('Creating full one hot image')
+            self.p.create_one_hot(tmp, DIV_thresh, skel=self.opt.skel_metric)
+            self.fake_B_discrete.data.copy_(torch.from_numpy(tmp['A'].transpose(2, 0, 1)))
+            self.emd_ridge_error = im0
+            self.emd_subduction_error = im1
+        else:
+            fake_disc_local = self.fake_B_discrete.masked_select(self.mask.repeat(1, 3, 1, 1)).view(1, 3, self.mask_size, self.mask_size).data.numpy().squeeze().transpose(1, 2, 0)
         
-        # Somehow goofed and produced inverted divergence maps for circles/ellipses, so we sometimes need to flip to compare
-        tmp = {'A_DIV': fake_DIV_local * (-1 if self.opt.invert_ridge else 1)}
-        #print(np.max(tmp['A_DIV']), np.min(tmp['A_DIV']))
+            print('Computing emd 0 ', end='')
+            emd_cost0, im0 = get_emd(self.fake_disc_local[:, :, 0], real_disc_local[:, :, 0], visualise=True)
+            print('Computing emd 1 ', end='')
+            emd_cost1, im1 = get_emd(fake_disc_local[:, :, 2], real_disc_local[:, :, 2], visualise=True)
 
-        scores = np.ones((5, 1)) * np.inf
-        print('search_iter: ')
-        for search_iter in range(10):
-            print('{}... '.format(search_iter), end='\r')
+            self.emd_ridge_error = im0
+            self.emd_subduction_error = im1
 
-            # Threshold at equal intervals between low and high, find best score
-            thresholds = np.linspace(low_thresh, high_thresh, 5)
-
-            for thresh_idx, thresh in enumerate(thresholds):
-                if scores[thresh_idx] != np.inf:
-                    continue
-
-                self.p.create_one_hot(tmp, thresh, skel=self.opt.skel_metric)
-                tmp_disc = tmp['A']
-
-                s = []
-                for i in [0, 2]:
-                    tmp_emd = get_emd(tmp_disc[:,:,i], real_disc_local[:,:,i], visualise=False, average=True)
-
-                    s.append(tmp_emd)
-                scores[thresh_idx] = (np.mean(s))
-            
-            best_idx = np.argmin(scores)
-            
-            high_idx = best_idx + 1
-            low_idx = best_idx - 1
-
-            if high_idx >= len(thresholds):
-                high_idx -= 1
-
-            if low_idx < 0:
-                low_idx += 1
-
-            high_thresh = thresholds[high_idx]
-            low_thresh = thresholds[low_idx]
-
-            print(scores.ravel()[best_idx])
-            scores[0] = scores[low_idx]
-            scores[-1] = scores[high_idx]
-            scores[1:-1] = np.inf
-
-        DIV_thresh = thresholds[best_idx]
-        print('Best thresh/score : {}/{}'.format(DIV_thresh, scores[best_idx]))
-        self.p.create_one_hot(tmp, DIV_thresh, skel=self.opt.skel_metric)
-        print('Created new one-hot')
-
-        print('Computing emd 0 ', end='')
-        emd_cost0, im0 = get_emd(tmp['A'][:, :, 0], real_disc_local[:, :, 0], visualise=True)
-        print('Computing emd 1 ', end='')
-        emd_cost1, im1 = get_emd(tmp['A'][:, :, 2], real_disc_local[:, :, 2], visualise=True)
-
-        tmp['A_DIV'] = fake_DIV * (-1 if self.opt.invert_ridge else 1)
-        print('Creating full one hot image')
-        self.p.create_one_hot(tmp, DIV_thresh, skel=self.opt.skel_metric)
-        self.fake_B_discrete.data.copy_(torch.from_numpy(tmp['A'].transpose(2, 0, 1)))
-        self.emd_ridge_error = im0
-        self.emd_subduction_error = im1
 
         metrics += [('EMD_ridge', emd_cost0), ('EMD_subduction', emd_cost1), ('EMD_mean', (emd_cost0+emd_cost1)/2)]
         print('Done')
@@ -775,8 +810,12 @@ class DivInlineModel(BaseModel):
 
 
     def accumulate_metrics(self, metrics):
-        a_metrics = [('L2_global', np.mean([metric['L2_global'] for metric in metrics]))]
-        a_metrics.append(('L2_local', np.mean([metric['L2_local'] for metric in metrics])))
+        a_metrics = []
+
+        if self.opt.int_vars:
+            a_metrics.append(('L2_global', np.mean([metric['L2_global'] for metric in metrics])))
+            a_metrics.append(('L2_local', np.mean([metric['L2_local'] for metric in metrics])))
+
         a_metrics.append(('EMD_ridge', np.mean([metric['EMD_ridge'] for metric in metrics])))
         a_metrics.append(('EMD_subduction', np.mean([metric['EMD_subduction'] for metric in metrics])))
         a_metrics.append(('EMD_mean', np.mean([metric['EMD_mean'] for metric in metrics])))
