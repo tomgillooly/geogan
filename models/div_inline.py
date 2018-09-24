@@ -6,7 +6,6 @@ import util.util as util
 from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
-from .second_head import SecondHead
 
 from data.geo_pickler import GeoPickler
 
