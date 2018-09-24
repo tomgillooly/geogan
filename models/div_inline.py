@@ -305,10 +305,9 @@ class DivInlineModel(BaseModel):
             # im_dims = (100, 100)
         
 
-        self.real_B_fg_ROI = self.real_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
-        self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
-        
         if self.opt.with_BCE:
+            self.real_B_fg_ROI = self.real_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
+            self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
             self.fake_B_fg_ROI = self.fake_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
 
         self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
