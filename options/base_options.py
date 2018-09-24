@@ -72,7 +72,10 @@ class BaseOptions():
         self.opt = self.parser.parse_args()
         self.opt.isTrain = self.isTrain   # train or test
 
-        self.opt.git_version = subprocess.check_output('git rev-parse HEAD'.split()).strip()
+        try:
+            self.opt.git_version = subprocess.check_output('git rev-parse HEAD'.split()).strip()
+        except:
+            self.opt.git_version = 'none found'
 
         str_ids = self.opt.gpu_ids.split(',')
         self.opt.gpu_ids = []
