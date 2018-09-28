@@ -728,8 +728,8 @@ class SpecNormDiscriminator(nn.Module):
 
 
     def forward(self, x):
-        if len(self.gpu_ids) and isinstance(input.data, torch.cuda.FloatTensor):
-            out = nn.parallel.data_parallel(self.net, input, self.gpu_ids)
+        if len(self.gpu_ids) and isinstance(x.data, torch.cuda.FloatTensor):
+            out = nn.parallel.data_parallel(self.net, x, self.gpu_ids)
         else:
             out = self.net(x)
         # GAP
