@@ -508,7 +508,7 @@ class DivInlineModel(BaseModel):
         if self.opt.weighted_reconstruction:
             self.loss_G_rec = (self.weight_mask.detach() * self.loss_G_rec).sum(3).sum(2)
 
-        self.loss_G_rec = self.processL2(self.loss_G_rec_DIV * self.opt.lambda_A + 1e-8) * self.opt.lambda_A2
+        self.loss_G_rec = self.processL2(self.loss_G_rec * self.opt.lambda_A + 1e-8) * self.opt.lambda_A2
 
         # self.loss_G_rec += self.loss_G_L2_rec
         
