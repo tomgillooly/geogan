@@ -699,7 +699,7 @@ class DivInlineModel(BaseModel):
             visuals.append(('fake_B_discrete', fake_B_discrete))
 
         if self.opt.weighted_reconstruction or self.opt.weighted_CE:
-            weight_mask = util.tensor2im(self.weight_mask)
+            weight_mask = util.tensor2im(self.weight_mask.data)
             if not self.opt.local_loss:
                 weight_mask[mask_edge_coords] = np.max(weight_mask)
             visuals.append(('weight_mask', weight_mask))
