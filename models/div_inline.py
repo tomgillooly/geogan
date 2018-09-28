@@ -332,13 +332,18 @@ class DivInlineModel(BaseModel):
             self.fake_B_DIV_grad_x = self.fake_B_DIV_grad_x.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
             self.fake_B_DIV_grad_y = self.fake_B_DIV_grad_y.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
 
+        self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
+        self.real_B_discrete_ROI = self.real_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
+
+        if self.opt.int_vars:
+            self.real_B_out_ROI = self.real_B_DIV_ROI
+        else:
+            self.real_B_out_ROI = self.real_B_discrete_ROI
+        
         if self.opt.weighted_reconstruction or self.opt.weighted_CE:
             if self.opt.with_BCE:
                 self.weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_B_fg_ROI.float())
             else:
-                self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
-                self.real_B_discrete_ROI = self.real_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
-        
                 self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI.float())
 
 
@@ -411,6 +416,11 @@ class DivInlineModel(BaseModel):
 
         self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
         self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
+
+        if self.opt.int_vars:
+            self.real_B_out_ROI = self.real_B_DIV_ROI
+        else:
+            self.real_B_out_ROI = self.real_B_discrete_ROI
 
         if self.opt.with_BCE:
             self.real_B_fg_ROI = self.real_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *self.im_dims)
