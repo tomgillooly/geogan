@@ -247,13 +247,13 @@ class DivInlineModel(BaseModel):
         loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
         self.loss_mask = torch.autograd.Variable(loss_mask)
 
-        im_dims = self.mask.shape[2:]
+        self.im_dims = self.mask.shape[2:]
 
         if self.opt.local_loss:
             self.loss_mask = self.mask.byte()
 
             # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
-            im_dims = self.mask_size, self.mask_size
+            self.im_dims = self.mask_size, self.mask_size
             # im_dims = (100, 100)
 
 
@@ -286,7 +286,7 @@ class DivInlineModel(BaseModel):
 
         self.G_out = self.netG(self.G_input)
         self.fake_B_out = self.G_out[:, 0, :, :].unsqueeze(1)
-        self.fake_B_out_ROI = self.fake_B_out.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
+        self.fake_B_out_ROI = self.fake_B_out.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
 
         # If we're creating the foreground image, just use that as discrete
         if self.opt.with_BCE:
@@ -322,25 +322,25 @@ class DivInlineModel(BaseModel):
             self.fake_B_discrete = self.fake_B_out        
 
         if self.opt.with_BCE:
-            self.real_B_fg_ROI = self.real_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
-            self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
-            self.fake_B_fg_ROI = self.fake_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
+            self.real_B_fg_ROI = self.real_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
+            self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
+            self.fake_B_fg_ROI = self.fake_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
 
-        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
+        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
         
         if self.opt.grad_loss:
-            self.real_B_DIV_grad_x = self.real_B_DIV_grad_x.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
-            self.real_B_DIV_grad_y = self.real_B_DIV_grad_y.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
+            self.real_B_DIV_grad_x = self.real_B_DIV_grad_x.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
+            self.real_B_DIV_grad_y = self.real_B_DIV_grad_y.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
 
-            self.fake_B_DIV_grad_x = self.fake_B_DIV_grad_x.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
-            self.fake_B_DIV_grad_y = self.fake_B_DIV_grad_y.masked_select(self.loss_mask).view(self.batch_size, 1, *im_dims)
+            self.fake_B_DIV_grad_x = self.fake_B_DIV_grad_x.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
+            self.fake_B_DIV_grad_y = self.fake_B_DIV_grad_y.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
 
         if self.opt.weighted_reconstruction or self.opt.weighted_CE:
             if self.opt.with_BCE:
                 self.weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_B_fg_ROI.float())
             else:
-                self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
-                self.real_B_discrete_ROI = self.real_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
+                self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
+                self.real_B_discrete_ROI = self.real_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
         
                 self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI.float())
 
@@ -379,7 +379,7 @@ class DivInlineModel(BaseModel):
 
         if self.opt.int_vars:
             self.fake_B_DIV = self.fake_B_out
-            self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+            self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *self.im_dims)
         
             scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
                 (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
@@ -403,22 +403,22 @@ class DivInlineModel(BaseModel):
         # self.fake_B_discrete_02 = tmp_dict['A']
         # self.p.create_one_hot(tmp_dict, 0.1)
 
-        im_dims = self.mask.shape[2:]
+        self.im_dims = self.mask.shape[2:]
 
         loss_mask = self.mask.byte()
 
         # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
-        im_dims = self.mask_size, self.mask_size
+        self.im_dims = self.mask_size, self.mask_size
         
-        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *self.im_dims)
 
-        self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
-        self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *im_dims)
+        self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
+        self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
 
         if self.opt.with_BCE:
-            self.real_B_fg_ROI = self.real_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
-            self.fake_B_fg_ROI = self.fake_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
-            self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(loss_mask).view(self.batch_size, 1, *im_dims)
+            self.real_B_fg_ROI = self.real_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *self.im_dims)
+            self.fake_B_fg_ROI = self.fake_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *self.im_dims)
+            self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(loss_mask).view(self.batch_size, 1, *self.im_dims)
 
         
         # self.fake_B_discrete_01 = tmp_dict['A']
