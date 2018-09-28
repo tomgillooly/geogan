@@ -63,16 +63,13 @@ class DivInlineModel(BaseModel):
         if self.opt.continent_data:
             input_channels += 1
 
-        if opt.int_vars:
-            opt.output_nc = 3
-        else:
-            opt.output_nc = 1
+        G_output_channels = opt.output_nc
 
         if opt.with_BCE:
-            opt.output_nc += 1
+            G_output_channels += 1
 
 
-        self.netG = networks.define_G(input_channels, opt.output_nc, opt.ngf,
+        self.netG = networks.define_G(input_channels, G_output_channels, opt.ngf,
                                       opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
 
 
