@@ -297,7 +297,7 @@ class DivInlineModel(BaseModel):
             self.fake_B_DIV_grad_x = self.sobel_layer_x(self.fake_B_DIV)
             self.fake_B_DIV_grad_y = self.sobel_layer_y(self.fake_B_DIV)
 
-        if not self.opt.int_vars:
+        if self.opt.int_vars:
             self.fake_B_DIV = self.fake_B_out
             self.fake_B_DIV_ROI = self.fake_B_out_ROI
             # One hot was created by thresholding unscaled image, so rescale the threshold to
@@ -339,7 +339,7 @@ class DivInlineModel(BaseModel):
             self.real_B_out_ROI = self.real_B_DIV_ROI
         else:
             self.real_B_out_ROI = self.real_B_discrete_ROI
-        
+
         if self.opt.weighted_reconstruction or self.opt.weighted_CE:
             if self.opt.with_BCE:
                 self.weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_B_fg_ROI.float())

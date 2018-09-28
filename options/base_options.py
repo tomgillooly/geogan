@@ -77,6 +77,8 @@ class BaseOptions():
         except:
             self.opt.git_version = 'none found'
 
+        self.opt.int_vars = not self.opt.no_int_vars
+
         str_ids = self.opt.gpu_ids.split(',')
         self.opt.gpu_ids = []
         for str_id in str_ids:
