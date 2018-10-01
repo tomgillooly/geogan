@@ -58,6 +58,7 @@ class BaseOptions():
         self.parser.add_argument('--mask_size', type=int, default=100)
         self.parser.add_argument('--weighted_reconstruction', action='store_true', help='Apply weighting to L2 loss based on pixel class membership')
         self.parser.add_argument('--weighted_CE', action='store_true', help='Apply weighting to CE loss based on pixel class membership')
+        self.parser.add_argument('--no_int_vars', action='store_true', help='Predict discrete map directly from G (instead of divergence)')
 
         
         continuous_data = self.parser.add_mutually_exclusive_group()
