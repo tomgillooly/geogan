@@ -405,17 +405,11 @@ class DivInlineModel(BaseModel):
         # self.fake_B_discrete_02 = tmp_dict['A']
         # self.p.create_one_hot(tmp_dict, 0.1)
 
-        self.im_dims = self.mask.shape[2:]
-
-        loss_mask = self.mask.byte()
-
-        # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
-        self.im_dims = self.mask_size, self.mask_size
         
-        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *self.im_dims)
+        self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
 
-        self.real_B_discrete_ROI = self.real_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
-        self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
+        self.real_B_discrete_ROI = self.real_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
+        self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
 
         if self.opt.int_vars:
             self.real_B_out_ROI = self.real_B_DIV_ROI
@@ -423,9 +417,9 @@ class DivInlineModel(BaseModel):
             self.real_B_out_ROI = self.real_B_discrete_ROI
 
         if self.opt.with_BCE:
-            self.real_B_fg_ROI = self.real_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *self.im_dims)
-            self.fake_B_fg_ROI = self.fake_B_fg.masked_select(loss_mask).view(self.batch_size, 1, *self.im_dims)
-            self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(loss_mask).view(self.batch_size, 1, *self.im_dims)
+            self.real_B_fg_ROI = self.real_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
+            self.fake_B_fg_ROI = self.fake_B_fg.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
+            self.fake_fg_discrete_ROI = self.fake_fg_discrete.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
 
         
         # self.fake_B_discrete_01 = tmp_dict['A']

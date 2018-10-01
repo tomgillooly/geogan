@@ -34,7 +34,6 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--identity', type=float, default=0.5,
                                  help='use identity mapping. Setting identity other than 1 has an effect of scaling the weight of the identity mapping loss.'
                                       'For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set optidentity = 0.1')
-        self.parser.add_argument('--local_loss', action='store_true', help='do not save intermediate training results to [opt.checkpoints_dir]/[opt.name]/web/')
         self.parser.add_argument('--local_critic', action='store_true', help='Whether to use critic only on masked region, or global')
         self.parser.add_argument('--num_discrims', type=int, default=5, help='multiply by a gamma every lr_decay_iters iterations')
         self.parser.add_argument('--high_iter', type=int, default=25, help='Number of critic iterations at beginning of training')
