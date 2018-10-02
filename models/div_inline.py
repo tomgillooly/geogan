@@ -381,7 +381,7 @@ class DivInlineModel(BaseModel):
 
         if self.opt.int_vars:
             self.fake_B_DIV = self.fake_B_out
-            self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(loss_mask).view(self.batch_size, 1, *self.im_dims)
+            self.fake_B_DIV_ROI = self.fake_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
         
             scaled_thresh = self.div_thresh.repeat(1, 3) / torch.cat(
                 (self.div_max, torch.ones(self.div_max.shape), -self.div_min),
