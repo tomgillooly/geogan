@@ -73,6 +73,8 @@ class GeoUnpickler(object):
 
 			mask = np.zeros(im_size)
 			mask[mask_loc[0]:mask_loc[0]+mask_size, mask_loc[1]:mask_loc[1]+mask_size] = 1
+			if mask.sum() < mask_size*mask_size:
+				continue
 
 			# Double check that we've removed at least the desired number of pixels
 			# This only risks being unfulfilled if we are using a different mask-size to that used 
