@@ -467,9 +467,15 @@ class DivInlineModel(BaseModel):
             # Conditional data (input with chunk missing + mask) + fake data
             # Remember self.fake_B_discrete is the generator output
             if self.opt.local_critic:
-                fake_AB = self.fake_B_DIV_ROI
+                if self.opt.no_int_vars:
+                    fake_AB = self.fake_B_discrete_ROI
+                else:
+                    fake_AB = self.fake_B_DIV_ROI
             else:
-                fake_AB = self.fake_B_DIV
+                if self.opt.no_int_vars:
+                    fake_AB = self.fake_B_discrete
+                else:
+                    fake_AB = self.fake_B_DIV
 
             if self.opt.continent_data:
                 fake_AB = torch.cat((fake_AB, self.continents.float()), dim=1)
@@ -545,11 +551,19 @@ class DivInlineModel(BaseModel):
             cond_data = torch.cat((self.real_A_discrete, self.mask.float()), dim=1)
 
             if self.opt.local_critic:
-                fake_AB = self.fake_B_DIV_ROI
-                real_AB = self.real_B_DIV_ROI
+                if self.opt.no_int_vars:
+                    fake_AB = self.fake_B_discrete_ROI
+                    real_AB = self.real_B_discrete_ROI
+                else:
+                    fake_AB = self.fake_B_DIV_ROI
+                    real_AB = self.real_B_DIV_ROI
             else:
-                fake_AB = self.fake_B_DIV
-                real_AB = self.real_B_DIV
+                if self.opt.no_int_vars:
+                    fake_AB = self.fake_B_discrete
+                    real_AB = self.real_B_discrete
+                else:
+                    fake_AB = self.fake_B_DIV
+                    real_AB = self.real_B_DIV
             
             if self.opt.continent_data:
                 fake_AB = torch.cat((fake_AB, self.continents.float()), dim=1)
