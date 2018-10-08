@@ -123,13 +123,19 @@ class DivInlineModel(BaseModel):
             if self.isTrain and not opt.restart_G:
                 self.load_network(self.netD, 'D', opt.which_epoch)
 
+        if self.opt.local_loss:
+            self.im_dims = self.opt.mask_size, self.opt.mask_size
+        else:
+            self.im_dims = (256, self.opt.x_size)
 
         if self.isTrain:
             # define loss functions
             if self.opt.int_vars:
                 self.criterionR = torch.nn.MSELoss(size_average=True, reduce=(not self.opt.weighted_reconstruction))
             else:
-                self.criterionR = torch.nn.CrossEntropyLoss(size_average=True, reduce=(not self.opt.weighted_reconstruction))
+                ce_fun = torch.nn.CrossEntropyLoss(size_average=True, reduce=(not self.opt.weighted_reconstruction))
+                self.criterionR = lambda test, target: ce_fun(test.view(self.opt.batchSize, self.opt.output_nc, -1),
+                    target.max(dim=1)[1].view(self.opt.batchSize, -1).long()).reshape(self.opt.batchSize, 1, *self.im_dims)
 
             self.criterionBCE = torch.nn.BCELoss(size_average=True, reduce=(not self.opt.weighted_CE))
 
@@ -239,21 +245,15 @@ class DivInlineModel(BaseModel):
             else:
                 assert input_A.shape[2:] == self.critic_im_size, "Fix im dimensions in critic {} -> {}".format(self.critic_im_size, input_A.shape[2:])
 
-        # if we aren't taking local loss, use entire image
-        loss_mask = torch.ones(self.mask.shape).byte()
-        loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
-        self.loss_mask = torch.autograd.Variable(loss_mask)
-
-        self.im_dims = self.mask.shape[2:]
-
         if self.opt.local_loss:
             self.loss_mask = self.mask.byte()
-
-            # We could maybe sum across channels 2 and 3 to get these dims, once masks are different sizes
-            self.im_dims = self.mask_size, self.mask_size
-            # im_dims = (100, 100)
-
-
+        else:
+            # if we aren't taking local loss, use entire image
+            loss_mask = torch.ones(self.mask.shape).byte()
+            loss_mask = loss_mask.cuda() if len(self.gpu_ids) > 0 else loss_mask
+            self.loss_mask = torch.autograd.Variable(loss_mask)
+       
+ 
     def forward(self):
         # Thresholded, one-hot divergence map with chunk missing
         self.real_A_discrete = torch.autograd.Variable(self.input_A)
@@ -282,12 +282,12 @@ class DivInlineModel(BaseModel):
 
 
         self.G_out = self.netG(self.G_input)
-        self.fake_B_out = self.G_out[:, 0, :, :].unsqueeze(1)
-        self.fake_B_out_ROI = self.fake_B_out.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
+        self.fake_B_out = self.G_out[:, :self.opt.output_nc, :, :]
+        self.fake_B_out_ROI = self.fake_B_out.masked_select(self.loss_mask).view(self.batch_size, self.fake_B_out.shape[1], *self.im_dims)
 
         # If we're creating the foreground image, just use that as discrete
         if self.opt.with_BCE:
-            self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :].unsqueeze(1))
+            self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, -1, :, :].unsqueeze(1))
             self.fake_fg_discrete = self.fake_B_fg > 0.5
  
         if self.opt.grad_loss:
@@ -372,10 +372,10 @@ class DivInlineModel(BaseModel):
             self.G_input = torch.cat((self.G_input, self.continents.float()), dim=1)
         
         self.G_out = self.netG(self.G_input)
-        self.fake_B_out = self.G_out[:, 0, :, :].unsqueeze(1)
+        self.fake_B_out = self.G_out[:, self.opt.output_nc, :, :].unsqueeze(1)
         
         if self.opt.with_BCE:
-            self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, 1, :, :]).unsqueeze(1)
+            self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, -1, :, :]).unsqueeze(1)
             self.fake_fg_discrete = self.fake_B_fg > 0.5
 
 
