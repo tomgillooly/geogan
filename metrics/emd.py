@@ -4,7 +4,36 @@ import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 
-def get_emd(im1, im2, visualise=False, im1_label='Predicted', im2_label='Actual', average=True):
+def visualise_emd(total_distance, source_inliers, dest_inliers, source_outliers, dest_outliers, average=True):
+	plt.figure(1)
+
+	for s, d in zip(source_inliers, dest_inliers):
+		plt.plot([s[1], d[1]], [y_size-s[0], y_size-d[0]], c=[.5, .5, 1])
+
+	if len(source_inliers) > 0:
+		plt.plot(source_inliers[:, 1], y_size-source_inliers[:, 0], '+b', label='Source samples')
+		plt.plot(dest_inliers[:, 1], y_size-dest_inliers[:, 0], 'xr', label='Target samples')
+	if len(source_outliers) > 0:
+		plt.plot(source_outliers[:, 1], y_size-source_outliers[:, 0], '+g', label='Source Outliers')
+	if len(dest_outliers) > 0:
+		plt.plot(dest_outliers[:, 1], y_size-dest_outliers[:, 0], '+m', label='Dest Outliers')
+
+	plt.legend(loc=0)
+	
+	plt.title('OT matrix with samples\n{} distance: {:.02f}'.format('Average' if average else 'Total', total_distance))
+	# plt.axis('equal')
+	plt.xlim([0, x_size])
+	plt.ylim([0, y_size])
+	plt.axes().set_aspect('equal')
+	plt.grid()
+
+	plt.savefig('/tmp/tmpimg.png')
+	img = (plt.imread('/tmp/tmpimg.png')*255).astype(np.uint8)
+	plt.close(1)
+
+	return img
+
+def get_emd(im1, im2, visualise=False, im1_label='Predicted', im2_label='Actual', average=True, return_pairs=False):
 	im1_coords = np.array(np.where(im1)).T
 	im2_coords = np.array(np.where(im2)).T
 	
@@ -58,35 +87,16 @@ def get_emd(im1, im2, visualise=False, im1_label='Predicted', im2_label='Actual'
 		source_outliers = im1_coords
 		dest_outliers = im2_coords
 
+	return_args = (total_distance,)
+
 	if visualise:
 		print('source, dest {}, dist: {}'.format(cost.shape, total_distance))
-		plt.figure(1)
+		img = visualise_emd(total_distance, source_inliers, dest_inliers, source_outliers, dest_outliers, average)
+		return_args = (*return_args, img)
 
-		if not skip_assign:
-			for s, d in zip(source_inliers, dest_inliers):
-				plt.plot([s[1], d[1]], [y_size-s[0], y_size-d[0]], c=[.5, .5, 1])
+	if return_pairs:
+		return_args = (*return_args,
+			{'source_inliers':source_inliers, 'source_outliers':source_outliers,
+			'dest_inliers':dest_inliers, 'dest_outliers':dest_outliers})
 
-		if len(source_inliers) > 0:
-			plt.plot(source_inliers[:, 1], y_size-source_inliers[:, 0], '+b', label='Source samples')
-			plt.plot(dest_inliers[:, 1], y_size-dest_inliers[:, 0], 'xr', label='Target samples')
-		if len(source_outliers) > 0:
-			plt.plot(source_outliers[:, 1], y_size-source_outliers[:, 0], '+g', label='Source Outliers')
-		if len(dest_outliers) > 0:
-			plt.plot(dest_outliers[:, 1], y_size-dest_outliers[:, 0], '+m', label='Dest Outliers')
-
-		plt.legend(loc=0)
-		
-		plt.title('OT matrix with samples\n{} distance: {:.02f}'.format('Average' if average else 'Total', total_distance))
-		# plt.axis('equal')
-		plt.xlim([0, x_size])
-		plt.ylim([0, y_size])
-		plt.axes().set_aspect('equal')
-		plt.grid()
-
-		plt.savefig('/tmp/tmpimg.png')
-		img = (plt.imread('/tmp/tmpimg.png')*255).astype(np.uint8)
-		plt.close(1)
-
-		return total_distance, img
-
-	return total_distance
+	return *return_args

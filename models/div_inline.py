@@ -19,7 +19,7 @@ from scipy.spatial.distance import directed_hausdorff, euclidean
 from skimage.filters import roberts
 
 from metrics.hausdorff import get_hausdorff, get_hausdorff_exc
-from metrics.emd import get_emd
+from metrics.emd import get_emd, visualise_emd
 
 import sys
 
@@ -725,6 +725,7 @@ class DivInlineModel(BaseModel):
 
 
     def get_current_metrics(self):
+        from collections import defaultdict
 
         real_disc_local = self.real_B_discrete.masked_select(self.mask.repeat(1, 3, 1, 1)).view(1, 3, self.mask_size, self.mask_size).data.numpy().squeeze().transpose(1, 2, 0)
         if self.opt.int_vars:
@@ -751,6 +752,8 @@ class DivInlineModel(BaseModel):
             #print(np.max(tmp['A_DIV']), np.min(tmp['A_DIV']))
 
             scores = np.ones((5, 1)) * np.inf
+
+            results_cache = defaultdict(dict)
             print('search_iter: ')
             for search_iter in range(10):
                 print('{}... '.format(search_iter), end='\r')
@@ -767,9 +770,11 @@ class DivInlineModel(BaseModel):
 
                     s = []
                     for i in [0, 2]:
-                        tmp_emd = get_emd(tmp_disc[:,:,i], real_disc_local[:,:,i], visualise=False, average=True)
+                        tmp_emd, pairs = get_emd(tmp_disc[:,:,i], real_disc_local[:,:,i], visualise=False, average=True, return_pairs)
 
                         s.append(tmp_emd)
+                        results_cache[threshold][i]['pairs'] = pairs
+                        results_cache[threshold][i]['score'] = tmp_emd
                     scores[thresh_idx] = (np.mean(s))
                 
                 best_idx = np.argmin(scores)
@@ -797,9 +802,16 @@ class DivInlineModel(BaseModel):
             print('Created new one-hot')
 
             print('Computing emd 0 ', end='')
-            emd_cost0, im0 = get_emd(tmp['A'][:, :, 0], real_disc_local[:, :, 0], visualise=True)
+            # emd_cost0, im0 = get_emd(tmp['A'][:, :, 0], real_disc_local[:, :, 0], visualise=True)
+            results = results_cache[DIV_thresh][0]
+            emd_cost0 = results['score']
+            im0 = visualise_emd(emd_cost0, *results['pairs'])
+
             print('Computing emd 1 ', end='')
-            emd_cost1, im1 = get_emd(tmp['A'][:, :, 2], real_disc_local[:, :, 2], visualise=True)
+            # emd_cost1, im1 = get_emd(tmp['A'][:, :, 2], real_disc_local[:, :, 2], visualise=True)
+            results = results_cache[DIV_thresh][2]
+            emd_cost1 = results['score']
+            im1 = visualise_emd(emd_cost1, *results['pairs'])
 
             tmp['A_DIV'] = fake_DIV * (-1 if self.opt.invert_ridge else 1)
             print('Creating full one hot image')
