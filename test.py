@@ -78,7 +78,13 @@ for i, data in enumerate(dataset):
     model.set_input(data)
     model.test()
     
-    metric_data.append(model.get_current_metrics())
+    
+    current_metric = model.get_current_metrics()
+    metric_data.append(current_metric)
+    
+    with open(results_file_name, 'a') as results_file:
+        results_file.write(', '.join(map(str, current_metric.values())) + '\n')
+    
     
     if not opt.no_images:
         visuals = model.get_current_visuals()
@@ -92,62 +98,52 @@ for i, data in enumerate(dataset):
         img_data.append((visuals, img_path))
 
 
-with open(results_file_name, 'a') as results_file:
-    total_metrics = model.accumulate_metrics(metric_data)
+total_metrics = model.accumulate_metrics(metric_data)
 
-    text = []
-    for key, value in total_metrics.items():
+text = []
+for key, value in total_metrics.items():
+        try:
+            text.append("{} = {:.04} ".format(key, value))
+        except ValueError:
+            print('ValueError', key, value)
+
+if text and not opt.no_images:
+    webpage.add_text(text)
+
+if opt.no_images:
+    for metrics in metric_data:
+        text = []
+
+        for key, value in metrics.items():
             try:
                 text.append("{} = {:.04} ".format(key, value))
             except ValueError:
                 print('ValueError', key, value)
+else:
+    for (visuals, img_path), metrics in zip(img_data, metric_data):
+        
 
-    if text and not opt.no_images:
-        webpage.add_text(text)
+        text = []
 
-    if opt.no_images:
-        for metrics in metric_data:
-            text = []
+        for key, value in metrics.items():
+            try:
+                text.append("{} = {:.04} ".format(key, value))
+            except ValueError:
+                print('ValueError', key, value)
+        
+        if len(visuals) < 6:
+            row_lengths = [len(visuals)]
+        else:
+            row_lengths = [3]
+            row_lengths.append(3)
+            if opt.continent_data:
+                row_lengths.append(1)
+            row_lengths.append(2)
 
-            results = []
-            for key, value in metrics.items():
-                try:
-                    text.append("{} = {:.04} ".format(key, value))
-                except ValueError:
-                    print('ValueError', key, value)
-                results.append(str(value))
+        visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, row_lengths=row_lengths)
 
-            results_file.write(', '.join(results) + '\n')
-
-    else:
-        for (visuals, img_path), metrics in zip(img_data, metric_data):
-            
-
-            text = []
-
-            results = []
-            for key, value in metrics.items():
-                try:
-                    text.append("{} = {:.04} ".format(key, value))
-                except ValueError:
-                    print('ValueError', key, value)
-                results.append(str(value))
-
-            results_file.write(', '.join(results) + '\n')
-            
-            if len(visuals) < 6:
-                row_lengths = [len(visuals)]
-            else:
-                row_lengths = [3]
-                row_lengths.append(3)
-                if opt.continent_data:
-                    row_lengths.append(1)
-                row_lengths.append(2)
-
-            visualizer.save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, row_lengths=row_lengths)
-
-            if text:
-                webpage.add_text(text)
+        if text:
+            webpage.add_text(text)
 
 if not opt.no_images:
     webpage.save()
