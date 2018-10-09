@@ -372,10 +372,10 @@ class DivInlineModel(BaseModel):
             self.G_input = torch.cat((self.G_input, self.continents.float()), dim=1)
         
         self.G_out = self.netG(self.G_input)
-        self.fake_B_out = self.G_out[:, self.opt.output_nc, :, :].unsqueeze(1)
+        self.fake_B_out = self.G_out[:, :self.opt.output_nc, :, :]
         
         if self.opt.with_BCE:
-            self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, -1, :, :]).unsqueeze(1)
+            self.fake_B_fg = torch.nn.Sigmoid()(self.G_out[:, -1:, :, :])
             self.fake_fg_discrete = self.fake_B_fg > 0.5
 
 
