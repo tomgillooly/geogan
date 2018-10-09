@@ -770,11 +770,11 @@ class DivInlineModel(BaseModel):
 
                     s = []
                     for i in [0, 2]:
-                        tmp_emd, pairs = get_emd(tmp_disc[:,:,i], real_disc_local[:,:,i], visualise=False, average=True, return_pairs)
+                        tmp_emd, pairs = get_emd(tmp_disc[:,:,i], real_disc_local[:,:,i], average=True, return_pairs=True)
 
                         s.append(tmp_emd)
-                        results_cache[threshold][i]['pairs'] = pairs
-                        results_cache[threshold][i]['score'] = tmp_emd
+                        results_cache[thresh][i] = {'pairs':  pairs}
+                        results_cache[thresh][i]['score'] = tmp_emd
                     scores[thresh_idx] = (np.mean(s))
                 
                 best_idx = np.argmin(scores)
@@ -805,13 +805,13 @@ class DivInlineModel(BaseModel):
             # emd_cost0, im0 = get_emd(tmp['A'][:, :, 0], real_disc_local[:, :, 0], visualise=True)
             results = results_cache[DIV_thresh][0]
             emd_cost0 = results['score']
-            im0 = visualise_emd(emd_cost0, *results['pairs'])
+            im0 = visualise_emd(emd_cost0, *self.im_dims, **results['pairs'])
 
             print('Computing emd 1 ', end='')
             # emd_cost1, im1 = get_emd(tmp['A'][:, :, 2], real_disc_local[:, :, 2], visualise=True)
             results = results_cache[DIV_thresh][2]
             emd_cost1 = results['score']
-            im1 = visualise_emd(emd_cost1, *results['pairs'])
+            im1 = visualise_emd(emd_cost1, *self.im_dims, **results['pairs'])
 
             tmp['A_DIV'] = fake_DIV * (-1 if self.opt.invert_ridge else 1)
             print('Creating full one hot image')

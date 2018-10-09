@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 
-def visualise_emd(total_distance, source_inliers, dest_inliers, source_outliers, dest_outliers, average=True):
+def visualise_emd(total_distance, x_size, y_size, source_inliers, dest_inliers, source_outliers, dest_outliers, average=True):
 	plt.figure(1)
 
 	for s, d in zip(source_inliers, dest_inliers):
@@ -33,7 +33,7 @@ def visualise_emd(total_distance, source_inliers, dest_inliers, source_outliers,
 
 	return img
 
-def get_emd(im1, im2, visualise=False, im1_label='Predicted', im2_label='Actual', average=True, return_pairs=False):
+def get_emd(im1, im2, im1_label='Predicted', im2_label='Actual', average=True, return_pairs=False):
 	im1_coords = np.array(np.where(im1)).T
 	im2_coords = np.array(np.where(im2)).T
 	
@@ -44,8 +44,12 @@ def get_emd(im1, im2, visualise=False, im1_label='Predicted', im2_label='Actual'
 	num_im1 = len(im1_coords)
 	num_im2 = len(im2_coords)
 
-	if abs(num_im1 - num_im2) > 50 and not visualise:
-		return max_distance
+	if abs(num_im1 - num_im2) > 50:
+		if return_pairs:
+			return max_distance, {'source_inliers': [], 'source_outliers': im1_coords,
+				'dest_inliers': [], 'dest_outliers': im2_coords}
+		else: 
+			return max_distance
 
 	cost = cdist(im1_coords, im2_coords)
 
@@ -54,9 +58,6 @@ def get_emd(im1, im2, visualise=False, im1_label='Predicted', im2_label='Actual'
 	diff = abs(diff)
 	dummy_points = np.ones((diff, cost.shape[1]) if axis==0 else (cost.shape[0], diff)) * max_distance
 	cost = np.concatenate((cost, dummy_points), axis=axis)
-
-	if visualise:
-            print('source, dest {}'.format(cost.shape), end='\r')
 
 	# If the proportion of active pixels, or difference in number of each is too high, just skip
 	# Computation takes too long
@@ -87,16 +88,8 @@ def get_emd(im1, im2, visualise=False, im1_label='Predicted', im2_label='Actual'
 		source_outliers = im1_coords
 		dest_outliers = im2_coords
 
-	return_args = (total_distance,)
-
-	if visualise:
-		print('source, dest {}, dist: {}'.format(cost.shape, total_distance))
-		img = visualise_emd(total_distance, source_inliers, dest_inliers, source_outliers, dest_outliers, average)
-		return_args = (*return_args, img)
-
 	if return_pairs:
-		return_args = (*return_args,
-			{'source_inliers':source_inliers, 'source_outliers':source_outliers,
-			'dest_inliers':dest_inliers, 'dest_outliers':dest_outliers})
+		return total_distance, {'source_inliers':source_inliers, 'source_outliers':source_outliers,
+			'dest_inliers':dest_inliers, 'dest_outliers':dest_outliers}
 
-	return *return_args
+	return total_distance
