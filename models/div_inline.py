@@ -341,8 +341,14 @@ class DivInlineModel(BaseModel):
             self.real_B_out_ROI = self.real_B_discrete_ROI
 
         if self.opt.weighted_reconstruction or self.opt.weighted_CE:
+            # If we are using BCE, default is to create both weight masks using the fg channel
+            # We can alternatively specify that only BCE weighting is created using the fg channel,
+            # and the discrete output is used to create its own weight mask
             if self.opt.with_BCE:
-                self.weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_B_fg_ROI.float())
+                self.ce_weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_B_fg_ROI.float())
+            
+            if self.opt.with_BCE and not self.opt.ce_weight_mask:
+                self.weight_mask = self.ce_weight_mask
             else:
                 self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI.float())
 
@@ -535,7 +541,7 @@ class DivInlineModel(BaseModel):
             self.loss_fg_CE = self.criterionBCE(self.fake_B_fg_ROI, self.real_B_fg_ROI.float())
 
             if self.opt.weighted_CE:
-                self.loss_fg_CE = (self.weight_mask.detach() * self.loss_fg_CE).sum(3).sum(2)
+                self.loss_fg_CE = (self.ce_weight_mask.detach() * self.loss_fg_CE).sum(3).sum(2)
 
             self.loss_fg_CE = self.processBCE(self.loss_fg_CE * self.opt.lambda_B + 1e-8) * self.opt.lambda_B2
 
