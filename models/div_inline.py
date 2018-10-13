@@ -135,7 +135,7 @@ class DivInlineModel(BaseModel):
             else:
                 ce_fun = torch.nn.CrossEntropyLoss(size_average=True, reduce=(not self.opt.weighted_reconstruction))
                 self.criterionR = lambda test, target: ce_fun(test.view(self.opt.batchSize, self.opt.output_nc, -1),
-                    target.max(dim=1)[1].view(self.opt.batchSize, -1).long()).reshape(self.opt.batchSize, 1, *self.im_dims)
+                    target.max(dim=1)[1].view(self.opt.batchSize, -1).long())
 
             self.criterionBCE = torch.nn.BCELoss(size_average=True, reduce=(not self.opt.weighted_CE))
 
@@ -512,7 +512,7 @@ class DivInlineModel(BaseModel):
         self.loss_G_rec = self.criterionR(self.fake_B_out_ROI, self.real_B_out_ROI)
 
         if self.opt.weighted_reconstruction:
-            self.loss_G_rec = (self.weight_mask.detach() * self.loss_G_rec).sum(3).sum(2)
+            self.loss_G_rec = (self.weight_mask.detach() * self.loss_G_rec.reshape(self.opt.batchSize, 1, *self.im_dims)).sum(3).sum(2)
 
         self.loss_G_rec = self.processL2(self.loss_G_rec * self.opt.lambda_A + 1e-8) * self.opt.lambda_A2
 
