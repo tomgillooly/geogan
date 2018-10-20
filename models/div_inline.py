@@ -135,7 +135,7 @@ class DivInlineModel(BaseModel):
             else:
                 ce_fun = torch.nn.CrossEntropyLoss(size_average=True, reduce=(not self.opt.weighted_reconstruction))
                 self.criterionR = lambda test, target: ce_fun(test.view(self.opt.batchSize, self.opt.output_nc, -1),
-                    target.max(dim=1)[1].view(self.opt.batchSize, -1).long()).reshape(self.opt.batchSize, 1, *self.im_dims)
+                    target.max(dim=1)[1].view(self.opt.batchSize, -1).long())
 
             self.criterionBCE = torch.nn.BCELoss(size_average=True, reduce=(not self.opt.weighted_CE))
 
@@ -512,7 +512,7 @@ class DivInlineModel(BaseModel):
         self.loss_G_rec = self.criterionR(self.fake_B_out_ROI, self.real_B_out_ROI)
 
         if self.opt.weighted_reconstruction:
-            self.loss_G_rec = (self.weight_mask.detach() * self.loss_G_rec).sum(3).sum(2)
+            self.loss_G_rec = (self.weight_mask.detach() * self.loss_G_rec.reshape(self.opt.batchSize, 1, *self.im_dims)).sum(3).sum(2)
 
         self.loss_G_rec = self.processL2(self.loss_G_rec * self.opt.lambda_A + 1e-8) * self.opt.lambda_A2
 
@@ -734,6 +734,7 @@ class DivInlineModel(BaseModel):
         from collections import defaultdict
 
         real_disc_local = self.real_B_discrete.masked_select(self.mask.repeat(1, 3, 1, 1)).view(1, 3, self.mask_size, self.mask_size).data.numpy().squeeze().transpose(1, 2, 0)
+        metrics = []
         if self.opt.int_vars:
             # import skimage.io as io
             # import matplotlib.pyplot as plt
@@ -747,7 +748,7 @@ class DivInlineModel(BaseModel):
             L2_error = np.mean((real_DIV - fake_DIV)**2)
             L2_local_error = np.mean((real_DIV_local - fake_DIV_local)**2)
 
-            metrics = [('L2_global', L2_error)]
+            metrics.append(('L2_global', L2_error))
             metrics.append(('L2_local', L2_local_error))
 
             low_thresh = 2e-4
@@ -827,12 +828,14 @@ class DivInlineModel(BaseModel):
             self.emd_ridge_error = im0
             self.emd_subduction_error = im1
         else:
-            fake_disc_local = self.fake_B_discrete.masked_select(self.mask.repeat(1, 3, 1, 1)).view(1, 3, self.mask_size, self.mask_size).data.numpy().squeeze().transpose(1, 2, 0)
+            self.fake_disc_local = self.fake_B_discrete.masked_select(self.mask.repeat(1, 3, 1, 1)).view(1, 3, self.mask_size, self.mask_size).data.numpy().squeeze().transpose(1, 2, 0)
         
             print('Computing emd 0 ', end='')
-            emd_cost0, im0 = get_emd(self.fake_disc_local[:, :, 0], real_disc_local[:, :, 0], visualise=True)
+            emd_cost0, results = get_emd(self.fake_disc_local[:, :, 0], real_disc_local[:, :, 0], return_pairs=True)
+            im0 = visualise_emd(emd_cost0, *self.im_dims, **results)
             print('Computing emd 1 ', end='')
-            emd_cost1, im1 = get_emd(fake_disc_local[:, :, 2], real_disc_local[:, :, 2], visualise=True)
+            emd_cost1, results = get_emd(self.fake_disc_local[:, :, 2], real_disc_local[:, :, 2], return_pairs=True)
+            im1 = visualise_emd(emd_cost1, *self.im_dims, **results)
 
             self.emd_ridge_error = im0
             self.emd_subduction_error = im1
