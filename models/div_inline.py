@@ -784,6 +784,8 @@ class DivInlineModel(BaseModel):
                     scores[thresh_idx] = (np.mean(s))
                 
                 best_idx = np.argmin(scores)
+                DIV_thresh = thresholds[best_idx]
+                best_score = scores[best_idx]
                 
                 high_idx = best_idx + 1
                 low_idx = best_idx - 1
@@ -802,8 +804,7 @@ class DivInlineModel(BaseModel):
                 scores[-1] = scores[high_idx]
                 scores[1:-1] = np.inf
 
-            DIV_thresh = thresholds[best_idx]
-            print('Best thresh/score : {}/{}'.format(DIV_thresh, scores[best_idx]))
+            print('Best thresh/score : {}/{}'.format(DIV_thresh, best_score))
             self.p.create_one_hot(tmp, DIV_thresh, skel=self.opt.skel_metric)
             print('Created new one-hot')
 
