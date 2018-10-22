@@ -345,12 +345,13 @@ class DivInlineModel(BaseModel):
             # We can alternatively specify that only BCE weighting is created using the fg channel,
             # and the discrete output is used to create its own weight mask
             if self.opt.with_BCE:
-                self.ce_weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_B_fg_ROI.float())
+                self.ce_weight_mask = util.create_weight_mask(self.real_B_fg_ROI, self.fake_fg_discrete_ROI.float())
             
             if self.opt.with_BCE and not self.opt.ce_weight_mask:
                 self.weight_mask = self.ce_weight_mask
             else:
-                self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI.float())
+                self.weight_mask = util.create_weight_mask(self.real_B_discrete_ROI, self.fake_B_discrete_ROI.float(),
+                    diff_in_numerator=self.opt.diff_in_numerator, method='freq')
 
 
     # no backprop gradients
