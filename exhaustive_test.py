@@ -39,23 +39,16 @@ opt.no_flip = True  # no flip
 unpickler = GeoExhaustiveUnpickler()
 unpickler.initialise(opt)
 
-dataset = torch.utils.data.DataLoader(
-        unpickler,
-        batch_size=opt.batchSize,
-        shuffle=not opt.serial_batches,
-        num_workers=opt.nThreads)
-
-dataset_size = len(dataset)
-print('#training images = %d' % dataset_size)
-
 model = create_model(opt)
 
+results_dir = os.path.join('results', opt.name, 'test_{}'.format(opt.which_epoch))
+
 try:
-    os.mkdir(web_dir)
+    os.mkdir(results_dir)
 except:
     pass
 
-results_file_name = os.path.join(web_dir, opt.name + '_results')
+results_file_name = os.path.join(results_dir, opt.name + '_results')
 
 if os.path.exists(results_file_name):
     os.remove(results_file_name)
@@ -63,30 +56,34 @@ if os.path.exists(results_file_name):
 results_db = sqlite3.connect('geogan_results.db')
 
 results_c = results_db.cursor()
-table_exists_c = results_c.execute('SELECT name FROM sqlite_master WHERE type="table" AND name=self.opt.name')
+table_exists_c = results_c.execute('SELECT name FROM sqlite_master WHERE type="table" AND name=?', (opt.name,))
 
 if table_exists_c.fetchone() == None:
-    results_c.execute('''CREATE TABLE ? 
-        (dataroot text, series text, mask_size int, mask_x int, mask_y int,
-        emd_ridge real, emd_subduction real, emd_mean real, output_image blob)''', (self.opt.name))
+    results_c.execute('''CREATE TABLE {} 
+        (dataroot text, series int, mask_size int, mask_x int, mask_y int,
+        emd_ridge real, emd_subduction real, emd_mean real)'''.format(opt.name))
 
-i = 0
-for data in dataset:
+
+for i in range(len(unpickler)):
     if i >= opt.how_many:
         break
-    i += 1
-    model.set_input(data)
+    series_data = unpickler[i]
+    
+    for data in series_data:
+        model.set_input(data)
+        for _ in range(opt.test_repeats):
+            model.test()
+            current_metric = model.get_current_metrics()
+            
+            with open(results_file_name, 'a') as results_file:
+                results_file.write(', '.join(map(str, current_metric.values())) + '\n')
+                
+            results_c.execute('''INSERT INTO {} VALUES
+                (?, ?, ?, ?, ?,
+                ?, ?, ?)
+                '''.format(opt.name), (opt.dataroot, int(data['series_number']), int(data['mask_size'].numpy()[0]), int(data['mask_x1'].numpy()[0]), int(data['mask_y1'].numpy()[0]),
+                    current_metric['EMD_ridge'], current_metric['EMD_subduction'], current_metric['EMD_mean']))
+        results_db.commit()
+        break
 
-    for _ in range(self.opt.test_repeats):
-        model.test()
-            
-        current_metric = model.get_current_metrics()
-        
-        with open(results_file_name, 'a') as results_file:
-            results_file.write(', '.join(map(str, current_metric.values())) + '\n')
-            
-        results_c.execute('''INSERT INTO ? VALUES
-            (?, ?, ?, ?, ?,
-            ?, ?, ?, ?)
-            ''', (self.opt.dataroot, data['series_no'], data['mask_size'], data['mask_x1'], data['mask_y1'],
-                current_metric['EMD_ridge'], current_metric['EMD_subduction'], current_metric['EMD_mean'], model.fake_B_out))
+results_db.close()

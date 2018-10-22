@@ -179,7 +179,7 @@ class GeoUnpickler(object):
 
 			data_dict[key] = item
 
-		for tag in ['x1', 'x2', 'y1', 'y2']:
+		for tag in ['x1', 'x2', 'y1', 'y2', 'size']:
 			key = 'mask_' + tag
 
 			item = np.array([data_dict[key]])
@@ -237,7 +237,7 @@ class GeoUnpickler(object):
 
 def make_mask(ml, im_size, mask_size):
 	mask = np.zeros(im_size)
-	mask[ml[0]:ml[0]+mask_size, ml[1]:ml[1]:mask_size] = 1
+	mask[ml[0]:ml[0]+mask_size, ml[1]:ml[1]+mask_size] = 1
 
 	return mask
 
@@ -264,22 +264,31 @@ class GeoExhaustiveUnpickler(GeoUnpickler):
 			current_mask = np.maximum(current_mask, make_mask(ml, data['A_DIV'].shape, data['mask_size']))
 			mask_locs.append(ml)
 
-		data.pop('mask_size')
+		data.pop('mask_locs')
 		basedir = os.path.join(self.opt.dataroot, self.opt.phase).rstrip('/')
 		
 		data['folder_name'] = os.path.dirname(self.files[idx])[len(basedir)+1:]
 		
-		data['folder_id'] = self.folder_id_lookup[data['folder_name']]
 
 		if (not self.opt.no_flip) and random.random() < 0.5:
 			self.flip_images(data)
 		self.process_continents(data)
-
+		orig_data = data.copy()
 		for ml in mask_locs:
+			data = orig_data.copy()
 			data['mask'] = make_mask(ml, data['A_DIV'].shape, data['mask_size'])
+			data['mask_y1'] = ml[0]
+			data['mask_x1'] = ml[1]
+			data['mask_y2'] = ml[0] + data['mask_size']
+			data['mask_x2'] = ml[1] + data['mask_size']
 			self.create_masked_images(data)
 
 			self.convert_to_tensor(data)
+
+			for key in data.keys():
+				if key == 'series_number' or key == 'folder_name':
+					continue
+				data[key] = data[key].unsqueeze(0)
 
 			yield data
 
