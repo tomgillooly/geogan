@@ -233,3 +233,53 @@ class GeoUnpickler(object):
 
 	def __len__(self):
 		return len(self.files)
+
+
+def make_mask(ml, im_size, mask_size):
+	mask = np.zeros(im_size)
+	mask[ml[0]:ml[0]+mask_size, ml[1]:ml[1]:mask_size] = 1
+
+	return mask
+
+
+class GeoExhaustiveUnpickler(GeoUnpickler):
+
+	def __getitem__(self, idx):
+		data = torch.load(self.files[idx])
+		
+        # We don't actually use these most of the time, and causes problems when creating batches if not all keys are present across all data points
+        # This happens e.g. when we mix voronoi and geo data, or old and new geo data
+		for key in [key for key in data.keys() if 'hist' in key or 'Vy' in key or 'Vx' in key or 'A_path' in key or 'min_pix_in_mask' in key or 'ResT' in key or 'A_cont' in key]:
+			data.pop(key)
+
+		data['mask_size'] = self.opt.mask_size
+
+		current_mask = make_mask(data['mask_locs'][0], data['A_DIV'].shape, data['mask_size'])
+		mask_locs = [data['mask_locs'][0]]
+
+		for ml in data['mask_locs']:
+			if current_mask[ml] != 0:
+				continue
+
+			current_mask = np.maximum(current_mask, make_mask(ml, data['A_DIV'].shape, data['mask_size']))
+			mask_locs.append(ml)
+
+		data.pop('mask_size')
+		basedir = os.path.join(self.opt.dataroot, self.opt.phase).rstrip('/')
+		
+		data['folder_name'] = os.path.dirname(self.files[idx])[len(basedir)+1:]
+		
+		data['folder_id'] = self.folder_id_lookup[data['folder_name']]
+
+		if (not self.opt.no_flip) and random.random() < 0.5:
+			self.flip_images(data)
+		self.process_continents(data)
+
+		for ml in mask_locs:
+			data['mask'] = make_mask(ml, data['A_DIV'].shape, data['mask_size'])
+			self.create_masked_images(data)
+
+			self.convert_to_tensor(data)
+
+			yield data
+
