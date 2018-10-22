@@ -70,10 +70,11 @@ if table_exists_c.fetchone() == None:
         (dataroot text, series text, mask_size int, mask_x int, mask_y int,
         emd_ridge real, emd_subduction real, emd_mean real, output_image blob)''', (self.opt.name))
 
-
-for i, data in enumerate(dataset):
+i = 0
+for data in dataset:
     if i >= opt.how_many:
         break
+    i += 1
     model.set_input(data)
 
     for _ in range(self.opt.test_repeats):
