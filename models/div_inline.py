@@ -786,8 +786,8 @@ class DivInlineModel(BaseModel):
                 
                 best_idx = np.argmin(scores)
                 DIV_thresh = thresholds[best_idx]
-                best_score = scores[best_idx]
-                
+                best_score = scores.ravel()[best_idx]
+               
                 high_idx = best_idx + 1
                 low_idx = best_idx - 1
 
