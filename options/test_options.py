@@ -14,4 +14,5 @@ class TestOptions(BaseOptions):
         self.parser.add_argument('--visualise_hausdorff', action='store_true', help='Show related pixels used to calculate Hausdorff distance')
         self.parser.add_argument('--visualise_ot', action='store_true', help='Show which pixel maps to which under optimal transport')
         self.parser.add_argument('--no_images', action='store_true')
+        self.parser.add_argument('--test_repeats', type=int, default=5, help="How many times to test series with same mask location - only used in exhaustive tests")
         self.isTrain = False

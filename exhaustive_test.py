@@ -15,6 +15,8 @@ from data.geo_unpickler import GeoExhaustiveUnpickler
 import torch.utils.data
 from collections import defaultdict
 
+import sqlite3
+
 
 # Need this if we trained with a different version
 import torch._utils
@@ -32,7 +34,6 @@ except AttributeError:
 opt = TestOptions().parse()
 opt.nThreads = 1   # test code only supports nThreads = 1
 opt.batchSize = 1  # test code only supports batchSize = 1
-#opt.serial_batches = False  # no shuffle
 opt.no_flip = True  # no flip
 
 unpickler = GeoExhaustiveUnpickler()
@@ -58,33 +59,33 @@ results_file_name = os.path.join(web_dir, opt.name + '_results')
 
 if os.path.exists(results_file_name):
     os.remove(results_file_name)
-    
-pkl_results_file_name = os.path.join(web_dir, opt.name + '_results.pkl')
 
-if os.path.exists(pkl_results_file_name):
-    os.remove(pkl_results_file_name)
+results_db = sqlite3.connect('geogan_results.db')
 
+results_c = results_db.cursor()
+table_exists_c = results_c.execute('SELECT name FROM sqlite_master WHERE type="table" AND name=self.opt.name')
 
-metric_data = []
+if table_exists_c.fetchone() == None:
+    results_c.execute('''CREATE TABLE ? 
+        (dataroot text, series text, mask_size int, mask_x int, mask_y int,
+        emd_ridge real, emd_subduction real, emd_mean real, output_image blob)''', (self.opt.name))
 
-class_labels = ['Ridge', 'Plate', 'Subduction']
-
-results_data = defaultdict(list)
 
 for i, data in enumerate(dataset):
     if i >= opt.how_many:
         break
     model.set_input(data)
-    model.test()
-    
-    
-    current_metric = model.get_current_metrics()
-    metric_data.append(current_metric)
-    
-    with open(results_file_name, 'a') as results_file:
-        results_file.write(', '.join(map(str, current_metric.values())) + '\n')
+
+    for _ in range(self.opt.test_repeats):
+        model.test()
+            
+        current_metric = model.get_current_metrics()
         
-    current_metric['mask_loc'] = (data['mask_x1'], data['mask_y1'])
-    current_metric['output'] = model.fake_B_out
-    
-    results_data[data['series_no']].append(current_metric)
+        with open(results_file_name, 'a') as results_file:
+            results_file.write(', '.join(map(str, current_metric.values())) + '\n')
+            
+        results_c.execute('''INSERT INTO ? VALUES
+            (?, ?, ?, ?, ?,
+            ?, ?, ?, ?)
+            ''', (self.opt.dataroot, data['series_no'], data['mask_size'], data['mask_x1'], data['mask_y1'],
+                current_metric['EMD_ridge'], current_metric['EMD_subduction'], current_metric['EMD_mean'], model.fake_B_out))
