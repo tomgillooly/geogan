@@ -1,11 +1,13 @@
 import numpy as np
+import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 
 def visualise_emd(total_distance, x_size, y_size, source_inliers, dest_inliers, source_outliers, dest_outliers, average=True):
-	plt.figure(1)
+	fig = plt.figure()
 
 	for s, d in zip(source_inliers, dest_inliers):
 		plt.plot([s[1], d[1]], [y_size-s[0], y_size-d[0]], c=[.5, .5, 1])
@@ -27,9 +29,11 @@ def visualise_emd(total_distance, x_size, y_size, source_inliers, dest_inliers, 
 	plt.axes().set_aspect('equal')
 	plt.grid()
 
-	plt.savefig('/tmp/tmpimg.png')
-	img = (plt.imread('/tmp/tmpimg.png')*255).astype(np.uint8)
-	plt.close(1)
+	fig.canvas.draw()
+	img = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+	img = img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+	plt.close(fig)
 
 	return img
 

@@ -2,7 +2,6 @@ import os
 from options.test_options import TestOptions
 import matplotlib
 matplotlib.use('Agg')
-from metrics.hausdorff import get_hausdorff, get_hausdorff_exc
 from models.models import create_model
 from util.visualizer import Visualizer
 from util import html
