@@ -65,8 +65,6 @@ if table_exists_c.fetchone() == None:
 
 
 for i in range(len(unpickler)):
-    if i >= opt.how_many:
-        break
     series_data = unpickler[i]
     
     for data in series_data:
@@ -84,6 +82,5 @@ for i in range(len(unpickler)):
                 '''.format(opt.name), (opt.dataroot, int(data['series_number']), int(data['mask_size'].numpy()[0]), int(data['mask_x1'].numpy()[0]), int(data['mask_y1'].numpy()[0]),
                     current_metric['EMD_ridge'], current_metric['EMD_subduction'], current_metric['EMD_mean']))
         results_db.commit()
-        break
 
 results_db.close()
