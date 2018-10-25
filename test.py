@@ -57,7 +57,7 @@ if not opt.no_images:
     # test
 else:
     try:
-        os.mkdir(web_dir)
+        os.makedirs(web_dir)
     except:
         pass
 

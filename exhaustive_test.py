@@ -62,10 +62,14 @@ if table_exists_c.fetchone() == None:
         (dataroot text, series int, mask_size int, mask_x int, mask_y int,
         emd_ridge real, emd_subduction real, emd_mean real)'''.format(opt.name))
 
+if opt.end_index == -1:
+    opt.end_index = opt.start_index + opt.how_many
+print('Testing from {} to {}'.format(opt.start_index, opt.end_index))
 
-for i in range(len(unpickler)):
+for i in range(opt.start_index, opt.end_index):
     series_data = unpickler[i]
-    
+    if i-opt.start_index >= opt.how_many:
+        break
     for data in series_data:
         model.set_input(data)
         for _ in range(opt.test_repeats):
