@@ -84,6 +84,6 @@ for i in range(opt.start_index, opt.end_index):
                 ?, ?, ?)
                 '''.format(opt.name), (opt.dataroot, int(data['series_number']), int(data['mask_size'].numpy()[0]), int(data['mask_x1'].numpy()[0]), int(data['mask_y1'].numpy()[0]),
                     current_metric['EMD_ridge'], current_metric['EMD_subduction'], current_metric['EMD_mean']))
-        results_db.commit()
+            results_db.commit()
 
 results_db.close()
