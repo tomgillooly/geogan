@@ -54,13 +54,13 @@ if os.path.exists(results_file_name):
 
 results_db = sqlite3.connect('geogan_results.db')
 
-results_c = results_db.cursor()
-table_exists_c = results_c.execute('SELECT name FROM sqlite_master WHERE type="table" AND name=?', (opt.name,))
+table_exists_c = results_db.execute('SELECT name FROM sqlite_master WHERE type="table" AND name=?', (opt.name,))
 
 if table_exists_c.fetchone() == None:
     results_c.execute('''CREATE TABLE {} 
         (dataroot text, series int, mask_size int, mask_x int, mask_y int,
         emd_ridge real, emd_subduction real, emd_mean real)'''.format(opt.name))
+table_exists_c.close()
 
 if opt.end_index == -1:
     opt.end_index = opt.start_index + opt.how_many
@@ -79,7 +79,7 @@ for i in range(opt.start_index, opt.end_index):
             with open(results_file_name, 'a') as results_file:
                 results_file.write(', '.join(map(str, current_metric.values())) + '\n')
                 
-            results_c.execute('''INSERT INTO {} VALUES
+            results_db.execute('''INSERT INTO {} VALUES
                 (?, ?, ?, ?, ?,
                 ?, ?, ?)
                 '''.format(opt.name), (opt.dataroot, int(data['series_number']), int(data['mask_size'].numpy()[0]), int(data['mask_x1'].numpy()[0]), int(data['mask_y1'].numpy()[0]),
