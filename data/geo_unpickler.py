@@ -253,15 +253,16 @@ class GeoExhaustiveUnpickler(GeoUnpickler):
 			data.pop(key)
 
 		data['mask_size'] = self.opt.mask_size
+		mask_area = float(data['mask_size'] * data['mask_size'])
 
-		current_mask = make_mask(data['mask_locs'][0], data['A_DIV'].shape, data['mask_size'])
-		mask_locs = [data['mask_locs'][0]]
+		current_mask = np.zeros(data['A_DIV'].shape)
+		mask_locs = []
 
 		for ml in data['mask_locs']:
-			if current_mask[ml] != 0:
+			if current_mask[ml[0]:ml[0]+data['mask_size'], ml[1]:ml[1]+data['mask_size']].sum() / mask_area >= self.opt.mask_overlap_thresh:
 				continue
 
-			current_mask = np.maximum(current_mask, make_mask(ml, data['A_DIV'].shape, data['mask_size']))
+			current_mask += make_mask(ml, current_mask.shape, data['mask_size'])
 			mask_locs.append(ml)
 
 		data.pop('mask_locs')
