@@ -13,12 +13,9 @@ import torch.nn.functional as F
 import numpy as np
 import re
 
-import skimage.io as io
-
 from scipy.spatial.distance import directed_hausdorff, euclidean
 from skimage.filters import roberts
 
-from metrics.hausdorff import get_hausdorff, get_hausdorff_exc
 from metrics.emd import get_emd, visualise_emd
 
 import sys
@@ -26,7 +23,7 @@ import sys
 
 # GAN criterion functions are optionally applied to the results from the discriminator
 def wgan_criterionGAN(loss, real_label):
-    return loss.mean(dim=0, keepdim=True) * (-1 if real_label else 1)
+    return loss * (-1 if real_label else 1)
 
 
 def identity(x):
@@ -130,7 +127,8 @@ class Simplified(BaseModel):
             # Choose post-processing function for discriminator output
             if self.opt.use_hinge:
                 self.criterionGAN = hinge_criterionGAN
-            elif self.opt.which_model_netD == 'wgan-gp': # or self.opt.which_model_netD == 'self-attn':
+            elif self.opt.which_model_netD == 'wgan-gp' or self.opt.which_model_netD == 'self-attn' or self.opt.which_model_netD == 'spec-norm':
+                print('using wgan criterion')
                 self.criterionGAN = wgan_criterionGAN
             else:
                 self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
