@@ -57,7 +57,7 @@ results_db = sqlite3.connect('geogan_results.db')
 table_exists_c = results_db.execute('SELECT name FROM sqlite_master WHERE type="table" AND name=?', (opt.name,))
 
 if table_exists_c.fetchone() == None:
-    results_c.execute('''CREATE TABLE {} 
+    results_db.execute('''CREATE TABLE {} 
         (dataroot text, series int, mask_size int, mask_x int, mask_y int,
         emd_ridge real, emd_subduction real, emd_mean real)'''.format(opt.name))
 table_exists_c.close()

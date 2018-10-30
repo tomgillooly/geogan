@@ -17,5 +17,5 @@ class TestOptions(BaseOptions):
         self.parser.add_argument('--start_index', type=int, default=0, help="Which data series to load first")
         self.parser.add_argument('--end_index', type=int, default=-1, help="Which data series to test up to, default is how_many")
         self.parser.add_argument('--test_repeats', type=int, default=5, help="How many times to test series with same mask location - only used in exhaustive tests")
-        self.parser.add_argument('--mask_overlap_thresh', type=float, default=0.2, help="What percentage masks can overlap by, only used in exhaustive test")
+        self.parser.add_argument('--mask_overlap_thresh', type=float, default=0.3, help="What percentage masks can overlap by, only used in exhaustive test")
         self.isTrain = False
