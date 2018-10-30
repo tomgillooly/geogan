@@ -15,6 +15,9 @@ def create_model(opt):
     elif opt.model == 'div_inline':
         from .div_inline import DivInlineModel
         model = DivInlineModel()
+    elif opt.model == 'simplified':
+        from .simplified import Simplified
+        model = Simplified()
     elif opt.model == 'test':
         assert(opt.dataset_mode == 'single')
         from .test_model import TestModel
