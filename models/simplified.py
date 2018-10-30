@@ -269,7 +269,6 @@ class Simplified(BaseModel):
 
         self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
         
-        self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
         self.real_B_discrete_ROI = self.real_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
 
         self.real_B_out_ROI = self.real_B_DIV_ROI
@@ -319,7 +318,6 @@ class Simplified(BaseModel):
         self.real_B_DIV_ROI = self.real_B_DIV.masked_select(self.loss_mask).view(self.batch_size, 1, *self.im_dims)
 
         self.real_B_discrete_ROI = self.real_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
-        self.fake_B_discrete_ROI = self.fake_B_discrete.masked_select(self.loss_mask.repeat(1, 3, 1, 1)).view(self.batch_size, 3, *self.im_dims)
 
         self.real_B_out_ROI = self.real_B_DIV_ROI
 
@@ -404,8 +402,6 @@ class Simplified(BaseModel):
         ##### BCE Loss
         self.loss_fg_CE = self.criterionBCE(self.fake_B_fg_ROI, self.real_B_fg_ROI.float())
 
-        self.loss_fg_CE = (self.ce_weight_mask.detach() * self.loss_fg_CE).sum(3).sum(2)
-
         self.loss_fg_CE = self.processBCE(self.loss_fg_CE * self.opt.lambda_B + 1e-8) * self.opt.lambda_B2
 
         self.loss_G += self.loss_fg_CE
@@ -470,16 +466,11 @@ class Simplified(BaseModel):
                 ('G_fg_CE', self.loss_fg_CE.data[0])
             ]
 
-        if self.opt.num_discrims  > 0 and self.D_has_run:
-            errors += [
-                ('G_GAN_D', self.loss_G_GAN.data[0]),
-                ('D_real', self.loss_D_real.data[0]),
-                ('D_fake', self.loss_D_fake.data[0])
-            ]
-            if self.opt.which_model_netD == 'wgan-gp' or self.opt.which_model_netD == 'self-attn':
-                if not self.opt.use_hinge:
-                    errors += [('G_grad_pen', self.grad_pen_loss.data[0])]
-
+        errors += [
+            ('G_GAN_D', self.loss_G_GAN.data[0]),
+            ('D_real', self.loss_D_real.data[0]),
+            ('D_fake', self.loss_D_fake.data[0])
+        ]
 
         if self.isTrain and self.opt.num_folders > 1 and self.opt.folder_pred:
             errors.append(('folder_CE', self.folder_pred_CE.data[0]))
