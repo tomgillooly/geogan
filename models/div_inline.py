@@ -13,12 +13,10 @@ import torch.nn.functional as F
 import numpy as np
 import re
 
-import skimage.io as io
 
 from scipy.spatial.distance import directed_hausdorff, euclidean
 from skimage.filters import roberts
 
-from metrics.hausdorff import get_hausdorff, get_hausdorff_exc
 from metrics.emd import get_emd, visualise_emd
 
 import sys
