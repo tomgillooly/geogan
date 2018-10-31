@@ -60,10 +60,12 @@ else:
     except:
         pass
 
-results_file_name = os.path.join(web_dir, opt.name + '_results')
 
-if os.path.exists(results_file_name):
-    os.remove(results_file_name)
+if not opt.images_only:
+    results_file_name = os.path.join(web_dir, opt.name + '_results')
+
+    if os.path.exists(results_file_name):
+        os.remove(results_file_name)
 
 
 img_data = []
@@ -81,8 +83,9 @@ for i, data in enumerate(dataset):
     current_metric = model.get_current_metrics()
     metric_data.append(current_metric)
     
-    with open(results_file_name, 'a') as results_file:
-        results_file.write(', '.join(map(str, current_metric.values())) + '\n')
+    if not opt.images_only:
+        with open(results_file_name, 'a') as results_file:
+            results_file.write(', '.join(map(str, current_metric.values())) + '\n')
     
     
     if not opt.no_images:
