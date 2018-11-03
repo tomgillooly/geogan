@@ -85,7 +85,7 @@ class Simplified(BaseModel):
 
             # Create discriminator
             self.netD = networks.define_D(discrim_input_channels, opt.ndf, opt.which_model_netD, opt.n_layers_D, 
-                opt.norm, use_sigmoid, opt.init_type, self.gpu_ids, critic_im_size=self.critic_im_size)
+                opt.norm, use_sigmoid, opt.init_type, self.gpu_ids, critic_im_size=self.critic_im_size, leaky_param=self.opt.leaky_relu_slope)
             
 
             if len(self.gpu_ids) > 0:
