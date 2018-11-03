@@ -61,6 +61,7 @@ class BaseOptions():
         self.parser.add_argument('--ce_weight_mask', action='store_true', help='Divergence output weighting mask is created using discrete output, rather than foreground - the fg channel will still use fg, thouhg')
         self.parser.add_argument('--no_int_vars', action='store_true', help='Predict discrete map directly from G (instead of divergence)')
         self.parser.add_argument('--local_loss', action='store_true', help='Take loss only inside mask region')
+        self.parser.add_argument('--leaky_relu_slope', type=float, default=0.1, help='Default value for leaky relu slope')
 
         
         continuous_data = self.parser.add_mutually_exclusive_group()
