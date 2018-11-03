@@ -165,6 +165,8 @@ def define_D(input_nc, ndf, which_model_netD,
         netD = NLayerDiscriminator(input_nc, ndf, n_layers=3, norm_layer=norm_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids)
     elif which_model_netD == 'n_layers':
         netD = NLayerDiscriminator(input_nc, ndf, n_layers_D, norm_layer=norm_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids, leaky_param=kwargs['leaky_param'])
+    elif which_model_netD == 'n_layers_no_norm':
+        netD = NLayerDiscriminatorNoNorm(input_nc, ndf, n_layers_D, norm_layer=norm_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids, leaky_param=kwargs['leaky_param'])
     elif which_model_netD == 'pixel':
         netD = PixelDiscriminator(input_nc, ndf, norm_layer=norm_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids)
     elif which_model_netD == 'wgan-gp':
@@ -506,6 +508,60 @@ class NLayerDiscriminator(nn.Module):
 
         if norm_layer:
             sequence += [norm_layer(ndf * nf_mult)]
+
+        sequence += [
+            nn.LeakyReLU(leaky_param, True)
+        ]
+
+        sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]
+
+        if use_sigmoid:
+            sequence += [nn.Sigmoid()]
+
+        self.model = nn.Sequential(*sequence)
+
+    def forward(self, input):
+        if len(self.gpu_ids) and isinstance(input.data, torch.cuda.FloatTensor):
+            out = nn.parallel.data_parallel(self.model, input, self.gpu_ids)
+        else:
+            out = self.model(input)
+
+        # GAP
+        out = out.view(x.shape[0], 1, -1).mean(dim=2)
+
+        return out
+
+class NLayerDiscriminatorNoNorm(nn.Module):
+    def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=None, use_sigmoid=False, gpu_ids=[], leaky_param=0.1):
+        super(NLayerDiscriminator, self).__init__()
+
+        self.gpu_ids = gpu_ids
+        
+        kw = 4
+        padw = 1
+        sequence = [
+            nn.Conv2d(input_nc, ndf, kernel_size=kw, stride=2, padding=padw),
+            nn.LeakyReLU(leaky_param, True)
+        ]
+
+        nf_mult = 1
+        nf_mult_prev = 1
+        for n in range(1, n_layers):
+            nf_mult_prev = nf_mult
+            nf_mult = min(2**n, 8)
+            sequence += [
+                nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
+                          kernel_size=kw, stride=2, padding=padw, bias=True)]
+
+            sequence += [
+                nn.LeakyReLU(leaky_param, True)
+            ]
+
+        nf_mult_prev = nf_mult
+        nf_mult = min(2**n_layers, 8)
+        sequence += [
+            nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
+                      kernel_size=kw, stride=2, padding=padw, bias=True)]
 
         sequence += [
             nn.LeakyReLU(leaky_param, True)
