@@ -569,9 +569,6 @@ class NLayerDiscriminatorNoNorm(nn.Module):
 
         sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]
 
-        if use_sigmoid:
-            sequence += [nn.Sigmoid()]
-
         self.model = nn.Sequential(*sequence)
 
     def forward(self, input):
