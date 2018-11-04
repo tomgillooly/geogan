@@ -533,7 +533,7 @@ class NLayerDiscriminator(nn.Module):
 
 class NLayerDiscriminatorNoNorm(nn.Module):
     def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=None, use_sigmoid=False, gpu_ids=[], leaky_param=0.1):
-        super(NLayerDiscriminator, self).__init__()
+        super(NLayerDiscriminatorNoNorm, self).__init__()
 
         self.gpu_ids = gpu_ids
         
