@@ -567,7 +567,7 @@ class NLayerDiscriminatorNoNorm(nn.Module):
             nn.LeakyReLU(leaky_param, True)
         ]
 
-        sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]
+        sequence += [nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=2, padding=padw)]
 
         self.model = nn.Sequential(*sequence)
 
