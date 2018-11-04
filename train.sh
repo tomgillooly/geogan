@@ -25,7 +25,7 @@ python train.py --x_size 512 \
     --model div_inline --which_direction BtoA \
     --niter 8000 --niter_decay 2000 \
 	--num_discrims 1 \
-	--no_lsgan --norm batch --init_type orthogonal \
+	--norm batch --init_type orthogonal \
 	--local_loss \
 	--input_nc 3 --output_nc 1 \
     --g_lr 0.0004 --d_lr 0.0001 \
