@@ -581,7 +581,7 @@ class NLayerDiscriminatorNoNorm(nn.Module):
             out = self.model(input)
 
         # GAP
-        out = out.view(x.shape[0], 1, -1).mean(dim=2)
+        out = out.view(input.shape[0], 1, -1).mean(dim=2)
 
         return out
 
